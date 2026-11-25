@@ -308,7 +308,7 @@ def _write_network(
             metadata,
             node_modes=node_modes,
             node_mode_ids=arrays.get(
-                "node_mode_ids", bytes(len(arrays["offsets"]) - 1)
+                "node_mode_ids", bytes(len(arrays["node_first_edge_ids"]) - 1)
             ),
             classes=classes,
         ),

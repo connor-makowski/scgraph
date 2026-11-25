@@ -36,6 +36,7 @@ scgraph/
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
   networks.py                    # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
+  network_assembly.py, turn_restrictions.py  # Internal: the graph of a network from the pieces of its ways, for load_from_osm and the pipelines; the nodes that turn restrictions add to a junction
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py, deprecations.py, step_logs.py, array_checks.py  # Distance math, coordinate helpers, has_cpp, the cache directory; internal: deprecation warnings, the log of a step, the checks of a sorted array
@@ -46,13 +47,12 @@ scgraph/
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m
     derived_networks.py          # derive_network_file: some node modes and a bbox of another network file; runs with python -m
     data/                        # Hub tables: ports, airports, flights and rail terminals (data/README.md)
-    steps/                       # step1_osm_ways, step1_osm_range_streamer, step2_hub_connectors, step2_land_mask,
-    │                            #   step3_network_assembly, step4_validation_cases, near_nodes (docstring of __init__.py)
+    steps/                       # step1_osm_ways, step1_osm_range_streamer, step2_hub_connectors, step2_land_mask, step4_validation_cases (docstring of __init__.py)
   helpers/
     geojson.py, visvalingam.py, douglas_peucker.py  # GeoJSON parsing; line simplification (Visvalingam-Whyatt, Douglas-Peucker)
-    polylines.py                 # Polylines to a graph: nodes where they end or meet, edges with their shape
-    osm.py                       # The ways of an OpenStreetMap file to a graph, for load_from_osm and the pipelines
-    components.py                # Strongly connected components; keeps the largest one, for load_from_osm and the pipelines
+    polylines.py, near_nodes.py  # Polylines to a graph: nodes where they end or meet, edges with their shape; the nodes near a point
+    osm.py                       # The ways and the turn restrictions of an OpenStreetMap file, and the pieces of its ways, for load_from_osm and the pipelines
+    components.py                # Strongly connected components, and the choice of the ones to keep, for load_from_osm and the pipelines
     hilbert.py, snap_index.py    # Hilbert-curve order of nodes; snapping index, pure-Python version of cpp/src/snap_index.cpp
     edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum)
   cpp/

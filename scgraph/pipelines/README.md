@@ -106,7 +106,7 @@ Where to read more: `network_builder.py`, function `build_network_file`.
 
 #### 2. Reading and Cutting the Ways
 
-`step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
+`scgraph.helpers.osm.build_way_pieces` reads the extract and keeps the ways that the pipeline
 selects. A **way** is a line of OpenStreetMap: a part of a road, of a railway or of a ferry
 route. A **piece** is the part of a way between two nodes of the network.
 
@@ -135,9 +135,9 @@ The build follows these rules:
 - Each node mode has its own junctions and its own pieces. A road and a railway can share a
   node of OpenStreetMap at a level crossing. The build makes one node for each node mode
   there, so no route goes from a road to a railway at a level crossing.
-- `step1_osm_ways.build_ferry_edges` keeps a vehicle ferry when each end is within 2 km of a
+- `scgraph.helpers.osm.build_ferry_edges` keeps a vehicle ferry when each end is within 2 km of a
   road node. The ferries give 12 edges in this build, one for each direction.
-- `step3_network_assembly.build_graph_from_pieces` stores the pieces of each node mode as a
+- `scgraph.network_assembly.build_graph_from_pieces` stores the pieces of each node mode as a
   graph. Between two nodes, it keeps the shortest edge of each class. Two ferry routes of this
   build join the same two road nodes, so the file has 10 edges of the class `ferry`.
 - A graph holds one edge at most from a node to another. So the function keeps the shortest
@@ -145,8 +145,8 @@ The build follows these rules:
 - For example, a primary road and a shorter motorway join the same two junctions. The function
   splits the primary road. A query by time can then choose between the two roads.
 
-Where to read more: the docstrings at the top of `steps/step1_osm_ways.py` and of
-`steps/step3_network_assembly.py`.
+Where to read more: the docstrings at the top of `scgraph/helpers/osm.py` and of
+`scgraph/network_assembly.py`.
 
 #### 3. Reading the Sea Lanes
 
@@ -194,7 +194,7 @@ Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
 #### 6. Assembling the Graph
 
-`step3_network_assembly.assemble_network` keeps the connected part, contracts the chains and
+`scgraph.network_assembly.assemble_network` keeps the connected part, contracts the chains and
 orders the nodes.
 
 | Step | Nodes | Edges |
@@ -213,10 +213,19 @@ orders the nodes.
   classes. A chain longer than `max_km_between_nodes` keeps nodes along it. In this build, 151
   nodes stay because the class changes there.
 - **Keep the node of a split.** The new node in the middle of a split road (step 2) stays.
+- **Keep a junction with a turn restriction.** Before this step, the pipeline applies the
+  turn restrictions of OpenStreetMap between two kept roads. A junction with a turn
+  restriction then has more than one road node, at the same point
+  (`scgraph/turn_restrictions.py` explains why). Such a junction keeps all its nodes or loses
+  them all, and no chain is contracted through it. The table above comes from the extract of
+  2026-11-18, built without the turn restrictions. The numbers of this item come from another
+  build, on the extract of 2026-11-16. There, the turn restrictions forbid 1,091 turns and
+  add 1,028 nodes to the 66,145 nodes of the joined graph. The network file has 876
+  junctions with more than one node.
 - **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve. Nodes
   that are near on the map are then near in the file, so a search reads nearby memory.
 
-Where to read more: the docstring at the top of `steps/step3_network_assembly.py`.
+Where to read more: the docstring at the top of `scgraph/network_assembly.py`.
 
 #### 7. Writing the Network File
 

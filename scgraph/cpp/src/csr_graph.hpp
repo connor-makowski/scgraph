@@ -15,40 +15,43 @@
 #define SCGRAPH_INLINE inline __attribute__((always_inline))
 #endif
 
-// One edge: `head` is the node it leads to. An aggregate, so that a loop over a row can
+// One edge: `destination_id` is the node it leads to. An aggregate, so that a loop over a row can
 // name both members (`auto [node, distance]`)
 struct Edge {
-    int head;
+    int destination_id;
     double weight;
 };
 
 // The edges of one node, read in place
 class Row {
-    const int32_t* heads_;
+    const int32_t* edge_destination_node_ids_;
     const double* weights_;
     int32_t count_;
 
 public:
-    SCGRAPH_INLINE Row(const int32_t* heads, const double* weights, int32_t count)
-        : heads_(heads), weights_(weights), count_(count) {}
+    SCGRAPH_INLINE Row(const int32_t* edge_destination_node_ids, const double* weights, int32_t count)
+        : edge_destination_node_ids_(edge_destination_node_ids), weights_(weights), count_(count) {}
 
     struct iterator {
-        const int32_t* head;
+        const int32_t* destination_id;
         const double* weight;
-        SCGRAPH_INLINE Edge operator*() const { return {*head, *weight}; }
+        SCGRAPH_INLINE Edge operator*() const { return {*destination_id, *weight}; }
         SCGRAPH_INLINE iterator& operator++() {
-            ++head;
+            ++destination_id;
             ++weight;
             return *this;
         }
-        SCGRAPH_INLINE bool operator!=(const iterator& other) const { return head != other.head; }
+        SCGRAPH_INLINE bool operator!=(const iterator& other) const {
+            return destination_id != other.destination_id;
+        }
     };
 
-    SCGRAPH_INLINE iterator begin() const { return {heads_, weights_}; }
-    SCGRAPH_INLINE iterator end() const { return {heads_ + count_, weights_ + count_}; }
+    SCGRAPH_INLINE iterator begin() const { return {edge_destination_node_ids_, weights_}; }
+    SCGRAPH_INLINE iterator end() const { return {edge_destination_node_ids_ + count_, weights_ + count_}; }
 
-    void append_to(std::vector<int32_t>& to_heads, std::vector<double>& to_weights) const {
-        to_heads.insert(to_heads.end(), heads_, heads_ + count_);
+    void append_to(std::vector<int32_t>& to_edge_destination_node_ids, std::vector<double>& to_weights) const {
+        to_edge_destination_node_ids.insert(to_edge_destination_node_ids.end(), edge_destination_node_ids_,
+                                       edge_destination_node_ids_ + count_);
         to_weights.insert(to_weights.end(), weights_, weights_ + count_);
     }
 
@@ -57,25 +60,26 @@ public:
         std::vector<std::pair<int, double>> edges;
         edges.reserve(count_);
         for (int32_t i = 0; i < count_; ++i) {
-            edges.emplace_back(heads_[i], weights_[i]);
+            edges.emplace_back(edge_destination_node_ids_[i], weights_[i]);
         }
         return edges;
     }
 };
 
 // Edges stored by origin, as in a .scgraph file (compressed sparse rows): the edges of
-// node u are heads_[offsets_[u]] .. heads_[offsets_[u + 1] - 1], with their weights. Read
+// node u are edge_destination_node_ids_[node_first_edge_ids_[u]] ..
+// edge_destination_node_ids_[node_first_edge_ids_[u + 1] - 1], with their weights. Read
 // only: edits go to RowEdits, and the next read packs them into new arrays (GraphUtils).
-// Offsets are 32-bit, as in the file: at most 2^31 - 1 edges. The arrays are owned, or
+// node_first_edge_ids are 32-bit, as in the file: at most 2^31 - 1 edges. The arrays are owned, or
 // borrowed (a mapped file) and kept alive by `owner_`
 class CsrGraph {
     struct Owned {
-        std::vector<int32_t> offsets, heads;
+        std::vector<int32_t> node_first_edge_ids, edge_destination_node_ids;
         std::vector<double> weights;
     };
     std::shared_ptr<const void> owner_;
-    const int32_t* offsets_ = nullptr;
-    const int32_t* heads_ = nullptr;
+    const int32_t* node_first_edge_ids_ = nullptr;
+    const int32_t* edge_destination_node_ids_ = nullptr;
     const double* weights_ = nullptr;
     int node_count_ = 0;
     int64_t edge_count_ = 0;
@@ -84,45 +88,50 @@ public:
     CsrGraph() : CsrGraph(std::vector<int32_t>{0}, {}, {}) {}
 
     // Arrays already checked by the caller
-    CsrGraph(std::vector<int32_t> offsets, std::vector<int32_t> heads, std::vector<double> weights) {
-        auto arrays = std::make_shared<Owned>(Owned{std::move(offsets), std::move(heads), std::move(weights)});
-        *this = CsrGraph(arrays, arrays->offsets.data(), arrays->heads.data(), arrays->weights.data(),
-                         static_cast<int>(arrays->offsets.size()) - 1,
-                         static_cast<int64_t>(arrays->heads.size()));
+    CsrGraph(std::vector<int32_t> node_first_edge_ids, std::vector<int32_t> edge_destination_node_ids,
+             std::vector<double> weights) {
+        auto arrays = std::make_shared<Owned>(
+            Owned{std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)});
+        *this = CsrGraph(arrays, arrays->node_first_edge_ids.data(), arrays->edge_destination_node_ids.data(),
+                         arrays->weights.data(),
+                         static_cast<int>(arrays->node_first_edge_ids.size()) - 1,
+                         static_cast<int64_t>(arrays->edge_destination_node_ids.size()));
     }
 
     // Arrays that `owner` keeps alive (a mapped file, for instance), already checked
-    CsrGraph(std::shared_ptr<const void> owner, const int32_t* offsets, const int32_t* heads,
+    CsrGraph(std::shared_ptr<const void> owner, const int32_t* node_first_edge_ids,
+             const int32_t* edge_destination_node_ids,
              const double* weights, int node_count, int64_t edge_count)
         : owner_(std::move(owner)),
-          offsets_(offsets),
-          heads_(heads),
+          node_first_edge_ids_(node_first_edge_ids),
+          edge_destination_node_ids_(edge_destination_node_ids),
           weights_(weights),
           node_count_(node_count),
           edge_count_(edge_count) {}
 
     explicit CsrGraph(const std::vector<std::vector<std::pair<int, double>>>& rows) {
-        std::vector<int32_t> offsets{0};
-        offsets.reserve(rows.size() + 1);
+        std::vector<int32_t> node_first_edge_ids{0};
+        node_first_edge_ids.reserve(rows.size() + 1);
         size_t total_edges = 0;
         for (const auto& row : rows) {
             total_edges += row.size();
             if (total_edges > INT32_MAX) {
                 throw std::length_error("a graph holds at most 2^31 - 1 edges");
             }
-            offsets.push_back(static_cast<int32_t>(total_edges));
+            node_first_edge_ids.push_back(static_cast<int32_t>(total_edges));
         }
-        std::vector<int32_t> heads;
+        std::vector<int32_t> edge_destination_node_ids;
         std::vector<double> weights;
-        heads.reserve(total_edges);
+        edge_destination_node_ids.reserve(total_edges);
         weights.reserve(total_edges);
         for (const auto& row : rows) {
-            for (const auto& [head, weight] : row) {
-                heads.push_back(head);
+            for (const auto& [destination_id, weight] : row) {
+                edge_destination_node_ids.push_back(destination_id);
                 weights.push_back(weight);
             }
         }
-        *this = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
+        *this = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids),
+                         std::move(weights));
     }
 
     std::vector<std::vector<std::pair<int, double>>> to_rows() const {
@@ -134,15 +143,20 @@ public:
     }
 
     SCGRAPH_INLINE Row operator[](int u) const {
-        return {heads_ + offsets_[u], weights_ + offsets_[u], offsets_[u + 1] - offsets_[u]};
+        return {edge_destination_node_ids_ + node_first_edge_ids_[u], weights_ + node_first_edge_ids_[u],
+                node_first_edge_ids_[u + 1] - node_first_edge_ids_[u]};
     }
 
     int size() const { return node_count_; }
     int64_t edges() const { return edge_count_; }
 
     // The whole arrays, in place
-    std::span<const int32_t> all_offsets() const { return {offsets_, static_cast<size_t>(node_count_) + 1}; }
-    std::span<const int32_t> all_heads() const { return {heads_, static_cast<size_t>(edge_count_)}; }
+    std::span<const int32_t> all_node_first_edge_ids() const {
+        return {node_first_edge_ids_, static_cast<size_t>(node_count_) + 1};
+    }
+    std::span<const int32_t> all_edge_destination_node_ids() const {
+        return {edge_destination_node_ids_, static_cast<size_t>(edge_count_)};
+    }
     std::span<const double> all_weights() const { return {weights_, static_cast<size_t>(edge_count_)}; }
 
     void clear() { *this = CsrGraph(); }
@@ -169,27 +183,28 @@ struct RowEdits {
 
     // The arrays with the edits applied: untouched rows are copied as they are
     CsrGraph apply(const CsrGraph& base) const {
-        std::vector<int32_t> offsets{0}, heads;
+        std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
         std::vector<double> weights;
-        offsets.reserve(node_count + 1);
-        heads.reserve(base.edges());
+        node_first_edge_ids.reserve(node_count + 1);
+        edge_destination_node_ids.reserve(base.edges());
         weights.reserve(base.edges());
         for (int u = 0; u < node_count; ++u) {
             auto edited = rows.find(u);
             if (edited != rows.end()) {
-                for (const auto& [head, weight] : edited->second) {
-                    heads.push_back(head);
+                for (const auto& [destination_id, weight] : edited->second) {
+                    edge_destination_node_ids.push_back(destination_id);
                     weights.push_back(weight);
                 }
             } else if (u < base.size()) {
-                base[u].append_to(heads, weights);
+                base[u].append_to(edge_destination_node_ids, weights);
             }
-            if (heads.size() > INT32_MAX) {
+            if (edge_destination_node_ids.size() > INT32_MAX) {
                 throw std::length_error("a graph holds at most 2^31 - 1 edges");
             }
-            offsets.push_back(static_cast<int32_t>(heads.size()));
+            node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_node_ids.size()));
         }
-        return CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
+        return CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids),
+                        std::move(weights));
     }
 };
 
@@ -208,17 +223,17 @@ public:
     std::vector<std::pair<int, double>>& operator[](int u) { return edits_.at(base_, u); }
 
     // Without copying the row of node u
-    bool has_edge(int u, int head) const {
+    bool has_edge(int u, int destination_id) const {
         auto edited = edits_.rows.find(u);
         if (edited != edits_.rows.end()) {
             for (const auto& edge : edited->second) {
-                if (edge.first == head) return true;
+                if (edge.first == destination_id) return true;
             }
             return false;
         }
         if (u >= base_.size()) return false;
         for (const auto& edge : base_[u]) {
-            if (edge.head == head) return true;
+            if (edge.destination_id == destination_id) return true;
         }
         return false;
     }

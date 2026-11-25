@@ -17,19 +17,20 @@ void add_run(Runs& runs, int64_t first, int64_t last) {
 
 }  // namespace
 
-EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int32_t> heads,
-                         std::span<const uint8_t> node_mode_ids,
-                         const std::vector<bool>& is_node_mode_kept,
-                         std::span<const int32_t> shape_offsets) {
-    const int64_t node_count = (int64_t)offsets.size() - 1;
-    const int64_t edge_count = (int64_t)heads.size();
+EdgeSelection select_edges(std::span<const int32_t> node_first_edge_ids,
+                           std::span<const int32_t> edge_destination_node_ids,
+                           std::span<const uint8_t> node_mode_ids,
+                           const std::vector<bool>& is_node_mode_kept,
+                           std::span<const int32_t> edge_first_shape_point_ids) {
+    const int64_t node_count = (int64_t)node_first_edge_ids.size() - 1;
+    const int64_t edge_count = (int64_t)edge_destination_node_ids.size();
     const size_t mode_count = is_node_mode_kept.size();
-    const bool has_shapes = !shape_offsets.empty();
+    const bool has_shapes = !edge_first_shape_point_ids.empty();
     if (node_count < 0 || (int64_t)node_mode_ids.size() != node_count) {
         throw std::invalid_argument("one node mode per node expected");
     }
-    if (has_shapes && (int64_t)shape_offsets.size() != edge_count + 1) {
-        throw std::invalid_argument("invalid shape offsets");
+    if (has_shapes && (int64_t)edge_first_shape_point_ids.size() != edge_count + 1) {
+        throw std::invalid_argument("invalid edge_first_shape_point_ids");
     }
 
     // 1. Find the nodes of each node mode
@@ -46,7 +47,8 @@ EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int
     // The steps fill local vectors, and the result takes them at the end. Step 3 is slower
     // when it fills the fields of the result directly.
     Runs node_runs, edge_runs, shape_point_runs;
-    std::vector<int32_t> new_offsets, new_heads, new_shape_offsets;
+    std::vector<int32_t> new_node_first_edge_ids, new_edge_destination_node_ids,
+        new_edge_first_shape_point_ids;
 
     // 2. Give their positions to the kept nodes
     std::vector<int64_t> shift(mode_count, 0);
@@ -56,49 +58,59 @@ EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int
     for (size_t mode = 0; mode < mode_count; ++mode) {
         if (!is_node_mode_kept[mode]) continue;
         const int64_t first = first_node[mode], last = first_node[mode + 1];
-        // Step 3 uses the offsets of these nodes as positions in `heads`
-        if (offsets[first] < 0 || offsets[last] > edge_count) throw std::invalid_argument("invalid offsets");
+        // Step 3 uses the first edge ids of these nodes as positions in `edge_destination_node_ids`
+        if (node_first_edge_ids[first] < 0 || node_first_edge_ids[last] > edge_count) {
+            throw std::invalid_argument("invalid node_first_edge_ids");
+        }
         for (int64_t node = first; node < last; ++node) {
-            if (offsets[node] > offsets[node + 1]) throw std::invalid_argument("invalid offsets");
+            if (node_first_edge_ids[node] > node_first_edge_ids[node + 1]) {
+                throw std::invalid_argument("invalid node_first_edge_ids");
+            }
         }
         add_run(node_runs, first, last);
         shift[mode] = kept_nodes - first;
         kept_nodes += last - first;
-        most_edges += offsets[last] - offsets[first];
+        most_edges += node_first_edge_ids[last] - node_first_edge_ids[first];
     }
 
     // 3. Visit the edges of each kept node
-    new_offsets.reserve(kept_nodes + 1);
-    new_offsets.push_back(0);
-    new_heads.reserve(most_edges);
+    new_node_first_edge_ids.reserve(kept_nodes + 1);
+    new_node_first_edge_ids.push_back(0);
+    new_edge_destination_node_ids.reserve(most_edges);
     int64_t kept_shape_points = 0;
     if (has_shapes) {
-        new_shape_offsets.reserve(most_edges + 1);
-        new_shape_offsets.push_back(0);
+        new_edge_first_shape_point_ids.reserve(most_edges + 1);
+        new_edge_first_shape_point_ids.push_back(0);
     }
     for (const auto& [first, last] : node_runs) {
         for (int64_t node = first; node < last; ++node) {
-            for (int64_t edge = offsets[node]; edge < offsets[node + 1]; ++edge) {
-                const int32_t head = heads[edge];
-                if (head < 0 || head >= node_count) throw std::invalid_argument("edge to a missing node");
-                const uint8_t mode = node_mode_ids[head];
+            for (int64_t edge = node_first_edge_ids[node]; edge < node_first_edge_ids[node + 1]; ++edge) {
+                const int32_t destination_id = edge_destination_node_ids[edge];
+                if (destination_id < 0 || destination_id >= node_count) {
+                    throw std::invalid_argument("edge to a missing node");
+                }
+                const uint8_t mode = node_mode_ids[destination_id];
                 if (!is_node_mode_kept[mode]) continue;
-                new_heads.push_back((int32_t)(head + shift[mode]));
+                new_edge_destination_node_ids.push_back((int32_t)(destination_id + shift[mode]));
                 add_run(edge_runs, edge, edge + 1);
                 if (!has_shapes) continue;
-                const int32_t first_point = shape_offsets[edge], last_point = shape_offsets[edge + 1];
-                if (first_point < 0 || first_point > last_point || last_point > shape_offsets[edge_count]) {
-                    throw std::invalid_argument("invalid shape offsets");
+                const int32_t first_point = edge_first_shape_point_ids[edge];
+                const int32_t last_point = edge_first_shape_point_ids[edge + 1];
+                if (first_point < 0 || first_point > last_point ||
+                    last_point > edge_first_shape_point_ids[edge_count]) {
+                    throw std::invalid_argument("invalid edge_first_shape_point_ids");
                 }
                 add_run(shape_point_runs, first_point, last_point);
                 kept_shape_points += last_point - first_point;
-                // The offsets of a damaged file can count a shape point twice
-                if (kept_shape_points > INT32_MAX) throw std::invalid_argument("invalid shape offsets");
-                new_shape_offsets.push_back((int32_t)kept_shape_points);
+                // A damaged file can count a shape point twice in `edge_first_shape_point_ids`
+                if (kept_shape_points > INT32_MAX)
+                    throw std::invalid_argument("invalid edge_first_shape_point_ids");
+                new_edge_first_shape_point_ids.push_back((int32_t)kept_shape_points);
             }
-            new_offsets.push_back((int32_t)new_heads.size());
+            new_node_first_edge_ids.push_back((int32_t)new_edge_destination_node_ids.size());
         }
     }
-    return {std::move(new_offsets), std::move(new_heads), std::move(new_shape_offsets),
+    return {std::move(new_node_first_edge_ids), std::move(new_edge_destination_node_ids),
+            std::move(new_edge_first_shape_point_ids),
             std::move(node_runs), std::move(edge_runs), std::move(shape_point_runs)};
 }

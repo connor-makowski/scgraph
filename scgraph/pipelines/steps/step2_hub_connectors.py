@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.pipelines import CLASS_IDS
-from scgraph.pipelines.steps.near_nodes import NearNodes
-from scgraph.pipelines.steps.step3_network_assembly import (
+from scgraph.helpers.near_nodes import NearNodes
+from scgraph.network_assembly import (
     PieceArrays,
     build_graph_from_pieces,
     find_strongly_connected_components,
@@ -192,7 +192,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 
 class _Network:
     """One network, such as the road network, from the network file's arrays
-    (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
+    (`network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its edges, each with its class.
     """
 
@@ -200,7 +200,10 @@ class _Network:
         points = memoryview(network["node_points"])
         self.latitudes, self.longitudes = points[0::2], points[1::2]
         self.ids = array("q", network["external_node_ids"])
-        self.offsets, self.heads = network["offsets"], network["heads"]
+        self.node_first_edge_ids, self.edge_destination_node_ids = (
+            network["node_first_edge_ids"],
+            network["edge_destination_node_ids"],
+        )
         self.network = network
 
     def __len__(self):
@@ -210,7 +213,9 @@ class _Network:
         """Free the arrays of the network, and keep only its node ids. The function
         empties the dict of arrays that the caller gave.
         """
-        self.latitudes = self.longitudes = self.offsets = self.heads = None
+        self.latitudes = self.longitudes = self.node_first_edge_ids = (
+            self.edge_destination_node_ids
+        ) = None
         self.network.clear()
         self.network = None
 
@@ -223,16 +228,23 @@ class _Network:
         """
         network = self.network
         weights = network["metric_length"]
-        starts, line = network["shape_offsets"], network["shape_points"]
+        starts, line = (
+            network["edge_first_shape_point_ids"],
+            network["shape_points"],
+        )
         edge_class_ids = network["edge_class_ids"]
         for u in range(len(self)):
-            for a in range(self.offsets[u], self.offsets[u + 1]):
+            for a in range(
+                self.node_first_edge_ids[u], self.node_first_edge_ids[u + 1]
+            ):
                 points = line[2 * starts[a] : 2 * starts[a + 1]]
                 shape = [
                     [x * 1e-7, y * 1e-7]
                     for x, y in zip(points[::2], points[1::2])
                 ]
-                yield u, self.heads[a], weights[a], shape, edge_class_ids[a]
+                yield u, self.edge_destination_node_ids[a], weights[
+                    a
+                ], shape, edge_class_ids[a]
 
 
 def join_networks_at_hubs(
@@ -372,7 +384,7 @@ def _build_land_connector(
     """`connect(hub)` -> (node of `layer`, km, shape) or None, by the rule of the module
     docstring for road and rail."""
     labels, sizes = find_strongly_connected_components(
-        layer.offsets, layer.heads
+        layer.node_first_edge_ids, layer.edge_destination_node_ids
     )
     components = array("i", (sizes[label] for label in labels))
     near = NearNodes(layer.latitudes, layer.longitudes, scale=1e-7)

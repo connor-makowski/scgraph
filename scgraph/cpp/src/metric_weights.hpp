@@ -25,9 +25,10 @@
 //
 // WHAT THEY READ
 //   The arrays of the network, in place. The kernels do not copy them.
-//   - `offsets` and `heads` store the edges by origin: the edges of the node u have the ids
-//     offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge of id e goes
-//     to. The id of an edge is its position in `heads`.
+//   - `node_first_edge_ids` and `edge_destination_node_ids` store the edges by origin. The edges of
+//     the node u have the ids node_first_edge_ids[u] to node_first_edge_ids[u + 1] - 1, and
+//     edge_destination_node_ids[e] is the node that the edge of id e goes to. The id of an edge is
+//     its position in `edge_destination_node_ids`.
 //   - `lengths_km` gives the km of each edge.
 //   - `edge_class_ids` gives the "class" of each edge, as the id of the class: its position
 //     in the list of the classes. A class is the category of an edge, such as motorway.
@@ -35,9 +36,10 @@
 //     position in the list of the node modes. The node mode of a node is the kind of place
 //     where the node is: road, port, sea, and so on. A "hub" is a node whose node mode has
 //     a weight in `hub_weights`.
-//   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths_km = [3, 3, 5, 5],
-//   edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2]. The class 0 is the road
-//   connector and the class 1 is the sea connector. The node mode 1 is the port.
+//   Example: node_first_edge_ids = [0, 1, 3, 4], edge_destination_node_ids = [1, 0, 2, 1],
+//   lengths_km = [3, 3, 5, 5], edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2].
+//   The class 0 is the road connector and the class 1 is the sea connector. The node mode 1
+//   is the port.
 //
 // THE WEIGHTS PER KM AND THE HUB WEIGHTS
 //   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
@@ -95,7 +97,7 @@
 //   outside the arrays is read.
 
 std::vector<double> compute_weights_from_km(
-    std::span<const int32_t> offsets, std::span<const int32_t> heads,
+    std::span<const int32_t> node_first_edge_ids, std::span<const int32_t> edge_destination_node_ids,
     std::span<const double> lengths_km,
     std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
     std::span<const double> class_weights_per_km, std::span<const double> hub_weights);

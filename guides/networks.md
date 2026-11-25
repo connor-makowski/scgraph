@@ -272,6 +272,37 @@ A **weight per km** is the weight of 1 km of an edge in a metric. A metric can g
 
 Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each edge has the length of its piece of way, in kilometers. `max_km_between_nodes` cuts a long way into several edges, so that the nodes are closer together.
 
+### Turn Restrictions
+
+A **turn restriction** of OpenStreetMap forbids a turn at a junction, such as `no_left_turn`. It can also give the only turn that is allowed, such as `only_straight_on`. `load_from_osm` reads the turn restrictions of the file, and a route makes none of the forbidden turns:
+
+```py
+# Every street of a city, with nodes about 200 m apart
+from scgraph.helpers.osm import get_way_direction
+
+STREETS = {"motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street",
+           "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"}
+paris = GeoGraph.load_from_osm(
+    "ile-de-france-latest.osm.pbf",
+    select=lambda tags: get_way_direction(tags) if tags.get("highway") in STREETS else None,
+    max_km_between_nodes=0.2,
+)
+# The same streets, where a route may make any turn
+paris_any_turn = GeoGraph.load_from_osm(..., load_turn_restrictions=False)
+```
+
+**What changes in the geograph.** A junction with a turn restriction has more than one node. These nodes have the same point and the same external id, and they follow each other. Every search then runs without a change. On the streets of Paris, Berlin and Greater London, the turn restrictions add 1 to 3 % of nodes.
+
+- The `path` of a result may hold any node of a junction. `geograph.external_node_ids[node_id]` gives the OpenStreetMap id of the junction for each of them.
+- A query point that snaps to a junction is connected to each node of the junction. So a route can end there from any street, and a route that starts there can take any street.
+- The row of `node_modes` has `"has_turn_restrictions": True` for a node mode that follows turn restrictions. `save_as_scgraph` and `save_as_graphjson` keep the turn restrictions. `save_as_geojson` writes the lines of the edges only, so a geograph loaded from a GeoJSON file follows none.
+- The turn restrictions are those of cars. The restrictions that hold for some hours only, or for another kind of vehicle, are not read. The docstring of `scgraph/helpers/osm.py` gives the rules.
+- The pipelines `osm_region_multimodal` and `osm_world_multimodal` follow the turn restrictions too, between the roads that they keep.
+- `add_coord_edge` joins two nodes, and not the other nodes of their junctions.
+- A route may turn back at any node, unless a restriction forbids it there: `no_u_turn`, or an `only_` restriction.
+
+The module [`scgraph/turn_restrictions.py`](https://github.com/connor-makowski/scgraph/blob/main/scgraph/turn_restrictions.py) explains the method, with diagrams.
+
 ### The Pipeline of scgraph 3.6.0 for OpenStreetMap
 
 The paper of scgraph, in its Appendix B.1, refers to an earlier pipeline for its OpenStreetMap networks. This pipeline is not a module of scgraph: it uses osmium-tool, a GeoJSON export, Mapshaper and `load_from_geojson`. It still works:

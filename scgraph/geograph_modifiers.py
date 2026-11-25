@@ -7,6 +7,7 @@ nodes and edges, by id or by coordinates, and that merges another geograph.
 from scgraph.utils import haversine
 from scgraph.deprecations import warn_deprecated_parameter
 from scgraph.node_snapping import LazyEveryNodeSnapIndex
+from scgraph.turn_restrictions import connect_to_nodes_of_junctions
 from scgraph import array_views
 from copy import deepcopy
 from typing import TYPE_CHECKING
@@ -329,12 +330,15 @@ class GeoGraphModifiers:
             if not (lat_lon_bound > 0):
                 raise ValueError("Lat_lon_bound must be greater than 0")
             # Get the distances to all relevant nodes
-            node_dict = self.__get_node_distances__(
-                node=node,
-                circuity=circuity,
-                node_addition_type=node_addition_type,
-                lat_lon_bound=lat_lon_bound,
-                snap_index=LazyEveryNodeSnapIndex(self),
+            node_dict = connect_to_nodes_of_junctions(
+                self,
+                self.__get_node_distances__(
+                    node=node,
+                    circuity=circuity,
+                    node_addition_type=node_addition_type,
+                    lat_lon_bound=lat_lon_bound,
+                    snap_index=LazyEveryNodeSnapIndex(self),
+                ),
             )
         else:
             node_dict = {}

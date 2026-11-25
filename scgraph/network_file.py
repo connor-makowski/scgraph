@@ -12,7 +12,7 @@ A file has these parts, in this order:
    and each array starts at a multiple of 64 bytes.
 
 The edges are stored by origin, in Compressed Sparse Row (CSR) arrays. The edges of
-node `u` go to the nodes `heads[offsets[u]:offsets[u + 1]]`, in the order that a
+node `u` go to the nodes `edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]`, in the order that a
 search visits them. `metric_length` holds the length of each edge at the same
 positions.
 
@@ -68,13 +68,13 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # degree (see `encode_coordinates`).
 # external_node_ids (optional): the id of each node in its source.
 ARRAYS = {
-    "offsets": ("int32",),
-    "heads": ("int32",),
+    "node_first_edge_ids": ("int32",),
+    "edge_destination_node_ids": ("int32",),
     "metric_length": ("float64",),
     "edge_class_ids": ("uint8",),
     "node_points": ("int32", "float64"),
     "external_node_ids": ("int32", "int64"),
-    "shape_offsets": ("int32",),
+    "edge_first_shape_point_ids": ("int32",),
     "shape_points": ("int32", "float64"),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
@@ -252,7 +252,7 @@ def write(
 
     Args:
         filename: The path of the `.scgraph` file to write.
-        arrays: The arrays of the network, by name (`offsets`, `heads`,
+        arrays: The arrays of the network, by name (`node_first_edge_ids`, `edge_destination_node_ids`,
             `metric_length`, `node_points`, ...). `ARRAYS` gives the names and the
             dtypes that a file may hold. The file may also hold one array
             `metric_<name>` for each other metric.
@@ -349,7 +349,7 @@ def read(
 
     Returns:
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
-        (`offsets`, `heads`, `metric_length`, ...), with the array `metric_<name>`
+        (`node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`, ...), with the array `metric_<name>`
         of each other metric. `metadata` holds the metadata of the header, and the
         `content_sha256` of the file. `build_node_mode_ids` gives the node mode of
         each node from the rows of `metadata["node_modes"]`.
@@ -403,7 +403,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         **metadata,
         "format_version": FORMAT_VERSION,
         "nodes": len(arrays["node_points"]) // 2,
-        "edges": len(arrays["heads"]),
+        "edges": len(arrays["edge_destination_node_ids"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
         "external_node_ids": "external_node_ids" in arrays,
@@ -553,24 +553,27 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
     that keeps one run is a slice of the array of the file, not a copy."""
     try:
         (
-            offsets,
-            heads,
-            shape_offsets,
+            node_first_edge_ids,
+            edge_destination_node_ids,
+            edge_first_shape_point_ids,
             node_runs,
             edge_runs,
             shape_point_runs,
         ) = select_edges(
-            arrays["offsets"],
-            arrays["heads"],
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_node_ids"],
             build_node_mode_ids(metadata["node_modes"]),
             is_node_mode_kept,
-            arrays.get("shape_offsets"),
+            arrays.get("edge_first_shape_point_ids"),
         )
     except ValueError as error:
         raise ValueError(f"{filename}: {error}") from error
-    selected = {"offsets": offsets, "heads": heads}
-    if shape_offsets is not None:
-        selected["shape_offsets"] = shape_offsets
+    selected = {
+        "node_first_edge_ids": node_first_edge_ids,
+        "edge_destination_node_ids": edge_destination_node_ids,
+    }
+    if edge_first_shape_point_ids is not None:
+        selected["edge_first_shape_point_ids"] = edge_first_shape_point_ids
     # Each other array, the runs that it follows, and its values per position
     for name, runs, width in (
         *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
@@ -616,15 +619,26 @@ def _check(filename, arrays, metadata, should_check_values=True):
         if not condition:
             raise ValueError(f"{filename}: {what}")
 
-    required = {"offsets", "heads", "metric_length", "node_points"}
+    required = {
+        "node_first_edge_ids",
+        "edge_destination_node_ids",
+        "metric_length",
+        "node_points",
+    }
     require(required <= set(arrays), "missing arrays")
     require(
-        ("shape_offsets" in arrays) == ("shape_points" in arrays),
+        ("edge_first_shape_point_ids" in arrays) == ("shape_points" in arrays),
         "missing shape arrays",
     )
-    offsets, heads = arrays["offsets"], arrays["heads"]
-    n, m = len(offsets) - 1, len(heads)
-    require(n >= 0 and offsets[0] == 0 and offsets[-1] == m, "invalid offsets")
+    node_first_edge_ids, edge_destination_node_ids = (
+        arrays["node_first_edge_ids"],
+        arrays["edge_destination_node_ids"],
+    )
+    n, m = len(node_first_edge_ids) - 1, len(edge_destination_node_ids)
+    require(
+        n >= 0 and node_first_edge_ids[0] == 0 and node_first_edge_ids[-1] == m,
+        "invalid node_first_edge_ids",
+    )
     # Each metric has its info in the header and one array of weights
     metrics = metadata["metrics"]
     require(
@@ -647,9 +661,13 @@ def _check(filename, arrays, metadata, should_check_values=True):
     )
     if should_check_values:
         # The loops over the edges run in C (map, min, max), not in Python
-        require(is_sorted(offsets), "invalid offsets")
+        require(is_sorted(node_first_edge_ids), "invalid node_first_edge_ids")
         require(
-            not m or (min(heads) >= 0 and max(heads) < n),
+            not m
+            or (
+                min(edge_destination_node_ids) >= 0
+                and max(edge_destination_node_ids) < n
+            ),
             "edge to a missing node",
         )
     require(len(arrays["node_points"]) == 2 * n, "one point per node expected")
@@ -664,18 +682,18 @@ def _check(filename, arrays, metadata, should_check_values=True):
         == 1,
         "coordinates of two dtypes",
     )
-    if "shape_offsets" in arrays:
-        shapes = arrays["shape_offsets"]
+    if "edge_first_shape_point_ids" in arrays:
+        shapes = arrays["edge_first_shape_point_ids"]
         require(
             len(shapes) == m + 1
             and shapes[0] == 0
             and shapes[-1] == len(arrays["shape_points"]) // 2,
-            "invalid shape offsets",
+            "invalid edge_first_shape_point_ids",
         )
-        # Mapped, each shape's offsets are checked where it is read (`scgraph.array_views.EdgeShapes`)
+        # Mapped, each shape's node_first_edge_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(
             not should_check_values or is_sorted(shapes),
-            "invalid shape offsets",
+            "invalid edge_first_shape_point_ids",
         )
     require(
         "external_node_ids" not in arrays

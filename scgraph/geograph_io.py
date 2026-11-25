@@ -13,6 +13,7 @@ from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
+from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, built_in_geographs, network_file
 import json
 import os
@@ -84,6 +85,7 @@ class GeoGraphIO:
 
         - Save the current geograph object as a geojson file specifed by `filename`
         - This is useful for understanding the underlying geograph and for debugging purposes
+        - The file holds the lines of the edges only: a geograph loaded from it follows no turn restriction
         - Returns None
 
         Required Arguments:
@@ -164,6 +166,7 @@ class GeoGraphIO:
         - Save the current geograph as a JSON file that can be used to recreate the geograph later
         - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
         - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
+        - A geograph that follows turn restrictions is also saved with its `external_node_ids`, `node_mode_ids` and `node_modes`. A geograph loaded from the file then follows the turn restrictions too
 
         Required Arguments:
 
@@ -197,6 +200,13 @@ class GeoGraphIO:
             extra_kwargs["intermediate_nodes"] = [
                 dict(row) for row in self.intermediate_nodes
             ]
+        if has_turn_restrictions(self):
+            # A load finds the nodes of a junction with these three values
+            # (`scgraph/turn_restrictions.py`). Another geograph is written
+            # without them, as release 3.6.0 writes it.
+            extra_kwargs["external_node_ids"] = list(self.external_node_ids)
+            extra_kwargs["node_mode_ids"] = list(self._read_node_mode_ids())
+            extra_kwargs["node_modes"] = self.node_modes
         with open(filename, "w") as f:
             json.dump(
                 {
@@ -278,7 +288,9 @@ class GeoGraphIO:
         # and without metrics does not read the arrays of its edges here.
         classes, edge_value_arrays = None, {}
         if self.classes or self._read_metrics():
-            geograph_offsets = self._read_edge_arrays(check_edge_count=True)[0]
+            geograph_node_first_edge_ids = self._read_edge_arrays(
+                check_edge_count=True
+            )[0]
             edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is not None:
                 classes = self.classes
@@ -317,15 +329,19 @@ class GeoGraphIO:
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
-        offsets, heads, weights = self.graph_object.get_edge_arrays(order)
+        node_first_edge_ids, edge_destination_node_ids, weights = (
+            self.graph_object.get_edge_arrays(order)
+        )
         if order is not None and edge_value_arrays:
             edge_value_arrays = {
-                name: _reorder_edge_values(edge_values, geograph_offsets, order)
+                name: _reorder_edge_values(
+                    edge_values, geograph_node_first_edge_ids, order
+                )
                 for name, edge_values in edge_value_arrays.items()
             }
         arrays = {
-            "offsets": offsets,
-            "heads": heads,
+            "node_first_edge_ids": node_first_edge_ids,
+            "edge_destination_node_ids": edge_destination_node_ids,
             "metric_length": weights,
             **edge_value_arrays,
         }
@@ -349,18 +365,20 @@ class GeoGraphIO:
             for new, origin in enumerate(old):
                 # Nodes added after loading (add_coord_node, merges) have no shapes
                 row = shapes[origin] if origin < len(shapes) else {}
-                for edge in range(offsets[new], offsets[new + 1]):
-                    head = old[heads[edge]]
-                    for latitude, longitude in row.get(head, ()):
+                for edge in range(
+                    node_first_edge_ids[new], node_first_edge_ids[new + 1]
+                ):
+                    destination_id = old[edge_destination_node_ids[edge]]
+                    for latitude, longitude in row.get(destination_id, ()):
                         if not (isfinite(latitude) and isfinite(longitude)):
                             raise ValueError(
-                                f"The shape of edge {origin} -> {head} has a point "
+                                f"The shape of edge {origin} -> {destination_id} has a point "
                                 "that is not a finite number"
                             )
                         points.append(latitude)
                         points.append(longitude)
                     starts.append(len(points) // 2)
-            arrays["shape_offsets"] = starts
+            arrays["edge_first_shape_point_ids"] = starts
         point_arrays = [node_points] + ([points] if shapes is not None else [])
         if coordinate_dtype == "auto":
             coordinate_dtype = self.coordinate_dtype
@@ -516,6 +534,7 @@ class GeoGraphIO:
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        load_turn_restrictions: bool = True,
     ) -> "GeoGraph":
         """
         Function:
@@ -524,18 +543,22 @@ class GeoGraphIO:
         - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
         - Each edge has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
+        - One edge at most goes from a node to another. Of two ways of one class between the same two nodes, the shortest is kept. A longer way of another class is kept too, with one more node at its middle: this node has an id below zero in `external_node_ids`
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `external_node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
+        - A route makes no turn that a turn restriction of the file forbids, for cars (`load_turn_restrictions`)
+        - Some junctions then have more than one node, with the same point and the same external id. `scgraph/turn_restrictions.py` explains these nodes
+        - Conditional turn restrictions, and the turn restrictions of other vehicles, are not read
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
-        - Not the graph of the `osm_region_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - The load builds its graph with `scgraph.helpers.osm` and `scgraph.network_assembly`, as the OpenStreetMap pipelines do, on one node mode: it reads and cuts the ways, builds the graph, keeps the largest component and orders the nodes. It neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
 
         - `filename`
             - Type: str | os.PathLike | source object
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.step1_osm_ways.locate_ways` takes
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.helpers.osm.locate_ways` takes
 
         Optional Arguments:
 
@@ -543,7 +566,7 @@ class GeoGraphIO:
             - Type: Callable (tags -> int | tuple[int, str] | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out. In place of the direction, it may give a pair: the direction and the class of the way, a name of `scgraph.pipelines.CLASSES`
             - Default: None: `scgraph.helpers.osm.select_main_roads_with_class` (motorway to primary and their links, each with its `highway` value as its class, one way where `scgraph.helpers.osm.get_way_direction(tags)` returns 1 or -1)
-            - Note: When `select` gives a direction alone for every way, the geograph has no classes. An edge of a way without a class has no class
+            - Note: When `select` gives a direction alone for every way, the geograph has no classes. `select` gives a class to every way that it keeps, or to none
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -572,11 +595,17 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
             - Default: False
+        - `load_turn_restrictions`
+            - Type: bool
+            - What: Whether to read the turn restrictions of the file (the relations with `type=restriction`): a route then makes no turn that one of them forbids, for cars; if False, a route may make any turn
+            - Default: True
+            - Note: Some junctions then have more than one node, with the same point and the same external id (`scgraph/turn_restrictions.py`)
+            - Note: The turn restrictions are read in one more pass over the file
 
         Raises:
 
         - `ImportError` if the optional dependency `osmium` is not installed
-        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0, a pair of one of them and a name of `scgraph.pipelines.CLASSES`, or None (`True` and `False` included)
+        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0, a pair of one of them and a name of `scgraph.pipelines.CLASSES`, or None (`True` and `False` included), or if `select` gives a class to some of the kept ways only
         """
         from scgraph.geograph import GeoGraph, LazyGeoGraph
 
@@ -591,55 +620,83 @@ class GeoGraphIO:
                     load_intermediate_nodes=load_intermediate_nodes,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    load_turn_restrictions=load_turn_restrictions,
                 )
             )
-        from scgraph.helpers.components import (
-            keep_largest_strongly_connected_component,
-        )
+        from scgraph import network_assembly
         from scgraph.helpers.osm import (
             MAX_KM_BETWEEN_NODES,
-            read_osm,
+            build_way_pieces,
             select_main_roads_with_class,
         )
+        from scgraph.helpers.osm import (
+            list_forbidden_turns,
+            read_turn_restrictions,
+        )
 
-        graph, nodes, shapes, ids, edge_class_names = read_osm(
+        # The functions that the OpenStreetMap pipelines build their graph with,
+        # without the hubs and without the contraction of the chains. The shapes
+        # are kept as they are.
+        pieces = build_way_pieces(
             filename,
-            select or select_main_roads_with_class,
+            {"ways": {"ways": select or select_main_roads_with_class}},
             tag_keys,
             (
                 MAX_KM_BETWEEN_NODES
                 if max_km_between_nodes is None
                 else max_km_between_nodes
             ),
-            CLASSES,
-        )
-        if not nodes:
+            optional_modes=("ways",),
+            shape_tolerance_meters=None,
+        )["ways"]
+        if not len(pieces.km):
             raise ValueError(
                 f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
             )
+        arrays = network_assembly.build_graph_from_pieces(pieces)
+        forbidden_turns = (
+            list_forbidden_turns(arrays, read_turn_restrictions(filename))
+            if load_turn_restrictions
+            else []
+        )
+        # Only `list_forbidden_turns` reads the way of an edge
+        arrays.pop("edge_way_ids", None)
+        arrays = network_assembly.forbid_turns(arrays, forbidden_turns)
         if largest_component:
-            graph, nodes, shapes, ids, edge_class_names = (
-                keep_largest_strongly_connected_component(
-                    graph, nodes, shapes, ids, edge_class_names
-                )
-            )
-        class_arguments = {}
-        if any(edge_class_names):
+            arrays = network_assembly.keep_components(arrays, None)
+        arrays = network_assembly.order_nodes(arrays)
+        edge_arrays = (
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_node_ids"],
+            arrays["metric_length"],
+        )
+        # The arrays are the edges of the new graph, in the same order
+        geograph = GeoGraph._build_from_edge_arrays(
+            edge_arrays,
+            arrays.get("edge_class_ids"),
+            graph=Graph.from_edge_arrays(*edge_arrays, copy=False),
+            nodes=array_views.NodePoints(arrays["node_points"]),
+            intermediate_nodes=(
+                array_views.EdgeShapes(arrays)
+                if load_intermediate_nodes
+                else None
+            ),
+            external_node_ids=arrays["external_node_ids"],
+            coordinate_dtype="int32",  # OSM's own: 1e-7 degree
             # The geograph gets every class of `CLASSES`, as a file of a pipeline.
-            class_arguments = {
-                "classes": [
+            classes=(
+                [
                     {"name": name, "edge_mode": edge_mode}
                     for name, edge_mode in CLASSES.items()
-                ],
-                "edge_classes": edge_class_names,
-            }
-        geograph = GeoGraph(
-            graph=graph,
-            nodes=nodes,
-            intermediate_nodes=shapes if load_intermediate_nodes else None,
-            external_node_ids=ids,
-            coordinate_dtype="int32",  # OSM's own: 1e-7 degree
-            **class_arguments,
+                ]
+                if "edge_class_ids" in arrays
+                else None
+            ),
+            node_modes=(
+                [{"name": None, "has_turn_restrictions": True}]
+                if load_turn_restrictions
+                else None
+            ),
         )
         geograph.reduce(reduce_iterations)
         return geograph
@@ -820,10 +877,10 @@ class GeoGraphIO:
         ) as values:
             arrays, metadata = network_file.read(filename, mapped, node_modes)
             values["nodes"] = len(arrays["node_points"]) // 2
-            values["edges"] = len(arrays["heads"])
+            values["edges"] = len(arrays["edge_destination_node_ids"])
         edge_arrays = (
-            arrays["offsets"],
-            arrays["heads"],
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_node_ids"],
             arrays["metric_length"],
         )
         try:
@@ -848,7 +905,7 @@ class GeoGraphIO:
             nodes=array_views.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
                 array_views.EdgeShapes(arrays)
-                if "shape_offsets" in arrays
+                if "edge_first_shape_point_ids" in arrays
                 else None
             ),
             geograph_units=metadata["metrics"][0]["unit"],
@@ -1449,11 +1506,14 @@ class GeoGraphIO:
         # weights of a metric. The attributes of each edge, by edge id:
         graph_object = Graph(graph)
         edge_arrays = graph_object.get_edge_arrays()
-        offsets, heads, _ = edge_arrays
+        node_first_edge_ids, edge_destination_node_ids, _ = edge_arrays
         edge_attributes = [
-            attributes_of_origin[heads[edge_id]]
+            attributes_of_origin[edge_destination_node_ids[edge_id]]
             for origin_id, attributes_of_origin in enumerate(kept_attributes)
-            for edge_id in range(offsets[origin_id], offsets[origin_id + 1])
+            for edge_id in range(
+                node_first_edge_ids[origin_id],
+                node_first_edge_ids[origin_id + 1],
+            )
         ]
         if all("travel_time" in data for data in edge_attributes):
             travel_time = Metric(
@@ -1680,21 +1740,24 @@ class GeoGraphIO:
 
 def _reorder_edge_values(
     edge_values: array | memoryview,
-    offsets: array | memoryview,
+    node_first_edge_ids: array | memoryview,
     order: list[int],
 ) -> array:
     """Return the values of the edges in the order of a graph with reordered nodes.
 
     Args:
         edge_values: An array by edge id: one value for each edge, at its id.
-        offsets: The id of the first edge of each node, before the new order.
+        node_first_edge_ids: The id of the first edge of each node, before the new order.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
             order of its edges, as `Graph.get_edge_arrays(order)` does.
     """
     edge_values = memoryview(edge_values)
     reordered_edge_values = array(edge_values.format)
     for origin_id in order:
-        first, last = offsets[origin_id], offsets[origin_id + 1]
+        first, last = (
+            node_first_edge_ids[origin_id],
+            node_first_edge_ids[origin_id + 1],
+        )
         reordered_edge_values.frombytes(edge_values[first:last].cast("B"))
     return reordered_edge_values
 
@@ -1756,7 +1819,10 @@ def renumber_in_hilbert_order(geograph):
         # Renumbered dicts, sharing the graph's weight objects (from_edge_arrays would not)
         rows = geograph.graph_object.unreduced_graph
         graph = [
-            {new_id[head]: weight for head, weight in rows[old].items()}
+            {
+                new_id[destination_id]: weight
+                for destination_id, weight in rows[old].items()
+            }
             for old in order
         ]
     shapes = geograph.intermediate_nodes
@@ -1768,7 +1834,10 @@ def renumber_in_hilbert_order(geograph):
             if shapes is None
             else [
                 (
-                    {new_id[head]: shape for head, shape in shapes[old].items()}
+                    {
+                        new_id[destination_id]: shape
+                        for destination_id, shape in shapes[old].items()
+                    }
                     if old < len(shapes)
                     else {}
                 )

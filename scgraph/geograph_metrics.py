@@ -167,7 +167,9 @@ class GeoGraphMetrics:
             off_graph_weight_per_km=off_graph_weight_per_km,
             edge_weights=edge_weights,
         )
-        offsets, heads, _ = self._read_edge_arrays(check_edge_count=True)
+        node_first_edge_ids, edge_destination_node_ids, _ = (
+            self._read_edge_arrays(check_edge_count=True)
+        )
         if edge_weight_fn is None:
             weights, off_graph_weight_per_km = self._compute_metric_weights(
                 weight_per_km,
@@ -181,7 +183,10 @@ class GeoGraphMetrics:
             )
         if edge_weights:
             weights = copy_with_edge_weights(
-                weights, edge_weights, offsets, heads
+                weights,
+                edge_weights,
+                node_first_edge_ids,
+                edge_destination_node_ids,
             )
         # The metric is kept when every check has passed
         self._metrics[name] = Metric(
@@ -277,7 +282,9 @@ class GeoGraphMetrics:
         an off-graph leg, for a metric by `weight_per_km` (with
         `class_weight_per_km` and `weight_at_hub`) or by `weighted_sum_of`.
         `create_metric` has checked the arguments and the count of the edges."""
-        offsets, heads, lengths = self._read_edge_arrays()
+        node_first_edge_ids, edge_destination_node_ids, lengths = (
+            self._read_edge_arrays()
+        )
         if weighted_sum_of is not None:
             length = replace(self._read_metric("length"), weights=lengths)
             return compute_weights_from_weighted_sum(
@@ -288,7 +295,9 @@ class GeoGraphMetrics:
             # No edge has a class: `weight_per_km` is one weight per km for
             # every edge
             edge_class_ids = array(
-                "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
+                "B",
+                bytes([network_file.NO_CLASS_ID])
+                * len(edge_destination_node_ids),
             )
         class_weights_per_km, hub_weights, off_graph_weight_per_km = (
             resolve_weights_per_km(
@@ -301,8 +310,8 @@ class GeoGraphMetrics:
             )
         )
         weights = compute_weights_from_km(
-            offsets,
-            heads,
+            node_first_edge_ids,
+            edge_destination_node_ids,
             lengths,
             edge_class_ids,
             self._read_node_mode_ids(),
@@ -341,10 +350,15 @@ class GeoGraphMetrics:
             metric = self.default_metric
         metric_record = self._read_metric(metric)
         if metric_record.graph_object is None:
-            offsets, heads, _ = self._read_edge_arrays()
+            node_first_edge_ids, edge_destination_node_ids, _ = (
+                self._read_edge_arrays()
+            )
             # The graph reads the three arrays in place and keeps them alive
             graph = Graph.from_edge_arrays(
-                offsets, heads, metric_record.weights, copy=False
+                node_first_edge_ids,
+                edge_destination_node_ids,
+                metric_record.weights,
+                copy=False,
             )
             if self.graph_object.is_reduced is not None:
                 graph.reduce(
