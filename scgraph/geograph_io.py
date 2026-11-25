@@ -532,18 +532,19 @@ class GeoGraphIO:
         - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
         - Each edge has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
+        - One edge at most goes from a node to another. Of two ways of one class between the same two nodes, the shortest is kept. A longer way of another class is kept too, with one more node at its middle: this node has an id below zero in `external_node_ids`
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `external_node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
-        - Not the graph of the `osm_region_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - The load builds its graph with `scgraph.helpers.osm` and `scgraph.network_assembly`, as the OpenStreetMap pipelines do, on one node mode: it reads and cuts the ways, builds the graph, keeps the largest component and orders the nodes. It neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
 
         - `filename`
             - Type: str | os.PathLike | source object
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.step1_osm_ways.locate_ways` takes
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.helpers.osm.locate_ways` takes
 
         Optional Arguments:
 
@@ -551,7 +552,7 @@ class GeoGraphIO:
             - Type: Callable (tags -> int | tuple[int, str] | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out. In place of the direction, it may give a pair: the direction and the class of the way, a name of `scgraph.pipelines.CLASSES`
             - Default: None: `scgraph.helpers.osm.select_main_roads_with_class` (motorway to primary and their links, each with its `highway` value as its class, one way where `scgraph.helpers.osm.get_way_direction(tags)` returns 1 or -1)
-            - Note: When `select` gives a direction alone for every way, the geograph has no classes. An edge of a way without a class has no class
+            - Note: When `select` gives a direction alone for every way, the geograph has no classes. `select` gives a class to every way that it keeps, or to none
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -584,7 +585,7 @@ class GeoGraphIO:
         Raises:
 
         - `ImportError` if the optional dependency `osmium` is not installed
-        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0, a pair of one of them and a name of `scgraph.pipelines.CLASSES`, or None (`True` and `False` included)
+        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0, a pair of one of them and a name of `scgraph.pipelines.CLASSES`, or None (`True` and `False` included), or if `select` gives a class to some of the kept ways only
         """
         from scgraph.geograph import GeoGraph, LazyGeoGraph
 
@@ -601,53 +602,63 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.helpers.components import (
-            keep_largest_strongly_connected_component,
-        )
+        from scgraph import network_assembly
         from scgraph.helpers.osm import (
             MAX_KM_BETWEEN_NODES,
-            read_osm,
+            build_way_pieces,
             select_main_roads_with_class,
         )
 
-        graph, nodes, shapes, ids, edge_class_names = read_osm(
+        # The functions that the OpenStreetMap pipelines build their graph with,
+        # without the hubs and without the contraction of the chains. The shapes
+        # are kept as they are.
+        pieces = build_way_pieces(
             filename,
-            select or select_main_roads_with_class,
+            {"ways": {"ways": select or select_main_roads_with_class}},
             tag_keys,
             (
                 MAX_KM_BETWEEN_NODES
                 if max_km_between_nodes is None
                 else max_km_between_nodes
             ),
-            CLASSES,
-        )
-        if not nodes:
+            optional_modes=("ways",),
+            shape_tolerance_meters=None,
+        )["ways"]
+        if not len(pieces.km):
             raise ValueError(
                 f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
             )
+        arrays = network_assembly.build_graph_from_pieces(pieces)
         if largest_component:
-            graph, nodes, shapes, ids, edge_class_names = (
-                keep_largest_strongly_connected_component(
-                    graph, nodes, shapes, ids, edge_class_names
-                )
-            )
-        class_arguments = {}
-        if any(edge_class_names):
+            arrays = network_assembly.keep_components(arrays, None)
+        arrays = network_assembly.order_nodes(arrays)
+        edge_arrays = (
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_node_ids"],
+            arrays["metric_length"],
+        )
+        # The arrays are the edges of the new graph, in the same order
+        geograph = GeoGraph._build_from_edge_arrays(
+            edge_arrays,
+            arrays.get("edge_class_ids"),
+            graph=Graph.from_edge_arrays(*edge_arrays, copy=False),
+            nodes=array_views.NodePoints(arrays["node_points"]),
+            intermediate_nodes=(
+                array_views.EdgeShapes(arrays)
+                if load_intermediate_nodes
+                else None
+            ),
+            external_node_ids=arrays["external_node_ids"],
+            coordinate_dtype="int32",  # OSM's own: 1e-7 degree
             # The geograph gets every class of `CLASSES`, as a file of a pipeline.
-            class_arguments = {
-                "classes": [
+            classes=(
+                [
                     {"name": name, "edge_mode": edge_mode}
                     for name, edge_mode in CLASSES.items()
-                ],
-                "edge_classes": edge_class_names,
-            }
-        geograph = GeoGraph(
-            graph=graph,
-            nodes=nodes,
-            intermediate_nodes=shapes if load_intermediate_nodes else None,
-            external_node_ids=ids,
-            coordinate_dtype="int32",  # OSM's own: 1e-7 degree
-            **class_arguments,
+                ]
+                if "edge_class_ids" in arrays
+                else None
+            ),
         )
         geograph.reduce(reduce_iterations)
         return geograph

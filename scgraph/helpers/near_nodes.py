@@ -1,7 +1,7 @@
 """A small index of the nodes of a network by their position.
 
-A build asks "which nodes are near this point?" in two places. `step1_osm_ways` joins
-each end of a ferry to the closest road node. `step2_hub_connectors` joins a hub to a
+A build asks "which nodes are near this point?" in two places. `scgraph.helpers.osm`
+joins each end of a ferry to the closest road node. `step2_hub_connectors` joins a hub to a
 node of a road or of a railway. `NearNodes` answers without one Python object per
 node, so it also serves the network of the world.
 """

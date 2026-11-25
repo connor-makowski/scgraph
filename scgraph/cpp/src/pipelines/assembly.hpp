@@ -9,7 +9,7 @@
 
 // Functions that assemble a network file from raw edges, for a network too large for
 // Python (the roads of the planet). Read the header of
-// scgraph/pipelines/steps/step3_network_assembly.py first: it explains the algorithms,
+// scgraph/network_assembly.py first: it explains the algorithms,
 // and the docstrings of the Python functions give the inputs and the results. Each
 // function here gives the same results as its pure-Python version.
 namespace assembly {

@@ -1,11 +1,10 @@
-"""Find the strongly connected components of a graph, and keep the largest one.
+"""Find the strongly connected components of a graph, and choose the ones to keep.
 
 In a strongly connected component, every node can reach every other node along the
-edges. `GeoGraph.load_from_osm` keeps the largest component of the graph that it reads.
-The pipelines call these functions through `scgraph.pipelines.steps.step3_network_assembly`.
+edges. `GeoGraph.load_from_osm` and the pipelines call these functions through
+`scgraph.network_assembly`.
 
-`build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take
-the layout of a GeoGraph, for `load_from_osm`.
+`build_csr_from_adjacency_list` takes a graph in the layout of a GeoGraph.
 
 `find_strongly_connected_components` has a C++ version
 (`cpp/src/pipelines/assembly.hpp`). The function calls the C++ version when the
@@ -182,37 +181,3 @@ def keep_strongly_connected_components(
     else:
         wanted = [size >= min_component_nodes for size in sizes]
     return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
-
-
-def keep_largest_strongly_connected_component(
-    graph: list[dict[int, int | float]],
-    nodes: list[list[float]],
-    shapes: list[dict[int, list[list[float]]]],
-    external_node_ids: list[int],
-    edge_class_names: list[dict[int, str]],
-) -> tuple[
-    list[dict[int, int | float]],
-    list[list[float]],
-    list[dict[int, list[list[float]]]],
-    list[int],
-    list[dict[int, str]],
-]:
-    """Keep the largest strongly connected component of a graph in the layout of a
-    GeoGraph. Return `(graph, nodes, shapes, external_node_ids, edge_class_names)` with
-    the kept nodes only.
-    """
-    kept, _ = keep_strongly_connected_components(
-        *build_csr_from_adjacency_list(graph)[:2]
-    )
-    index = {old: new for new, old in enumerate(kept)}
-
-    def row(values):
-        return {index[v]: x for v, x in values.items() if v in index}
-
-    return (
-        [row(graph[u]) for u in kept],
-        [nodes[u] for u in kept],
-        [row(shapes[u]) for u in kept],
-        [external_node_ids[u] for u in kept],
-        [row(edge_class_names[u]) for u in kept],
-    )

@@ -2,8 +2,8 @@
 
 WHAT IT ANSWERS
 
-`build_graph_from_pieces` turns the pieces that `step1_osm_ways` cut (`PieceArrays`) into a
-graph. `assemble_network` turns this graph into the arrays of a network file. A route between
+`build_graph_from_pieces` turns the pieces that `scgraph.helpers.osm.build_way_pieces`
+cut (`PieceArrays`) into a graph. `assemble_network` turns this graph into the arrays of a network file. A route between
 two nodes of the same kept component has the same length before and after `assemble_network`.
 
 HOW A GRAPH IS STORED
@@ -114,11 +114,10 @@ THE C++ VERSION
 network of the planet needs. The functions of this module call it when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
 give the same results. The namespace `python` of this module gives them, for example
-`step3_network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
+`network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
 version returns `array`s.
 
-`scgraph.helpers.components` holds the functions of strongly connected components, and
-those that take the layout of a GeoGraph.
+`scgraph.helpers.components` holds the functions of strongly connected components.
 """
 
 import logging
@@ -150,7 +149,6 @@ from scgraph.helpers.components import (
     build_csr_from_adjacency_list,
     find_strongly_connected_components as find_strongly_connected_components,
     find_strongly_connected_components_python,
-    keep_largest_strongly_connected_component as keep_largest_strongly_connected_component,
     keep_strongly_connected_components,
 )
 from scgraph.helpers.douglas_peucker import (
@@ -162,7 +160,8 @@ from scgraph.utils import haversine
 from scgraph.array_checks import is_sorted_from_zero
 from scgraph.step_logs import log_step
 
-logger = logging.getLogger(__name__)
+# The steps of a build log under one logger name, wherever their module is.
+logger = logging.getLogger("scgraph.pipelines")
 
 
 def build_csr_from_edges_python(
@@ -756,7 +755,7 @@ def build_graph_from_pieces(
     (*How a run goes*, step 1, and *How a piece is split*).
 
     Args:
-        pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
+        pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
         The graph as a dict of arrays: `node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`,
@@ -851,10 +850,9 @@ def assemble_network(
     """Turn a graph into the arrays of a network file.
 
     The function runs steps 2 to 5 of the module docstring. It keeps the strongly
-    connected components, contracts the chains, joins the shapes of the contracted
-    edges, and numbers the nodes by node mode, then along the Hilbert curve.
-    `GeoGraph.save_as_scgraph` uses the same order. The first two steps log their counts
-    at DEBUG.
+    connected components (`keep_components`), contracts the chains, joins the shapes
+    of the contracted edges, and numbers the nodes (`order_nodes`). The first two
+    steps log their counts at DEBUG.
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids`
@@ -867,19 +865,7 @@ def assemble_network(
         The arrays of the network file, as `network_file.write` takes them, and
         `node_mode_ids` if the graph has several node modes.
     """
-    with log_step(
-        logger,
-        "keep the strongly connected components",
-        count_nodes_and_edges(graph),
-    ) as counts:
-        order = keep_strongly_connected_components(
-            graph["node_first_edge_ids"],
-            graph["edge_destination_node_ids"],
-            min_component_nodes,
-        )
-        given, graph = graph, renumber_nodes(graph, *order)
-        given.clear()  # freed now, not when the caller lets it go: one copy at a time
-        counts.update(count_nodes_and_edges(graph, "kept_"))
+    graph = keep_components(graph, min_component_nodes)
     with log_step(
         logger, "contract the chains", count_nodes_and_edges(graph)
     ) as counts:
@@ -920,16 +906,63 @@ def assemble_network(
                 "B", (edge_class_ids[members[i]] for i in member_offsets[:-1])
             )
         counts.update(count_nodes_and_edges(graph, "kept_"))
+    return order_nodes(graph)
+
+
+def keep_components(
+    graph: dict[str, array | memoryview], min_component_nodes: int | None
+) -> dict[str, array]:
+    """Keep the strongly connected components of a graph (step 2 of the module
+    docstring). The function logs its counts at DEBUG.
+
+    Args:
+        graph: The graph, as `build_graph_from_pieces` returns it. The function
+            empties this dict, to free it.
+        min_component_nodes: The smallest number of nodes of a kept component. None
+            keeps only the largest component.
+
+    Returns:
+        The graph of the kept nodes, with the edges between two nodes of one
+        component.
+    """
+    with log_step(
+        logger,
+        "keep the strongly connected components",
+        count_nodes_and_edges(graph),
+    ) as counts:
+        order = keep_strongly_connected_components(
+            graph["node_first_edge_ids"],
+            graph["edge_destination_node_ids"],
+            min_component_nodes,
+        )
+        given, graph = graph, renumber_nodes(graph, *order)
+        given.clear()  # freed now, not when the caller lets it go: one copy at a time
+        counts.update(count_nodes_and_edges(graph, "kept_"))
+    return graph
+
+
+def order_nodes(graph: dict[str, array | memoryview]) -> dict[str, array]:
+    """Number the nodes of a graph by node mode, then along the Hilbert curve (step 5
+    of the module docstring). A network file has this order, and
+    `GeoGraph.save_as_scgraph` uses the same one.
+
+    Args:
+        graph: The graph, with `node_mode_ids` if it has several node modes.
+
+    Returns:
+        The graph with its nodes in the new order.
+    """
     node_points = memoryview(graph["node_points"])
     latitudes, longitudes = node_points[0::2], node_points[1::2]
-    node_mode_ids = graph.get("node_mode_ids") or bytes(len(kept))
+    node_count = len(latitudes)
+    node_mode_ids = graph.get("node_mode_ids") or bytes(node_count)
 
     def key(u):  # node mode, Hilbert key (below 4^CURVE_ORDER), index: one int
         curve = hilbert_key(latitudes[u] * 1e-7, longitudes[u] * 1e-7)
         return (node_mode_ids[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
     # One int per node, not a list; the sorted ints are freed before renumber_nodes
-    keys = sorted(map(key, range(len(kept))))
+    keys = sorted(map(key, range(node_count)))
     order, keys = array("i", (k & 0xFFFFFFFF for k in keys)), None
     return renumber_nodes(graph, order)
 

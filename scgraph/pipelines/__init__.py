@@ -41,7 +41,7 @@ WHAT A PIPELINE MODULE HOLDS
     - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
     - `(arrays, node_modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
-      file: by node mode, then along a Hilbert curve (`step3_network_assembly.assemble_network`
+      file: by node mode, then along a Hilbert curve (`scgraph.network_assembly.assemble_network`
       gives this order). `metric_length` holds km. `arrays` also holds `node_mode_ids`, the
       node mode id of each node, when the network has several node modes; the runner
       writes the count of the nodes of each node mode in its place. `node_modes` lists
@@ -132,30 +132,30 @@ THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
 step logs one line at DEBUG, with its counts and its duration (`step_logs.log_step`).
-The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
-each step:
+The functions of steps 2 and 4 are in `scgraph.pipelines.steps`, with the downloads of
+step 1. `GeoGraph.load_from_osm` calls the other functions too, so they are in
+`scgraph.helpers.osm` and in `scgraph.network_assembly`:
 
-1. Read the sources. `step1_osm_ways.build_way_pieces` reads the ways of an
+1. Read the sources. `scgraph.helpers.osm.build_way_pieces` reads the ways of an
    OpenStreetMap file that the select functions keep. It takes the select functions of
    each network, such as the road network. One read of the file serves every network.
    Each network gets its own junctions and its own pieces, so a road never joins a
    railway. The function cuts each way at the junctions of its network, and where a
    piece reaches `max_km_between_nodes`. It simplifies the shape of each piece to within
-   50 m. It attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
+   50 m. It attaches the ferries to road nodes (`build_ferry_edges`).
 2. Join the networks. `step2_hub_connectors.join_networks_at_hubs` joins the road, rail
    and sea networks at hubs: ports, airports and rail terminals.
    `step2_land_mask.LandMask` tells land from water for the connectors of a hub.
-3. Assemble the graph. `step3_network_assembly.build_graph_from_pieces` stores the pieces as
-   a graph. `step3_network_assembly.assemble_network` keeps the strongly connected
+3. Assemble the graph. `scgraph.network_assembly.build_graph_from_pieces` stores the
+   pieces as a graph. `assemble_network` keeps the strongly connected
    components, contracts the chains of nodes and puts the nodes in the order of the
    file. No chain is contracted across two node modes or two classes.
 4. Validate the network. `step4_validation_cases.validate_network` checks the built
    file against the cases of `VALIDATION`.
 
-A graph has two layouts in the steps. From `step3_network_assembly.build_graph_from_pieces` on, a
-graph is a dict of the arrays of the network file. `scgraph.helpers.osm.read_osm` and
-`scgraph.helpers.components.keep_largest_strongly_connected_component` use the layout of a
-GeoGraph, because `load_from_osm` calls them.
+From `build_graph_from_pieces` on, a graph is a dict of the
+arrays of the network file. `GeoGraph.load_from_osm` runs steps 1 and 3 on one node
+mode, without the contraction of the chains, and keeps the arrays in memory.
 
 WHAT THE NETWORK FILE RECORDS
 
@@ -228,7 +228,7 @@ HOW TO ADD A NETWORK TO SCGRAPH
 5. Build and validate the network with the command above.
 
 scgraph does not import this package when it is imported. The functions that need it
-import it when they are called: `load_from_osm`, `build_geograph`,
+import it when they are called: `build_geograph`,
 `list_buildable_geographs`, `clear_geograph_cache`, and `load_geograph` for a network
 of a network release.
 """

@@ -70,7 +70,7 @@ The package `scgraph.pipelines` builds networks from their online sources. A pip
 
 * `network_builder.build_network_file` downloads the sources and calls `build` in a work folder. It writes a `.scgraph` file with the metadata of the build in its header, then moves the file into the cache.
 * `derived_networks.derive_network_file` writes a network file from another network file, the parent file, and downloads nothing. The derived file holds some node modes of the parent file, and its roads, railways and rail terminals inside a bbox.
-* The costly functions of `step2_land_mask` and `step3_network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`). Their pure-Python version gives the same results.
+* The costly functions of `step2_land_mask` and of `scgraph.network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`). Their pure-Python version gives the same results.
 
 The guide [Network Pipelines](scgraph/pipelines/README.md) follows one build, one derivation, one network release and one load, with the numbers of real runs.
 
@@ -294,7 +294,7 @@ A pass-through node offers no choice: a route that enters it can only go on to o
 ```mermaid
 flowchart TD
     subgraph BuildTime["Pipeline Assembly (Static Contraction)"]
-        A["Flat CSR Arrays"] --> B["step3_network_assembly.contract_chains"]
+        A["Flat CSR Arrays"] --> B["network_assembly.contract_chains"]
         B --> C["Contracted CSR Graph & Aggregated Polyline Shapes"]
         C --> D["Binary .scgraph Network File"]
     end
@@ -325,7 +325,7 @@ flowchart TD
 
 ---
 
-### Static CSR Contraction (`step3_network_assembly.contract_chains`)
+### Static CSR Contraction (`network_assembly.contract_chains`)
 
 `contract_chains` works on the CSR arrays of a build:
 * It takes `(node_first_edge_ids, edge_destination_node_ids, weights, node_mode_ids, max_km_between_nodes, edge_class_ids)` and returns a `ContractedGraph` namedtuple:
@@ -333,7 +333,7 @@ flowchart TD
   * `origins`, `edge_destination_node_ids`, `weights`: the contracted edges.
   * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
-* `edge_class_ids` is optional: the class of each edge. The header of `step3_network_assembly.py` gives its rule.
+* `edge_class_ids` is optional: the class of each edge. The header of `scgraph/network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into pieces of about that length (default: no cut).
 * A piece that would create a self-loop or a duplicate edge is split at its midpoint. So the node that the build put in the middle of a split edge is kept (the guide [Network Pipelines](scgraph/pipelines/README.md#2-reading-and-cutting-the-ways), step 2).
 * `build_chain_shapes` gives each contracted edge the shape points of its members.

@@ -24,11 +24,12 @@ import pytest
 import requests
 from helpers import build_main_roads, great_circle_km
 
-from scgraph import GeoGraph, network_file, pipelines
+from scgraph import GeoGraph, network_assembly, network_file, pipelines
+from scgraph.helpers import osm
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
-from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.utils import has_cpp
 
 
@@ -1162,10 +1163,10 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
         }
     }
 
-    pieces = step1_osm_ways.build_way_pieces(
+    pieces = osm.build_way_pieces(
         str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
     )
-    graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
+    graph = network_assembly.build_graph_from_pieces(pieces["road"])
 
     ids, node_first_edge_ids = (
         graph["external_node_ids"],

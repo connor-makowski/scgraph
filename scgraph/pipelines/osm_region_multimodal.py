@@ -106,12 +106,12 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from scgraph.helpers.osm import select_main_roads_with_class
+from scgraph import network_assembly
+from scgraph.helpers.osm import build_way_pieces, select_main_roads_with_class
 from scgraph.pipelines import eurostat_sea_lanes
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
-from scgraph.pipelines.steps import step3_network_assembly
 from scgraph.step_logs import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
@@ -233,8 +233,8 @@ def build(
     # 1. The railways and the roads, in one read of the extract. Each network has its
     # own junctions and its own pieces, so that a level crossing does not join them.
     # Each select function gives the class of a way with its direction.
-    pieces = step1_osm_ways.build_way_pieces(
-        files["osm"],
+    pieces = build_way_pieces(
+        step1_osm_ways.get_source(files["osm"]),
         {
             "rail": {"ways": select_rail_with_class},
             "road": {
@@ -247,11 +247,11 @@ def build(
         folder("ways"),
         optional_modes=("rail",),
     )
-    roads = step3_network_assembly.build_graph_from_pieces(pieces["road"])
+    roads = network_assembly.build_graph_from_pieces(pieces["road"])
     layers = {"road": roads}
     # A region may have no railway. Its hubs then join the roads and the sea lanes.
     if len(pieces["rail"].km):
-        layers["rail"] = step3_network_assembly.build_graph_from_pieces(
+        layers["rail"] = network_assembly.build_graph_from_pieces(
             pieces["rail"]
         )
     del pieces  # the graphs hold their own arrays
@@ -297,7 +297,7 @@ def build(
         )
         counts.update(joined)
     # 6. Keep the connected network, contract its chains, number its nodes
-    arrays = step3_network_assembly.assemble_network(
+    arrays = network_assembly.assemble_network(
         graph,
         max_km_between_nodes=max_km_between_nodes,
         min_component_nodes=min_component_nodes,

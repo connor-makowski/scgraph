@@ -105,8 +105,7 @@ import os
 from array import array
 from collections.abc import Sequence
 
-from scgraph import network_file, pipelines
-from scgraph.pipelines.steps import step3_network_assembly
+from scgraph import network_assembly, network_file, pipelines
 from scgraph.pipelines.steps.step4_validation_cases import (
     RULES,
     load_validation_cases,
@@ -244,7 +243,7 @@ def derive_network_file(
     with log_step(
         logger,
         "select the nodes",
-        step3_network_assembly.count_nodes_and_edges(parent_arrays),
+        network_assembly.count_nodes_and_edges(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_node_mode_ids = {
@@ -270,18 +269,16 @@ def derive_network_file(
             ),
         )
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
-        graph = step3_network_assembly.renumber_nodes(parent_arrays, selected)
-        counts.update(
-            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
-        )
+        graph = network_assembly.renumber_nodes(parent_arrays, selected)
+        counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
     with log_step(
         logger,
         "keep the strongly connected components",
-        step3_network_assembly.count_nodes_and_edges(graph),
+        network_assembly.count_nodes_and_edges(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
-            step3_network_assembly.keep_strongly_connected_components(
+            network_assembly.keep_strongly_connected_components(
                 graph["node_first_edge_ids"],
                 graph["edge_destination_node_ids"],
                 min_component_nodes,
@@ -293,12 +290,10 @@ def derive_network_file(
                 "or more with these node modes inside the bbox"
             )
         # An edge between two components is dropped
-        graph = step3_network_assembly.renumber_nodes(
+        graph = network_assembly.renumber_nodes(
             graph, kept_nodes, component_of_node
         )
-        counts.update(
-            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
-        )
+        counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     # A kept node mode takes its id in the new node modes table

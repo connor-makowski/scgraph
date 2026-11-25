@@ -1,4 +1,4 @@
-// Bindings of the pipelines' kernels (scgraph/pipelines/steps/), a translation unit of its own:
+// Bindings of the pipelines' kernels (scgraph/network_assembly.py, scgraph/pipelines/steps/), a translation unit of its own:
 // it is compiled without fused multiply-add (CMakeLists.txt), so that the kernels round as
 // their pure-Python twins
 #include <nanobind/nanobind.h>
@@ -16,7 +16,7 @@
 namespace nb = nanobind;
 
 void bind_pipelines(nb::module_& m) {
-    // Assembly kernels (contracts in scgraph/pipelines/steps/step3_network_assembly.py)
+    // Assembly kernels (contracts in scgraph/network_assembly.py)
     auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights,
                        std::optional<Uint8Array> edge_class_ids) {
         const int64_t m = (int64_t)origins.shape(0);
