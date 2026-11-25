@@ -1,11 +1,11 @@
 """Roads, railways, sea lanes and flights of the world, joined at ports, airports and
-rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
+rail terminals: `osm_region_multimodal` for the OpenStreetMap planet.
 
-- Distances, modes, classes, hubs and their connectors are those of
-  `geofabrik_multimodal`.
-- A shortest route in km takes any mode. Between two distant places it takes a
-  flight, because a flight is a straight line. To compare modes, derive a cost per
-  mode from the km, or load only some modes (`load_from_scgraph(modes=...)`).
+- Distances, node modes, classes, hubs and connectors are as in `osm_region_multimodal`.
+- A shortest route in km takes any edge mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare the edge modes, derive a
+  cost per edge mode from the km, or load the nodes of some node modes only
+  (`load_from_scgraph(node_modes=...)`).
 - The flights inside mainland China, and between China and the rest of Asia, are
   missing: no open source counts them.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
@@ -13,7 +13,7 @@ rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
   10 km, and a contracted edge ends at the first node where it reaches 10 km. Two nodes
   along a road or a railway are then at most about 20 km apart.
 - Sources: the OpenStreetMap planet of the date in its URL, and the other sources of
-  `geofabrik_multimodal`. The planet is read by HTTP byte ranges and never stored. The
+  `osm_region_multimodal`. The planet is read by HTTP byte ranges and never stored. The
   build needs the C++ extension of scgraph.
 - Not for navigation, timetables, the capacity of a terminal, or inland navigation
   between two points of a river.
@@ -21,10 +21,10 @@ rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
 
 import os
 
-from scgraph.pipelines import geofabrik_multimodal as regional
+from scgraph.pipelines import osm_region_multimodal as regional
 from scgraph.pipelines.steps import step1_osm_ways
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 7
 
 # The sources of the regional pipeline, with the planet in place of the extract
 SOURCES = {**regional.SOURCES, "osm": step1_osm_ways.PLANET}
@@ -44,7 +44,7 @@ def build(
     *,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the multimodal network of the world: `geofabrik_multimodal.build`, with
+    """Build the multimodal network of the world: `osm_region_multimodal.build`, with
     the cut length and the component size of this module.
     """
     return regional.build(

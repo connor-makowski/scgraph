@@ -1,6 +1,7 @@
 #include "graph_utils.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 std::vector<int> get_node_ids(const NodeIdVariant& node_id) {
@@ -136,40 +137,41 @@ void GraphUtils::cycle_check(const std::vector<int>& predecessor_matrix, int nod
 
 void GraphUtils::ensure_inverse_graph() {
     if (inverse_graph_computed) return;
-    // Counting sort of the edges by head: each inverse row lists its origins in
+    // Counting sort of the edges by destination id: each inverse row lists its origins in
     // increasing order
     const CsrGraph& g = graph();
     const int n = g.size();
-    std::vector<int32_t> offsets(n + 1, 0);
+    std::vector<int32_t> node_first_edge_ids(n + 1, 0);
     for (int origin_id = 0; origin_id < n; ++origin_id) {
         for (const auto& [dest_id, distance] : g[origin_id]) {
             if (dest_id >= 0 && dest_id < n) {
-                offsets[dest_id + 1]++;
+                node_first_edge_ids[dest_id + 1]++;
             }
         }
     }
     for (int i = 0; i < n; ++i) {
-        offsets[i + 1] += offsets[i];
+        node_first_edge_ids[i + 1] += node_first_edge_ids[i];
     }
-    std::vector<int32_t> next(offsets.begin(), offsets.end() - 1);
-    std::vector<int32_t> heads(offsets[n]);
-    std::vector<double> weights(offsets[n]);
+    std::vector<int32_t> next(node_first_edge_ids.begin(), node_first_edge_ids.end() - 1);
+    std::vector<int32_t> edge_destination_node_ids(node_first_edge_ids[n]);
+    std::vector<double> weights(node_first_edge_ids[n]);
     for (int origin_id = 0; origin_id < n; ++origin_id) {
         for (const auto& [dest_id, distance] : g[origin_id]) {
             if (dest_id >= 0 && dest_id < n) {
-                heads[next[dest_id]] = origin_id;
+                edge_destination_node_ids[next[dest_id]] = origin_id;
                 weights[next[dest_id]++] = distance;
             }
         }
     }
-    inverse_graph = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
+    inverse_graph = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights));
     inverse_graph_computed = true;
 }
 
+// An infinite weight closes its edge, so the maximum is that of the finite weights
 double GraphUtils::get_max_edge_weight() const {
     if (!max_edge_weight_computed) {
         for (double weight : graph().all_weights()) {
-            if (weight > max_edge_weight_cache) {
+            if (std::isfinite(weight) && weight > max_edge_weight_cache) {
                 max_edge_weight_cache = weight;
             }
         }

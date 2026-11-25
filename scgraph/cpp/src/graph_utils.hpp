@@ -53,6 +53,9 @@ private:
     // Note: graph() const mutates this cache; safe because Python bindings hold the GIL.
     mutable CsrGraph packed_graph;
     mutable RowEdits edits;
+    // The number of calls of add_node, add_edge, remove_node and remove_edge that
+    // changed the graph. A GeoGraph reads it to know that its graph was edited.
+    int64_t edit_count_ = 0;
 
 protected:
     const CsrGraph& graph() const {
@@ -68,6 +71,7 @@ protected:
     }
     // The rows, to edit
     EditableRows rows_to_edit() {
+        ++edit_count_;
         inverse_graph_computed = false;
         inverse_graph.clear();
         return EditableRows(packed_graph, edits);
@@ -107,6 +111,7 @@ public:
     const std::unordered_map<int, double> get(int idx) const;
     // The number of nodes, without packing pending edits
     int size() const { return edits.has_edits() ? edits.node_count : packed_graph.size(); }
+    int64_t edit_count() const { return edit_count_; }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
     // The edges by origin, pending edits packed
     const CsrGraph& edges() const { return graph(); }

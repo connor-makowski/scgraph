@@ -11,6 +11,11 @@ WHAT THE NETWORK HOLDS
   derives them from the km and the class of each edge.
 - Roads. The network holds the motorway, trunk and primary roads, and their links.
   One-way roads are followed in their legal direction.
+- Turn restrictions. The network follows the turn restrictions of OpenStreetMap for
+  cars, between two of these roads. `scgraph.helpers.osm` explains which turn
+  restrictions are read. `scgraph/turn_restrictions.py` explains how a network
+  follows them: a junction may have several nodes at the same point, with the same
+  id.
 - Vehicle ferries. A vehicle ferry joins two road nodes, both ways, with the length
   of its route. The pipeline reads as a ferry each way tagged `route=ferry` or
   `route=shuttle_train` (a train that carries cars and lorries, as in the Channel
@@ -33,11 +38,11 @@ WHAT THE NETWORK HOLDS
 
 HUBS AND CONNECTORS
 
-- The networks of two modes never share a node. A route goes from one network to
-  another only through a hub: a port (road, sea, and rail where the port has a
+- The road, rail and sea networks never share a node. A route goes from one network
+  to another only through a hub: a port (road, sea, and rail where the port has a
   railway), an airport (road, and its flights) or a rail terminal (road and rail).
-  A change of mode at a hub costs nothing.
-- A connector joins a hub to the network of one mode (`step2_hub_connectors.join_networks_at_hubs`). A hub joins the
+  A change of edge mode at a hub adds no km.
+- A connector joins a hub to one network (`step2_hub_connectors.join_networks_at_hubs`). A hub joins the
   network when it reaches at least two networks. A hub that reaches fewer than two
   networks stays out.
 - Road connector, and rail connector. It is a straight line from the hub to a node
@@ -52,15 +57,16 @@ HUBS AND CONNECTORS
   1:10m. The connector weighs the length of the path, plus the short line from its
   last cell to the sea node. Its shape points are the centres of the cells.
 
-MODES AND CLASSES
+NODE MODES AND CLASSES
 
-- Each node has its mode (`node_modes`, rows of `modes`): `road`, `rail`, `sea`,
-  `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
-  OpenStreetMap for roads and railways, the World Port Index number for a port, the
-  OurAirports id for an airport, the Wikidata number for a rail terminal.
-- Each edge has a class. `edge_classes` gives its row in `classes`. A road edge has the
-  `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
-  railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
+- The node mode of a node is the kind of place where the node is (`node_mode_ids`):
+  `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. Each node mode names the
+  source of its node ids: OpenStreetMap for roads and railways, the World Port Index for
+  a port, OurAirports for an airport, Wikidata for a rail terminal. A node with a
+  negative id is in no source: the build added it (*Nodes and shapes*).
+- Each edge has a class. `edge_class_ids` gives its position in `classes`. A road edge
+  has the `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`.
+  A railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
   edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
   `flight`. A connector to a road has the class `road_connector`, a connector to a
   railway `rail_connector`, and a connector to a sea lane `sea_connector`.
@@ -69,13 +75,17 @@ NODES AND SHAPES
 
 - The network of a region keeps its largest strongly connected component.
 - A chain is a run of nodes without a junction. The build contracts a chain into one
-  edge. A chain is never contracted across two modes or two classes.
+  edge. A chain is never contracted across two node modes or two classes.
 - A road or a railway is cut every 2 km, and a contracted edge ends at the first node
   where it reaches 2 km. Two nodes along a road or a railway are then at most about
   4 km apart. A sea lane is not cut, but its chains are contracted like those of a
   road.
 - The shape of each road, ferry or railway edge is simplified to within 50 m. Its
   length is measured on the full shape.
+- One edge at most goes from a node to another. Of several roads from one junction
+  to another, the build keeps the shortest of each class. The shortest of all joins
+  the two junctions. Each other one passes through a node that the build adds at its
+  middle, with a negative id. The same rule holds for ferries and railways.
 
 SOURCES AND LIMITS
 
@@ -85,14 +95,14 @@ SOURCES AND LIMITS
   `utils/build_hub_tables.py`).
 - The Geofabrik URL always gives the newest extract, and `PIPELINE_VERSION` does not
   change when a source changes. So a rebuild can give another network.
-- A shortest route in km takes any mode. Between two distant places it takes a
-  flight, because a flight is a straight line. To compare modes, derive a cost per
-  mode (time, CO2) from the km, or load only some modes
-  (`load_from_scgraph(modes=...)`).
+- A shortest route in km takes any edge mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare the edge modes, derive a
+  cost per edge mode (time, CO2) from the km, or load the nodes of some node modes
+  only (`load_from_scgraph(node_modes=...)`).
 - A region without a railway, such as `europe/malta`, has no rail node. Its hubs join
   the roads and the sea lanes.
 - `GeoGraph.load_from_osm` gives another graph from the same extract. That loader
-  reads one mode, attaches no ferry, contracts no chain and simplifies no shape.
+  reads one network, attaches no ferry, contracts no chain and simplifies no shape.
 - Not for navigation, timetables, the capacity of a terminal, or inland navigation
   between two points of a river.
 """
@@ -101,19 +111,25 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from scgraph import network_assembly
+from scgraph.helpers.osm import (
+    build_way_pieces,
+    list_forbidden_turns,
+    read_turn_restrictions,
+    select_main_roads_with_class,
+)
 from scgraph.pipelines import eurostat_sea_lanes
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
-from scgraph.pipelines.steps import step3_network_assembly
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 7
 
 
 def _natural_earth(layer):
@@ -137,7 +153,8 @@ SOURCES = {
     "osm": step1_osm_ways.GEOFABRIK,
 }
 MODES = [
-    {"name": "road", "source": "osm"},
+    # The roads follow turn restrictions: a road junction may have several nodes
+    {"name": "road", "source": "osm", "has_turn_restrictions": True},
     {"name": "rail", "source": "osm"},
     {"name": "sea", "source": "sea"},
     {"name": "port", "source": "ports"},
@@ -151,17 +168,6 @@ MARGIN_DEGREES = 2
 download = (
     step1_osm_ways.download
 )  # for the sources without their own download: checks osmium first
-
-
-def select_main_roads_with_class(
-    tags: "osmium.osm.TagList",
-) -> tuple[int, str] | None:
-    """Return the direction and the class of a main road, and None for any other way.
-    The class is the `highway` value of the way. Example: a one-way motorway gives
-    `(1, "motorway")`.
-    """
-    direction = step1_osm_ways.select_main_roads(tags)
-    return None if direction is None else (direction, tags["highway"])
 
 
 def select_vehicle_ferries_with_class(
@@ -229,17 +235,17 @@ def build(
             build resumes from them. None keeps nothing.
 
     Returns:
-        `(arrays, modes)`: the arrays of the network file, and the modes table.
+        `(arrays, node_modes)`: the arrays of the network file and the node modes table.
     """
 
     def folder(step):
         return os.path.join(work_dir, step) if work_dir else None
 
-    # 1. The railways and the roads, in one read of the extract. Each mode has its
-    # own junctions and its own pieces, so that a level crossing is not a change of
-    # mode. Each select function gives the class of a way with its direction.
-    pieces = step1_osm_ways.build_way_pieces(
-        files["osm"],
+    # 1. The railways and the roads, in one read of the extract. Each network has its
+    # own junctions and its own pieces, so that a level crossing does not join them.
+    # Each select function gives the class of a way with its direction.
+    pieces = build_way_pieces(
+        step1_osm_ways.get_source(files["osm"]),
         {
             "rail": {"ways": select_rail_with_class},
             "road": {
@@ -252,21 +258,37 @@ def build(
         folder("ways"),
         optional_modes=("rail",),
     )
-    roads = step3_network_assembly.build_graph_from_pieces(pieces["road"])
+    roads = network_assembly.build_graph_from_pieces(pieces["road"])
     layers = {"road": roads}
     # A region may have no railway. Its hubs then join the roads and the sea lanes.
     if len(pieces["rail"].km):
-        layers["rail"] = step3_network_assembly.build_graph_from_pieces(
+        layers["rail"] = network_assembly.build_graph_from_pieces(
             pieces["rail"]
         )
     del pieces  # the graphs hold their own arrays
-    # 2. The sea lanes, with the passage of each lane as its class
+    # 2. The forbidden turns of the roads. Step 6 numbers the nodes again, so each
+    # forbidden turn is kept as the external ids of its nodes until step 7.
+    with log_step(logger, "read the turn restrictions", {}) as counts:
+        restrictions = read_turn_restrictions(
+            step1_osm_ways.get_source(files["osm"])
+        )
+        road_external_ids = roads["external_node_ids"]
+        forbidden_turns = [
+            [road_external_ids[node_id] for node_id in turn]
+            for turn in list_forbidden_turns(roads, restrictions)
+        ]
+        counts["turn_restrictions"] = len(restrictions)
+        counts["forbidden_turns"] = len(forbidden_turns)
+    for layer in layers.values():
+        # Only `list_forbidden_turns` reads the way of an edge
+        layer.pop("edge_way_ids", None)
+    # 3. The sea lanes, with the passage of each lane as its class
     with log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_sea_lanes.build_sea_lane_arrays(
             {"sea_lanes": files["sea"]}
         )
-        counts["nodes"] = len(sea["node_ids"])
-    # 3. The land and the water around the roads, where connectors are checked
+        counts["nodes"] = len(sea["external_node_ids"])
+    # 4. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]
     south = max(-90, min(latitudes) * 1e-7 - MARGIN_DEGREES)
@@ -279,7 +301,7 @@ def build(
         *(files[name] for name in ("land", "lakes", "rivers")),
         bbox=(south, west, north, east),
     )
-    # 4. The hubs inside the raster
+    # 5. The hubs inside the raster
     region_hubs = (
         step2_hub_connectors.read_ports(files["ports"])
         + step2_hub_connectors.read_airports(files["airports"])
@@ -288,7 +310,7 @@ def build(
     region_hubs = [
         hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
     ]
-    # 5. Join the networks at the hubs, and the airports by their flights
+    # 6. Join the networks at the hubs, and the airports by their flights
     with log_step(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
@@ -301,8 +323,30 @@ def build(
             work_dir=folder("hubs"),
         )
         counts.update(joined)
-    # 6. Keep the connected network, contract its chains, number its nodes
-    arrays = step3_network_assembly.assemble_network(
+    # 7. Forbid the turns. This step comes after the hubs: a hub is then joined to
+    # a junction that still has one node, and each added node gets the connectors
+    # of its junction. A rail node or a hub may have the external id of a road node,
+    # so only the road nodes are looked up.
+    road_mode_id = [mode["name"] for mode in MODES].index("road")
+    external_ids_of_turns = {
+        external_id for turn in forbidden_turns for external_id in turn
+    }
+    road_node_id_of = {
+        external_id: node_id
+        for node_id, (node_mode_id, external_id) in enumerate(
+            zip(graph["node_mode_ids"], graph["external_node_ids"])
+        )
+        if node_mode_id == road_mode_id and external_id in external_ids_of_turns
+    }
+    graph = network_assembly.forbid_turns(
+        graph,
+        [
+            [road_node_id_of[external_id] for external_id in turn]
+            for turn in forbidden_turns
+        ],
+    )
+    # 8. Keep the connected network, contract its chains, number its nodes
+    arrays = network_assembly.assemble_network(
         graph,
         max_km_between_nodes=max_km_between_nodes,
         min_component_nodes=min_component_nodes,

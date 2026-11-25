@@ -42,8 +42,9 @@ HOW THE PIECES BECOME A GRAPH
        part of a shortest path.
     2. A piece of a two-way polyline gives an edge in each direction. A piece of a one-way
        polyline gives one edge. The reverse edge has the shape points in reverse order.
-    3. The graph keeps one edge from a node to another node: the shortest one. Among edges
-       of equal length, it keeps the first one.
+       An edge has the class of its polyline, if the caller gave one.
+    3. The graph keeps one edge from a node to another node: the shortest one, with its
+       shape and its class. Among edges of equal length, it keeps the first one.
     4. Each node gets an "index": its position in the lists that describe the graph,
        from 0. The indexes follow a Hilbert curve (`scgraph.helpers.hilbert`). Nodes
        that are close on the globe then get close indexes. `SnapIndex`, which finds the
@@ -108,29 +109,34 @@ def build_graph_from_polylines(
     list[list[float]],
     list[dict[int, list[list[float]]]],
     list[Hashable],
+    list[dict[int, str]],
 ]:
     """
     Build a graph from the pieces of `polylines`, as *How the pieces become a graph* in
     the module docstring says.
 
     Args:
-        polylines: As in `cut_polylines`.
+        polylines: As in `cut_polylines`. A polyline may have a third item, the name
+            of its class: `(direction, vertices, class_name)`.
         junctions: As in `cut_polylines`.
         max_km_between_nodes: As in `cut_polylines`.
 
     Returns:
-        `(graph, nodes, shapes, node_ids)`, where `i` and `j` are node indexes. `graph[i]`
-        maps each node `j` that an edge from node `i` reaches to the length of that edge,
-        in kilometers. `nodes[i]` is the point of node `i`. `shapes[i][j]` is the list of
-        shape points of the edge from `i` to `j`, if the edge has any. `node_ids[i]` is the
-        id of the vertex that became node `i`.
+        `(graph, nodes, shapes, external_node_ids, edge_class_names)`, where `i` and `j`
+        are node ids. `graph[i]` maps each node `j` that an edge from node `i` reaches
+        to the length of that edge, in kilometers. `nodes[i]` is the point of node `i`.
+        `shapes[i][j]` is the list of shape points of the edge from `i` to `j`, if the
+        edge has any. `external_node_ids[i]` is the id of the vertex that became node `i`.
+        `edge_class_names[i][j]` is the class of the edge from `i` to `j`, if its polyline
+        has one.
     """
-    edges = {}  # (origin id, destination id) -> (km, shape)
+    edges = {}  # (origin id, destination id) -> (km, shape, class name)
     points = {}  # id of a node -> its point
     for polyline in polylines:
+        class_name = polyline[2] if len(polyline) > 2 else None
         vertex_points = dict(polyline[1])
         for origin_id, destination_id, km, direction, shape in cut_polylines(
-            [polyline], junctions, max_km_between_nodes
+            [polyline[:2]], junctions, max_km_between_nodes
         ):
             # 1. Drop a loop
             if origin_id == destination_id:
@@ -139,14 +145,14 @@ def build_graph_from_polylines(
             points[destination_id] = vertex_points[destination_id]
             # 2. One edge for each direction of travel. 3. Keep the shortest.
             if direction >= 0:
-                _keep_shortest(edges, (origin_id, destination_id), km, shape)
+                key = (origin_id, destination_id)
+                _keep_shortest(edges, key, km, shape, class_name)
             if direction <= 0:
-                _keep_shortest(
-                    edges, (destination_id, origin_id), km, shape[::-1]
-                )
+                key = (destination_id, origin_id)
+                _keep_shortest(edges, key, km, shape[::-1], class_name)
 
-    # 4. Give each node its index, along the Hilbert curve
-    node_ids = sorted(
+    # 4. Give each node its id, along the Hilbert curve
+    external_node_ids = sorted(
         points,
         key=lambda node_id: (
             hilbert_key(*points[node_id]),
@@ -154,16 +160,26 @@ def build_graph_from_polylines(
             node_id,
         ),
     )
-    node_index = {node_id: i for i, node_id in enumerate(node_ids)}
-    graph = [{} for _ in node_ids]
-    shapes = [{} for _ in node_ids]
-    for (origin_id, destination_id), (km, shape) in edges.items():
-        graph[node_index[origin_id]][node_index[destination_id]] = km
+    node_id_of_vertex = {
+        node_id: i for i, node_id in enumerate(external_node_ids)
+    }
+    graph = [{} for _ in external_node_ids]
+    shapes = [{} for _ in external_node_ids]
+    edge_class_names = [{} for _ in external_node_ids]
+    for (origin_id, destination_id), (km, shape, class_name) in edges.items():
+        origin, destination = (
+            node_id_of_vertex[origin_id],
+            node_id_of_vertex[destination_id],
+        )
+        graph[origin][destination] = km
         if shape:
-            shapes[node_index[origin_id]][node_index[destination_id]] = shape
-    return graph, [points[node_id] for node_id in node_ids], shapes, node_ids
+            shapes[origin][destination] = shape
+        if class_name is not None:
+            edge_class_names[origin][destination] = class_name
+    nodes = [points[node_id] for node_id in external_node_ids]
+    return graph, nodes, shapes, external_node_ids, edge_class_names
 
 
-def _keep_shortest(edges, key, km, shape):
+def _keep_shortest(edges, key, km, shape, class_name):
     if key not in edges or km < edges[key][0]:
-        edges[key] = (km, shape)
+        edges[key] = (km, shape, class_name)

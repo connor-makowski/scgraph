@@ -1,5 +1,9 @@
 """Tests of `scgraph.pipelines.derived_networks`: a network file derived from a parent file."""
 
+import json
+import shutil
+import subprocess
+import sys
 from array import array
 from pathlib import Path
 
@@ -54,9 +58,9 @@ def parent_file(tmp_path_factory):
         graph=graph,
         nodes=list(NODES.values()),
         intermediate_nodes=shapes,
-        node_ids=list(NODES),
-        node_modes=[0] * 4 + [1] + [2] * 2 + [3] * 2,  # rows of MODES
-        modes=MODES,
+        external_node_ids=list(NODES),
+        node_mode_ids=[0] * 4 + [1] + [2] * 2 + [3] * 2,  # rows of MODES
+        node_modes=MODES,
         coordinate_dtype="int32",
     ).save_as_scgraph(
         path,
@@ -74,7 +78,7 @@ def sea_file(parent_file, tmp_path_factory):
     """The file derived from the parent file with the modes of the sea."""
     path = str(tmp_path_factory.mktemp("sea") / "sea.scgraph")
     derived_networks.derive_network_file(
-        parent_file, path, modes=["sea", "port"], min_component_nodes=1
+        parent_file, path, node_modes=["sea", "port"], min_component_nodes=1
     )
     return path
 
@@ -92,9 +96,9 @@ def bbox_file(parent_file, tmp_path_factory):
 def _nodes_by_mode(file):
     """The nodes of a network file: for each mode, the sorted ids of its nodes."""
     network = GeoGraph.load_from_scgraph(file)
-    nodes = {mode["name"]: [] for mode in network.modes}
-    for row, node in zip(network.node_modes, network.node_ids):
-        nodes[network.modes[row]["name"]].append(node)
+    nodes = {mode["name"]: [] for mode in network.node_modes}
+    for row, node in zip(network.node_mode_ids, network.external_node_ids):
+        nodes[network.node_modes[row]["name"]].append(node)
     return {mode: sorted(ids) for mode, ids in nodes.items()}
 
 
@@ -102,7 +106,9 @@ def _km_from_node_1_to_node_21(file):
     """The length of the shortest route of a network file from the west end
     of the road to the east end of the sea lane."""
     return GeoGraph.load_from_scgraph(file).get_shortest_path(
-        {"latitude": 0, "longitude": 0}, {"latitude": -0.1, "longitude": 50}
+        {"latitude": 0, "longitude": 0},
+        {"latitude": -0.1, "longitude": 50},
+        snap_to_node_modes=["road", "sea"],
     )["length"]
 
 
@@ -148,13 +154,18 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
 def _name_each_edge(arrays):
     """A name for each edge of the arrays of a network, in the order of the
     edges: "1-2" for the edge from node 1 to node 2."""
-    ids, offsets, heads = (
-        arrays[name] for name in ("node_ids", "offsets", "heads")
+    ids, node_first_edge_ids, edge_destination_node_ids = (
+        arrays[name]
+        for name in (
+            "external_node_ids",
+            "node_first_edge_ids",
+            "edge_destination_node_ids",
+        )
     )
     return [
-        f"{ids[u]}-{ids[heads[edge]]}"
+        f"{ids[u]}-{ids[edge_destination_node_ids[edge]]}"
         for u in range(len(ids))
-        for edge in range(offsets[u], offsets[u + 1])
+        for edge in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     ]
 
 
@@ -162,14 +173,13 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     parent_file, tmp_path
 ):
     # The parent file again, where each of the 14 edges has a class of its own.
-    # The name of the class is the name of the edge.
+    # The name of the class is the name of the edge, and its mode is "road".
     arrays, metadata = network_file.read(parent_file)
     class_names = _name_each_edge(arrays)
-    arrays["edge_classes"] = array("B", range(len(class_names)))
+    classes = [{"name": name, "edge_mode": "road"} for name in class_names]
+    arrays["edge_class_ids"] = array("B", range(len(class_names)))
     classed_file = str(tmp_path / "classed.scgraph")
-    network_file.write(
-        classed_file, arrays, metadata | {"classes": class_names}
-    )
+    network_file.write(classed_file, arrays, metadata | {"classes": classes})
     bbox_file = str(tmp_path / "bbox.scgraph")
 
     derived_networks.derive_network_file(
@@ -178,10 +188,26 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
 
     # The bbox removes node 4 and its two edges, so the other edges move up.
     arrays, metadata = network_file.read(bbox_file)
-    assert metadata["classes"] == class_names
+    assert metadata["classes"] == classes
     assert [
-        class_names[row] for row in arrays["edge_classes"]
+        class_names[row] for row in arrays["edge_class_ids"]
     ] == _name_each_edge(arrays)
+
+
+def test_a_query_point_snaps_to_its_closest_node_in_a_derived_file_without_roads(
+    sea_file,
+):
+    sea_lanes = GeoGraph.load_from_scgraph(sea_file)
+
+    # The origin is 0.001 degree east of the port, node 10. In the parent file,
+    # which has roads, it snaps to the road node 3.
+    route = sea_lanes.get_shortest_path(
+        {"latitude": 0, "longitude": 0.071},
+        {"latitude": -0.1, "longitude": 50},
+        output_path=True,
+    )
+
+    assert sea_lanes.nodes[route["path"][0]] == PORT_NODES[10]
 
 
 def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
@@ -193,7 +219,7 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_shapes=False,
+        keep_intermediate_nodes=False,
         min_component_nodes=1,
     )
 
@@ -212,10 +238,67 @@ def test_the_header_of_a_derived_file_records_its_derivation(
         "parent_content_sha256": GeoGraph.get_scgraph_info(parent_file)[
             "content_sha256"
         ],
-        "modes": None,
+        "node_modes": None,
         "bbox": list(BBOX),
         "min_component_nodes": 1,
     }
+
+
+# A one-way fork with a turn restriction, as a build stores it
+# (`scgraph/turn_restrictions.py`). The street from W enters the junction J, and
+# two streets leave J: to A and to B. The streets from A to B and from B to W
+# let a route come back to W. Each street is 1 km long. The turn from W to B is
+# forbidden, so J has two nodes, with the external id 20. The street from W
+# enters the second one, which has no edge to B. No edge enters the first one.
+# A parent file has several node modes and edge shapes: the network also has
+# one sea node, and no edge has a shape point.
+def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
+    w, first_node_of_j, added_node_of_j, a, b = range(5)
+    fork = GeoGraph(
+        graph=[
+            {added_node_of_j: 1.0},
+            {a: 1.0, b: 1.0},
+            {a: 1.0},
+            {b: 1.0},
+            {w: 1.0},
+            {},
+        ],
+        nodes=[
+            [0, 0],
+            [0, 0.01],
+            [0, 0.01],
+            [0.01, 0.02],
+            [-0.01, 0.02],
+            [-1, 0],
+        ],
+        intermediate_nodes=[{} for _ in range(6)],
+        external_node_ids=[10, 20, 20, 30, 40, 50],
+        node_mode_ids=[0] * 5 + [1],
+        node_modes=[
+            {"name": "road", "source": "osm", "has_turn_restrictions": True},
+            {"name": "sea", "source": "sea"},
+        ],
+        coordinate_dtype="int32",
+    )
+    parent_file = str(tmp_path / "fork.scgraph")
+    fork.save_as_scgraph(
+        parent_file,
+        metadata=pipelines.build_metadata(
+            "osm_world_multimodal", None, 1, SOURCES
+        ),
+    )
+    derived_file = str(tmp_path / "derived.scgraph")
+
+    derived_networks.derive_network_file(
+        parent_file, derived_file, node_modes=["road"], min_component_nodes=2
+    )
+
+    # A route that starts at J takes the street to B
+    route = GeoGraph.load_from_scgraph(derived_file).get_shortest_path(
+        {"latitude": 0, "longitude": 0.01},
+        {"latitude": -0.01, "longitude": 0.02},
+    )
+    assert route["length"] == pytest.approx(1.0)
 
 
 def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
@@ -241,7 +324,7 @@ def test_a_bbox_with_its_south_above_its_north_is_refused(
 
 
 # The network of the validation test, at the ends of three cases that the
-# pipeline `geofabrik_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
+# pipeline `osm_region_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
 # joins Aarhus to Copenhagen. It passes through a road node north of Denmark.
 # - `aarhus_to_copenhagen_intermodal` asks for a route of 186.9 km, within
 #   10 %, between the two towns. This network passes the case.
@@ -262,13 +345,13 @@ def denmark_file(tmp_path_factory):
         graph=[{1: 1.6, 2: 100.0}, {0: 1.6}, {0: 100.0, 3: 87.0}, {2: 87.0}],
         nodes=[AARHUS, ARHUS_PORT, NORTH_OF_DENMARK, COPENHAGEN],
         intermediate_nodes=[{}, {}, {}, {}],
-        node_modes=[0, 1, 0, 0],
-        modes=[{"name": "road"}, {"name": "port"}],
+        node_mode_ids=[0, 1, 0, 0],
+        node_modes=[{"name": "road"}, {"name": "port"}],
         coordinate_dtype="int32",
     ).save_as_scgraph(
         path,
         metadata=pipelines.build_metadata(
-            "geofabrik_multimodal", "europe/denmark", 1, []
+            "osm_region_multimodal", "europe/denmark", 1, []
         ),
     )
     return path
@@ -319,16 +402,24 @@ REGION_POINTS = {
 }
 
 
+# What a pipeline records in the header of the file that it builds: its docstring,
+# and each source with its credit and its license
+WORLD_DESCRIPTION = (
+    "The roads, the railways and the sea lanes of a small world."
+)
+WORLD_SOURCE = {"name": "osm", "credit": "The mappers", "license": "ODbL-1.0"}
+
+
 def _write_small_world(path, pipeline_name):
     """Write the small world to `path`, as a file that the pipeline
     `pipeline_name` built."""
-    nodes, node_modes, links = [], [], []
+    nodes, node_mode_ids, links = [], [], []
 
     def add_chain(start, mode, count=10):
         first = len(nodes)
         latitude, longitude = start
         nodes.extend([latitude, longitude + 0.01 * i] for i in range(count))
-        node_modes.extend([mode] * count)
+        node_mode_ids.extend([mode] * count)
         links.extend((u, u + 1) for u in range(first, first + count - 1))
         return first + count - 1  # the last node of the chain
 
@@ -349,11 +440,14 @@ def _write_small_world(path, pipeline_name):
         graph=graph,
         nodes=nodes,
         intermediate_nodes=shapes,
-        node_modes=node_modes,
-        modes=WORLD_MODES,
+        node_mode_ids=node_mode_ids,
+        node_modes=WORLD_MODES,
         coordinate_dtype="int32",
     ).save_as_scgraph(
-        path, metadata=pipelines.build_metadata(pipeline_name, None, 1, [])
+        path,
+        metadata=pipelines.build_metadata(
+            pipeline_name, None, 1, [WORLD_SOURCE], WORLD_DESCRIPTION
+        ),
     )
     return path
 
@@ -394,6 +488,47 @@ def test_a_network_release_gets_two_files_for_each_derived_network(
     ] + ["world_multimodal.no_shapes.scgraph"]
 
 
+# `utils/draft_network_release.py` writes the index of a network release from the
+# files of a run of the workflow `build_networks.yml`. The world file without shapes
+# is derived from the world file, and it is not a derived network.
+def test_the_index_of_a_network_release_describes_every_file(
+    small_world_file, tmp_path
+):
+    files, previous = tmp_path / "files", tmp_path / "previous"
+    files.mkdir()
+    previous.mkdir()
+    shutil.copy(small_world_file, files)
+    derived_networks.derive_network_release_files(
+        small_world_file, files, validate=False
+    )
+
+    subprocess.run(
+        [
+            sys.executable,
+            Path(__file__).parent.parent / "utils" / "draft_network_release.py",
+            files,
+            previous,
+            tmp_path / "release",
+            "networks-2000.01.01",
+            "the commit of the run",
+        ],
+        check=True,
+    )
+
+    index = json.loads((tmp_path / "release" / "networks.json").read_text())
+    description = {
+        network["file"]: network["description"] for network in index["networks"]
+    }
+    assert (
+        description["world_multimodal.no_shapes.scgraph.gz"]
+        == description["world_multimodal.scgraph.gz"]
+        == WORLD_DESCRIPTION
+    )
+    assert description["europe.no_shapes.scgraph.gz"] == (
+        derived_networks.describe_derived_network("europe")
+    )
+
+
 def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     small_world_file, tmp_path
 ):
@@ -416,7 +551,7 @@ def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     )
     # `world_sea` keeps the port and the sea lane.
     assert world_sea["nodes"] == 11
-    assert world_sea["derivation"]["modes"] == ["sea", "port"]
+    assert world_sea["derivation"]["node_modes"] == ["sea", "port"]
 
 
 def test_a_name_that_is_not_a_derived_network_is_refused(

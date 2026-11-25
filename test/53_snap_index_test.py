@@ -322,6 +322,34 @@ def test_geograph_snaps_nodes_added_to_a_network_file(tmp_path):
     _check_answers(network, geograph.snap_index)
 
 
+def test_geograph_snaps_a_query_point_to_its_modes_among_nodes_in_any_order():
+    # The shuffled network: a road node, then a rail node, and so on. A snapping
+    # index needs nearby nodes to follow each other. The rail nodes are not in
+    # such an order, so the geograph sorts them before it builds their index.
+    # Each node has an edge to the node 0 and back, so that every route exists.
+    nodes = [list(p) for p in _networks()["shuffled"]]
+    geograph = GeoGraph(
+        graph=[{i: 1.0 for i in range(1, len(nodes))}]
+        + [{0: 1.0} for _ in nodes[1:]],
+        nodes=nodes,
+        node_mode_ids=[i % 2 for i in range(len(nodes))],
+        node_modes=[{"name": "road"}, {"name": "rail"}],
+    )
+    origin, destination = [-5.0, -5.0], [5.0, 5.0]
+
+    route = geograph.get_shortest_path(
+        {"latitude": origin[0], "longitude": origin[1]},
+        {"latitude": destination[0], "longitude": destination[1]},
+        snap_to_node_modes=["rail"],
+        output_path=True,
+    )
+
+    # The rail nodes have the odd ids.
+    rail_nodes = range(1, len(nodes), 2)
+    assert _is_closest(nodes, origin, rail_nodes, route["path"][0])
+    assert _is_closest(nodes, destination, rail_nodes, route["path"][-1])
+
+
 @both_snap_index_classes
 @pytest.mark.parametrize(
     "point_that_is_not_finite", [[float("nan"), 0.0], [0.0, float("inf")]]

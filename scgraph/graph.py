@@ -76,6 +76,12 @@ as the sum of the two queue heads. A* gives the shortest path when the heuristic
 exceeds the real distance that is left. Example: the estimate 2 of node 2 is below its
 real distance 3 to node 3.
 
+An edge whose weight is infinite is closed: no search takes it. A distance through a
+closed edge is infinite, and a search keeps a new distance only when it is lower than
+the present one. The bucket searches read the maximum and the median of the finite
+weights only. Example: with the weight `inf` on the edge from node 2 to node 1,
+`dijkstra` returns `[0, 1, 3]` and the length 5.
+
 `bellman_ford` and `dijkstra_negative` accept negative weights. They raise
 `NegativeCycleError` when they find a cycle of negative length. Example: with the
 weight -2 on the edge from node 2 to node 1, both return `[0, 2, 1, 3]` and the length 0.
@@ -85,7 +91,8 @@ import warnings
 from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
-from math import asin, ceil, cos, sin
+from math import asin, ceil, cos, isfinite, sin
+from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
     _last_search_in_thread,
     GraphUtils,
@@ -96,22 +103,6 @@ from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
 from scgraph.graph_reducer import GraphReducer, algorithm
-
-try:
-    from scgraph.cpp import PathNotFoundError
-except ImportError:
-
-    class PathNotFoundError(RuntimeError):
-        """Raised when no path exists between origin and destination nodes."""
-
-
-try:
-    from scgraph.cpp import NegativeCycleError
-except ImportError:
-
-    class NegativeCycleError(RuntimeError):
-        """Raised when a graph contains a negative weight cycle."""
-
 
 # A* computes the heuristic of a node with one call of heuristic_fn per
 # destination node. Above this number of destination nodes, A* is slower than
@@ -529,7 +520,7 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation
@@ -665,13 +656,24 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_dict = normalize_node_input(origin_id)
-        dest_dict = normalize_node_input(destination_id)
+        # A node at an infinite distance has no bucket. On a reduced graph, a
+        # boundary node gets this distance when its path to the node of the query
+        # takes an edge whose weight is infinite.
+        origin_dict = {
+            oid: odist
+            for oid, odist in normalize_node_input(origin_id).items()
+            if isfinite(odist)
+        }
+        dest_dict = {
+            did: ddist
+            for did, ddist in normalize_node_input(destination_id).items()
+            if isfinite(ddist)
+        }
         origin_ids = set(origin_dict.keys())
         dest_ids = set(dest_dict.keys())
 
@@ -1234,7 +1236,16 @@ class GraphAlgorithms:
             )
         if not hasattr(self, "__bmssp_graph__"):
             self.__bmssp_graph__ = Bmssp(
-                graph=self.search_graph,
+                # BMSSPy cannot round an infinite weight: it gets the rows without
+                # the edges that such a weight closes.
+                graph=[
+                    {
+                        connected_id: weight
+                        for connected_id, weight in edges.items()
+                        if isfinite(weight)
+                    }
+                    for edges in self.search_graph
+                ],
                 use_constant_degree_graph=use_constant_degree_graph,
             )
         try:
@@ -1571,61 +1582,81 @@ class Graph(
             self.validate()
 
     @staticmethod
-    def from_csr(
-        offsets: array | memoryview,
-        heads: array | memoryview,
+    def from_edge_arrays(
+        node_first_edge_ids: array | memoryview,
+        edge_destination_node_ids: array | memoryview,
         weights: array | memoryview,
+        copy: bool = True,
     ) -> "Graph":
         """
         Function:
 
         - Create a Graph from its edges stored by origin (compressed sparse rows), as in a `.scgraph` network file
-        - The edges of node `u` go to `heads[offsets[u]:offsets[u + 1]]`, with the same slice of `weights`
+        - The edges of node `u` go to `edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]`, with the same slice of `weights`
 
         Required Arguments:
 
-        - `offsets`
+        - `node_first_edge_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per node plus one
-        - `heads`
+        - `edge_destination_node_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per edge
         - `weights`
             - Type: sequence of floats (float64 array in the C++ backend), one per edge
+
+        Optional Arguments:
+
+        - `copy`
+            - Type: bool
+            - What: Whether the graph copies the three arrays. If False, the C++ backend reads the arrays in place and keeps them alive: do not modify them afterwards. The pure-Python backend always copies them
+            - Default: True
         """
-        n = len(offsets) - 1
+        n = len(node_first_edge_ids) - 1
         if (
             n < 0
-            or offsets[0] != 0
-            or offsets[-1] != len(heads)
-            or len(weights) != len(heads)
+            or node_first_edge_ids[0] != 0
+            or node_first_edge_ids[-1] != len(edge_destination_node_ids)
+            or len(weights) != len(edge_destination_node_ids)
         ):
             raise ValueError(
-                "expected offsets from 0 to the number of edges and one weight per edge"
+                "expected node_first_edge_ids from 0 to the number of edges and one weight per edge"
             )
-        if len(heads) and (min(heads) < 0 or max(heads) >= n):
+        if len(edge_destination_node_ids) and (
+            min(edge_destination_node_ids) < 0
+            or max(edge_destination_node_ids) >= n
+        ):
             raise ValueError("an edge goes to a node that is not in the graph")
         return Graph(
             [
-                dict(zip(heads[start:end], weights[start:end]))
-                for start, end in zip(offsets, offsets[1:])
+                dict(
+                    zip(
+                        edge_destination_node_ids[start:end], weights[start:end]
+                    )
+                )
+                for start, end in zip(
+                    node_first_edge_ids, node_first_edge_ids[1:]
+                )
             ]
         )
 
     @staticmethod
-    def _reset_node_scans() -> None:
+    def reset_node_scans() -> None:
         """
         Forgets the number of node scans of the last search in this thread.
+        `GeoGraph` calls this method: it is not in the public API and may change.
         """
         _last_search_in_thread.node_scans = None
 
     @staticmethod
-    def _get_last_node_scans() -> int | None:
+    def get_last_node_scans() -> int | None:
         """
         Returns the number of node scans of the last search in this thread.
 
         - A node scan is one pass over the edges of one node. A bidirectional or bucket
           search can scan a node more than once
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
-          such search ran since `_reset_node_scans`
+          such search ran since `reset_node_scans`
+
+        `GeoGraph` calls this method: it is not in the public API and may change.
         """
         return getattr(_last_search_in_thread, "node_scans", None)
 

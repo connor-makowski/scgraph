@@ -6,9 +6,11 @@ import pytest
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import geofabrik_multimodal
+from scgraph.pipelines import osm_region_multimodal
+from scgraph.helpers import osm
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.osm import TurnRestriction, read_turn_restrictions
 from scgraph.utils import has_cpp
 
 osmium = pytest.importorskip("osmium")
@@ -32,10 +34,17 @@ _NODES = {
     31: (3.0, 0.01),
     40: (4.0, 0.0),  # roundabout piece, one way without a oneway tag
     41: (4.0, 0.01),
+    42: (
+        4.0001,
+        0.005,
+    ),  # a shape point of way 9, 11 m north of its straight line
     50: (5.0, 0.0),  # motorway, one way without a oneway tag
     51: (5.0, 0.01),
     60: (6.0, 0.0),  # ferry route, without a highway tag
     61: (6.0, 0.01),
+    70: (7.0, 0.0),  # a trunk road through node 72, and a shorter primary road
+    71: (7.0, 0.01),
+    72: (7.005, 0.005),
 }
 _WAYS = [
     (1, [1, 2, 3], {"highway": "primary"}),
@@ -46,9 +55,11 @@ _WAYS = [
     (6, [10, 11, 12, 13], {"highway": "trunk"}),
     (7, [20, 99, 21], {"highway": "primary"}),
     (8, [30, 31], {"highway": "primary", "oneway": "-1"}),
-    (9, [40, 41], {"highway": "primary", "junction": "roundabout"}),
+    (9, [40, 42, 41], {"highway": "primary", "junction": "roundabout"}),
     (10, [50, 51], {"highway": "motorway"}),
     (11, [60, 61], {"route": "ferry"}),
+    (12, [70, 72, 71], {"highway": "trunk"}),
+    (13, [70, 71], {"highway": "primary"}),
 ]
 
 
@@ -124,6 +135,16 @@ def test_an_edge_has_the_length_of_its_drawing(edges):
     assert edges[(10, 12)] == pytest.approx(_km(10, 11) + _km(11, 12))
 
 
+def test_a_route_passes_each_shape_point_of_its_ways(whole_network):
+    # Node 42 is 11 m away from the straight line between the nodes 40 and 41.
+    route = whole_network.get_shortest_path(
+        origin_node={"latitude": 4.0, "longitude": 0.0},
+        destination_node={"latitude": 4.0, "longitude": 0.01},
+    )
+
+    assert [4.0001, 0.005] in route["coordinate_path"]
+
+
 def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(edges):
     # Way 6 runs 10, 11, 12, 13. Along the way, node 11 is 1.2 km from node
     # 10 and node 12 is 2.5 km from it: the way is cut at node 12.
@@ -168,6 +189,76 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
     assert not any(50 in edge or 51 in edge for edge in edges)
 
 
+def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
+    whole_network,
+):
+    osm_id = list(whole_network.external_node_ids)
+    classes = {
+        (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
+            edge["edge_class"]
+        )
+        for edge in whole_network.get_edges()
+    }
+
+    # The class of a main road is its `highway` value. Way 6 is a trunk road,
+    # cut at node 12. Way 10 is the motorway. Every other edge is a primary
+    # road, but one road: between nodes 70 and 71, the primary road is the
+    # shortest, and the trunk road is kept too. The trunk road gets one more
+    # node at its middle, with the id -1, so that one edge at most joins
+    # two nodes.
+    trunk_road = [(10, 12), (12, 10), (12, 13), (13, 12)]
+    second_road_between_70_and_71 = [(70, -1), (-1, 70), (-1, 71), (71, -1)]
+    assert classes == {
+        **dict.fromkeys(classes, "primary"),
+        **dict.fromkeys(trunk_road + second_road_between_70_and_71, "trunk"),
+        (50, 51): "motorway",
+    }
+
+
+def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
+    osm_file,
+):
+    network = GeoGraph.load_from_osm(osm_file)
+    # Minutes for 1 km. `class_weight_per_km` may name any class of
+    # `scgraph.pipelines.CLASSES`: these roads have no motorway.
+    network.create_metric(
+        "minutes",
+        weight_per_km={"road": 2.0, "off_graph": 4.0},
+        class_weight_per_km={"motorway": 0.5},
+    )
+
+    # From the point of node 1 to the point of node 4, without an off-graph leg
+    route = network.get_shortest_path(
+        dict(zip(("latitude", "longitude"), _NODES[1])),
+        dict(zip(("latitude", "longitude"), _NODES[4])),
+        metric="minutes",
+    )
+
+    # The route goes through node 2.
+    assert route["metric_totals"]["minutes"] == pytest.approx(
+        2.0 * (_km(1, 2) + _km(2, 4))
+    )
+
+
+def test_a_select_that_gives_no_class_gives_a_network_without_classes(osm_file):
+    def select_primary_roads(tags):
+        return 0 if tags.get("highway") == "primary" else None
+
+    network = GeoGraph.load_from_osm(osm_file, select=select_primary_roads)
+
+    assert network.classes == []
+
+
+def test_a_select_that_gives_a_class_to_some_ways_only_is_refused(osm_file):
+    def select_roads_with_a_class_for_trunk_roads(tags):
+        return (0, "trunk") if tags.get("highway") == "trunk" else 0
+
+    with pytest.raises(ValueError, match="class"):
+        GeoGraph.load_from_osm(
+            osm_file, select=select_roads_with_a_class_for_trunk_roads
+        )
+
+
 def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
     def select_primary_roads_and_ferries(tags):
         is_kept = (
@@ -204,9 +295,9 @@ def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
         }
     }
 
-    _, polylines = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
+    _, polylines = osm.locate_ways(osm_file, selects, ("highway",))
 
-    assert {kind for _, kind, _, _, _ in polylines} == {"ways"}
+    assert {kind for _, kind, _, _, _, _ in polylines} == {"ways"}
 
 
 def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
@@ -218,11 +309,11 @@ def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
         "primary_road": {"ways": select_primary_roads},
     }
 
-    _, polylines = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
+    _, polylines = osm.locate_ways(osm_file, selects, ("highway",))
 
     # Way 3 is the primary road from node 5 to node 6. Both modes keep it.
     modes_of_way_3 = {
-        mode for mode, _, _, _, vertices in polylines if vertices[0][0] == 5
+        mode for mode, _, _, _, vertices, _ in polylines if vertices[0][0] == 5
     }
     assert modes_of_way_3 == {"road", "primary_road"}
 
@@ -239,7 +330,7 @@ def test_ways_of_two_kinds_meet_at_a_node_that_both_have(osm_file):
         }
     }
 
-    junctions, _ = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
+    junctions, _ = osm.locate_ways(osm_file, selects, ("highway",))
 
     # Node 3 is the end of the main road 1 and of the side road 4.
     # Node 1 is the end of the main road 1 only.
@@ -256,7 +347,7 @@ def test_ways_of_two_modes_do_not_meet_at_a_node_that_both_have(osm_file):
         "road": {"ways": step1_osm_ways.select_main_roads},
     }
 
-    junctions, _ = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
+    junctions, _ = osm.locate_ways(osm_file, selects, ("highway",))
 
     # Node 3 is the end of the main road 1 and of the side road 4: one way of
     # each mode.
@@ -273,7 +364,7 @@ def test_a_select_that_returns_an_unknown_class_name_is_refused(osm_file):
     selects = {"road": {"ways": select_roads_as_canals}}
 
     with pytest.raises(ValueError, match="canal"):
-        step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
+        osm.locate_ways(osm_file, selects, ("highway",))
 
 
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
@@ -281,7 +372,7 @@ def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     # reaches every other; node 7 is only reached by a one-way street
     geo = GeoGraph.load_from_osm(osm_file)
     assert {node for edge in _edges(geo) for node in edge} == {1, 2, 3, 4}
-    assert dict(zip(geo.node_ids, map(tuple, geo.nodes))) == {
+    assert dict(zip(geo.external_node_ids, map(tuple, geo.nodes))) == {
         ref: _NODES[ref] for ref in (1, 2, 3, 4)
     }
 
@@ -290,10 +381,15 @@ def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
     whole_network,
 ):
     nodes = whole_network.nodes
-    places_of_node_ids = [_NODES[osm_id] for osm_id in whole_network.node_ids]
+    # The node -1 is the one that the load adds at the middle of the trunk road
+    # from node 70 to node 71: at node 72, a shape point of this road.
+    points = _NODES | {-1: _NODES[72]}
+    places_of_external_node_ids = [
+        points[osm_id] for osm_id in whole_network.external_node_ids
+    ]
 
     assert hilbert_order(nodes) == list(range(len(nodes)))
-    assert places_of_node_ids == [tuple(node) for node in nodes]
+    assert places_of_external_node_ids == [tuple(node) for node in nodes]
     # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
     # stores it the same way, as an int32.
     assert whole_network.coordinate_dtype == "int32"
@@ -323,9 +419,9 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
     # The file has no railway. A build that took the roads kept in the
     # folder for railways would succeed.
     with pytest.raises(ValueError, match="No way"):
-        step1_osm_ways.build_way_pieces(
+        osm.build_way_pieces(
             osm_file,
-            {"rail": {"ways": geofabrik_multimodal.select_rail}},
+            {"rail": {"ways": osm_region_multimodal.select_rail}},
             ("railway",),
             step1_osm_ways.MAX_KM_BETWEEN_NODES,
             os.path.join(work_dir, "ways"),  # the folder of `build_main_roads`
@@ -343,7 +439,8 @@ def planet_folder(osm_file, tmp_path_factory):
     filler ways, each with a note of 1 kB, make it 9.7 MB: 3 MB of nodes, then
     6.6 MB of ways. The notes are all different and the file is not compressed,
     so that it keeps this size. A filler way has no highway tag: no road
-    pipeline keeps it.
+    pipeline keeps it. The PBF ends with one relation: a turn restriction from
+    way 1 to way 2, at node 2.
     """
     folder = tmp_path_factory.mktemp("planet")
     header = osmium.io.Header()
@@ -372,6 +469,13 @@ def planet_folder(osm_file, tmp_path_factory):
                     tags={"note": f"{filler:08d}" * 125},
                 )
             )
+        writer.add_relation(
+            osmium.osm.mutable.Relation(
+                id=1,
+                members=[("w", 1, "from"), ("n", 2, "via"), ("w", 2, "to")],
+                tags={"type": "restriction", "restriction": "no_left_turn"},
+            )
+        )
     (folder / "planet.osm.pbf.md5").write_text("9a8b  planet.osm.pbf\n")
     return folder
 
@@ -450,6 +554,25 @@ def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
 
     # The PBF holds the ways of the small file, and filler that no select keeps.
     assert streamed == build_main_roads({"roads": osm_file})[0]
+
+
+def test_a_pbf_read_by_byte_ranges_gives_its_turn_restrictions(
+    planet_url, tmp_path
+):
+    layout = str(tmp_path / "layout.json")
+    step1_osm_ways.StreamedPbf.download(planet_url, layout)
+
+    restrictions = read_turn_restrictions(step1_osm_ways.get_source(layout))
+
+    assert restrictions == [
+        TurnRestriction(
+            is_only=False,
+            from_way_id=1,
+            via_node_id=2,
+            via_way_ids=[],
+            to_way_id=2,
+        )
+    ]
 
 
 def test_a_pbf_that_changes_on_the_server_stops_the_build(

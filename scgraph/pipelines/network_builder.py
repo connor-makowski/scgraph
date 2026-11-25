@@ -24,8 +24,9 @@ from pathlib import Path
 import requests
 
 from scgraph import network_file, pipelines
+from scgraph.files import download_file, is_offline
 from scgraph.geograph import GeoGraph
-from scgraph.network_cache import find_cached_file, join_source_values
+from scgraph.networks import find_cached_file, join_source_values
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -79,58 +80,80 @@ def _validate_pipeline(pipeline, name, region, filename):
     logger.info("Validation %s", result.summary())
 
 
-_REGION_HELP = (
-    "the path of a Geofabrik extract, for example 'europe/luxembourg' "
-    "(see https://download.geofabrik.de)"
-)
 _OFFLINE = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
 
 
 def _resolve_pipeline(
-    name: str | types.ModuleType,
+    name: str | None, pipeline: types.ModuleType | None
 ) -> tuple[types.ModuleType, str]:
-    """Return the pipeline module and its name. `name` is the name of a pipeline of
-    scgraph, or a pipeline module of the caller."""
-    if isinstance(name, types.ModuleType):
-        pipeline, name = name, name.__name__.rpartition(".")[2]
+    """Return the pipeline module and its name. The caller gives one of the two:
+    `name`, the name of a pipeline of scgraph, or `pipeline`, a pipeline module.
+    """
+    if pipeline is not None and name is None:
+        module_name = pipeline.__name__.rpartition(".")[2]
         # A module named like a pipeline of scgraph would share its cache entry,
         # and each would load the network of the other. A name with other
         # characters could give a path outside the cache.
-        if not re.fullmatch(r"\w+", name) or (
-            name in pipelines.NAMES
-            and pipeline.__name__ != f"scgraph.pipelines.{name}"
+        if not re.fullmatch(r"\w+", module_name) or (
+            module_name in pipelines.BUILDABLE_NETWORKS
+            and pipeline.__name__ != f"scgraph.pipelines.{module_name}"
         ):
             raise ValueError(
                 f"Invalid pipeline module name '{pipeline.__name__}'"
             )
-        return pipeline, name
-    if name not in pipelines.NAMES:
-        close = difflib.get_close_matches(name, pipelines.NAMES, n=3)
+        return pipeline, module_name
+    if name is None or pipeline is not None:
+        raise ValueError(
+            "Give one of name, a network of scgraph, and pipeline, a pipeline "
+            "module of your own"
+        )
+    if name not in pipelines.BUILDABLE_NETWORKS:
+        # `str`: a caller may give a module as the name
+        close = difflib.get_close_matches(
+            str(name), pipelines.BUILDABLE_NETWORKS, n=3
+        )
         hint = f" Did you mean {', '.join(map(repr, close))}?" if close else ""
         raise ValueError(
-            f"Unknown network '{name}'.{hint} Available: {', '.join(pipelines.NAMES)}"
+            f"Unknown network {name!r}.{hint} Available: "
+            f"{', '.join(pipelines.BUILDABLE_NETWORKS)}. Pass a pipeline module of your own "
+            "as pipeline=<module>"
         )
     return importlib.import_module(f"scgraph.pipelines.{name}"), name
+
+
+def find_region_url(pipeline: types.ModuleType) -> str | None:
+    """Return the first source URL of the pipeline that holds `{region}`, or None.
+    A pipeline declares this way that it needs a region (`scgraph.pipelines`).
+    """
+    return next(
+        (s["url"] for s in pipeline.SOURCES.values() if "{region}" in s["url"]),
+        None,
+    )
 
 
 def _check_region(
     pipeline: types.ModuleType, name: str, region: str | None
 ) -> None:
-    """Raise a ValueError when `region` does not fit the pipeline: a pipeline needs a
-    region when one of its source URLs holds `{region}`."""
-    regional = any(
-        "{region}" in source["url"] for source in pipeline.SOURCES.values()
-    )
-    if regional and region is None:
-        raise ValueError(f"'{name}' needs a region: {_REGION_HELP}")
-    if not regional and region is not None:
-        raise ValueError(f"'{name}' has no region")
-    # A region is the path of a Geofabrik extract. Nothing else may reach the
-    # path of the cache.
+    """Raise a ValueError when `region` does not fit what the pipeline declares."""
+    region_url = find_region_url(pipeline)
+    if region_url is not None and region is None:
+        raise ValueError(
+            f"The pipeline '{name}' needs a region: the value of {{region}} in "
+            f"{region_url}"
+        )
+    if region_url is None and region is not None:
+        raise ValueError(
+            f"The pipeline '{name}' takes no region: no URL of its sources "
+            "holds {region}"
+        )
+    # The region becomes a part of the path of the cache, so it holds nothing else
     if region is not None and not re.fullmatch(
         r"[a-z0-9-]+(/[a-z0-9-]+)*", region
     ):
-        raise ValueError(f"Invalid region '{region}': {_REGION_HELP}")
+        raise ValueError(
+            f"Invalid region '{region}': lowercase letters, digits and hyphens, "
+            "in parts joined by '/'"
+        )
 
 
 def _should_build(
@@ -177,7 +200,7 @@ def _should_build(
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
                 f"{built_by}, now {pipeline.PIPELINE_VERSION}; loading it as {_OFFLINE}",
-                stacklevel=4,  # the line that called GeoGraph.build_geograph
+                stacklevel=5,  # the line that called GeoGraph.build_geograph
             )
         return False
     if stale:
@@ -214,15 +237,13 @@ def _download_sources(
             except (json.JSONDecodeError, OSError):
                 pass
         own_download = about.get("download")
-        download = own_download or getattr(
-            pipeline, "download", pipelines.download_file
-        )
+        download = own_download or getattr(pipeline, "download", download_file)
         try:
             learnt = download(url, str(source_path))
         except requests.HTTPError as error:
             if "{region}" in about["url"] and error.response.status_code == 404:
                 raise ValueError(
-                    f"No extract '{region}' on Geofabrik; the region is {_REGION_HELP}"
+                    f"The region '{region}' has no source: {url} does not exist"
                 ) from error
             raise
         # A source may have a download function of its own. When that function
@@ -257,20 +278,39 @@ def _write_network(
     network: GeoGraph | tuple[dict, list[dict]],
     filename: Path,
     metadata: dict,
+    pipeline: types.ModuleType,
 ) -> str:
-    """Write the network that a `build` returned to `filename`, with the metadata of
-    the build in its header. Return the digest of the file."""
+    """Write the network that the `build` of `pipeline` returned to `filename`, with
+    the metadata of the build in its header. Return the digest of the file."""
     if isinstance(network, GeoGraph):
-        # The file has the nodes of each mode in Hilbert order, so that nodes
+        # The file has the nodes of each node mode in Hilbert order, so that nodes
         # close on the globe get close ids
         return network.save_as_scgraph(str(filename), metadata=metadata)
-    arrays, modes = network  # the arrays of the file, already in that order
-    classes = pipelines.CLASSES if "edge_classes" in arrays else None
+    arrays, node_modes = (
+        network  # the arrays of the file, already in that order
+    )
+    classes = None
+    if "edge_class_ids" in arrays:
+        # A value of `edge_class_ids` is the id of a class of the classes table of the
+        # pipeline
+        classes = [
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in getattr(
+                pipeline, "CLASSES", pipelines.CLASSES
+            ).items()
+        ]
+    # A file gives the count of the nodes of each node mode, and not the node mode
+    # id of each node
     return network_file.write(
         str(filename),
-        arrays,
+        {name: arrays[name] for name in arrays if name != "node_mode_ids"},
         network_file.build_header_metadata(
-            metadata, units="km", modes=modes, classes=classes
+            metadata,
+            node_modes=node_modes,
+            node_mode_ids=arrays.get(
+                "node_mode_ids", bytes(len(arrays["node_first_edge_ids"]) - 1)
+            ),
+            classes=classes,
         ),
     )
 
@@ -318,10 +358,11 @@ def _move_into_cache(
 
 
 def build_network_file(
-    name: str | types.ModuleType,
+    name: str | None = None,
     region: str | None = None,
     cache_dir: str | os.PathLike | None = None,
     *,
+    pipeline: types.ModuleType | None = None,
     work_dir: str | os.PathLike | None = None,
     refresh: bool = False,
     local_files_only: bool | None = None,
@@ -333,11 +374,12 @@ def build_network_file(
     function builds nothing and returns the cached file.
 
     Args:
-        name: The name of a pipeline of scgraph, or a pipeline module.
-        region: For a pipeline with regions, the path of a Geofabrik extract, for
-            example 'europe/denmark'.
+        name: The name of a pipeline of scgraph. Give `name` or `pipeline`.
+        region: The region, for a pipeline with regions: the value of `{region}` in
+            its source URLs, for example 'europe/denmark'.
         cache_dir: The cache directory. None takes `SCGRAPH_CACHE_DIR`, then the
             cache directory of the platform.
+        pipeline: A pipeline module of the caller, in place of `name`.
         work_dir: The work folder, where the build keeps the downloaded sources and
             the files of its steps. None takes a folder in the cache directory, which
             the function removes after a build that succeeds. The function does not
@@ -358,17 +400,18 @@ def build_network_file(
         The path of the network file in the cache.
 
     Raises:
-        ValueError: The name is unknown, or the module has the name of a pipeline of
-            scgraph. The region is missing, not valid, or not on Geofabrik. With
-            `local_files_only`: `refresh` is true, or scgraph cannot read the cached
-            file.
+        ValueError: Not one of `name` and `pipeline`. The name is unknown, or the
+            module has the name of a pipeline of scgraph. The region is missing for a
+            pipeline with regions, given to another pipeline, not valid, or has no
+            source. With `local_files_only`: `refresh` is true, or scgraph cannot read
+            the cached file.
         FileNotFoundError: The network is not in the cache, with `local_files_only`.
         RuntimeError: The network fails its validation.
         requests.HTTPError: A source cannot be downloaded.
     """
     if local_files_only is None:
-        local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
-    pipeline, name = _resolve_pipeline(name)
+        local_files_only = is_offline()
+    pipeline, name = _resolve_pipeline(name, pipeline)
     _check_region(pipeline, name, region)
     cache = resolve_cache_dir(cache_dir)
     folder = cache.joinpath("networks", name, region or "")
@@ -413,7 +456,7 @@ def build_network_file(
         metadata = pipelines.build_metadata(
             name, region, pipeline.PIPELINE_VERSION, sources, pipeline.__doc__
         )
-        digest = _write_network(network, building, metadata)
+        digest = _write_network(network, building, metadata, pipeline)
         if validate:
             _validate_pipeline(pipeline, name, region, building)
         built_file = _move_into_cache(
@@ -463,7 +506,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "name", help="a name of GeoGraph.list_buildable_geographs()"
     )
-    parser.add_argument("--region", help="the path of a Geofabrik extract")
+    parser.add_argument(
+        "--region", help="the region, for a network with regions"
+    )
     parser.add_argument("--cache-dir", help="the cache directory")
     parser.add_argument(
         "--work-dir",

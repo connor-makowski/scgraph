@@ -12,7 +12,9 @@ from array import array
 from typing import Literal
 import math
 
-# The number of node scans of the last search in each thread (see Graph._get_last_node_scans).
+from scgraph.errors import NegativeCycleError
+
+# The number of node scans of the last search in each thread (see Graph.get_last_node_scans).
 # None means that no search counted its node scans since the last reset.
 _last_search_in_thread = threading.local()
 
@@ -46,13 +48,15 @@ class GraphUtils:
         """Same as `graph`."""
         return self.graph
 
-    def _csr(
+    def get_edge_arrays(
         self, order: list[int] | None = None
     ) -> tuple[array, array, array]:
-        """The graph (unreduced) as edges by origin: int32 offsets and heads, float64
+        """The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_node_ids, float64
         weights, in the order in which searches visit the edges (the C++ backend gives
-        views of its own arrays). With `order` (order[new] = old), the rows of the nodes
-        in that order, their heads renumbered.
+        views of its own arrays). The id of an edge is its position in these arrays.
+        With `order` (order[new] = old), the rows of the nodes in that order, their
+        edge_destination_node_ids renumbered. `Graph.from_edge_arrays` builds a graph from the three
+        arrays. `GeoGraph` calls this method: it is not in the public API and may change.
         """
         rows, new_id = self.graph, None
         if order is not None:
@@ -64,14 +68,18 @@ class GraphUtils:
                     raise IndexError("order must list every node once")
                 new_id[old] = new
             rows = map(rows.__getitem__, order)
-        offsets, heads, weights = array("i", [0]), array("i"), array("d")
+        node_first_edge_ids, edge_destination_node_ids, weights = (
+            array("i", [0]),
+            array("i"),
+            array("d"),
+        )
         for row in rows:
-            heads.extend(
+            edge_destination_node_ids.extend(
                 row if new_id is None else map(new_id.__getitem__, row)
             )
             weights.extend(row.values())
-            offsets.append(len(heads))
-        return offsets, heads, weights
+            node_first_edge_ids.append(len(edge_destination_node_ids))
+        return node_first_edge_ids, edge_destination_node_ids, weights
 
     @property
     def inverse_graph(self) -> list[dict[int, int | float]]:
@@ -245,8 +253,6 @@ class GraphUtils:
             if cycle_id == -1:
                 return
             if cycle_id == node_id:
-                from scgraph.graph import NegativeCycleError
-
                 raise NegativeCycleError(
                     f"Cycle detected in the graph at node {node_id}"
                 )
@@ -324,7 +330,8 @@ class GraphUtils:
         self,
         max_edge_weight: float | None,
     ) -> int:
-        """Infer and round up the maximum edge weight for bucket allocation."""
+        """Infer and round up the maximum edge weight for bucket allocation. An infinite
+        weight closes its edge, so the maximum is that of the finite weights."""
         if max_edge_weight is not None:
             return math.ceil(max_edge_weight)
         cached_max_edge_weight = getattr(self, "__max_edge_weight__", None)
@@ -333,7 +340,12 @@ class GraphUtils:
             max_edge_weight = max(
                 0,
                 max(
-                    (max(edges.values()) for edges in graph if edges),
+                    (
+                        weight
+                        for edges in graph
+                        for weight in edges.values()
+                        if math.isfinite(weight)
+                    ),
                     default=0,
                 ),
             )
@@ -347,8 +359,9 @@ class GraphUtils:
         max_edge_weight: int,
     ) -> float:
         """Width of the buckets of the bucket algorithms: the given width, else 8 times the
-        median edge weight of the graph (1 if that median is 0), never so small that a bucket
-        ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width (C++).
+        median finite edge weight of the graph (1 if that median is 0), never so small that a
+        bucket ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width
+        (C++).
         """
         if bucket_width is not None:
             if not (math.isfinite(bucket_width) and bucket_width > 0):
@@ -364,6 +377,7 @@ class GraphUtils:
                     for edges in self.search_graph
                     if edges
                     for w in edges.values()
+                    if math.isfinite(w)
                 )
                 median = weights[len(weights) // 2] if weights else 0
                 width = 8.0 * median if median > 0 else 1.0
@@ -520,6 +534,14 @@ class GraphUtils:
 
 
 class GraphModifiers:
+    @property
+    def edit_count(self) -> int:
+        """The number of calls of `add_node`, `add_edge`, `remove_node` and
+        `remove_edge` that changed the graph. A GeoGraph reads it to know that its
+        graph was edited. An assignment into `graph` does not change it. It is
+        not in the public API and may change."""
+        return getattr(self, "_edit_counter", 0)
+
     def add_node(
         self,
         node_dict: dict[int, int | float] | None = None,
@@ -553,6 +575,7 @@ class GraphModifiers:
             for dest_id, distance in node_dict.items():
                 self.__graph__[dest_id][new_node_id] = distance
         self.__inverse_graph__ = None
+        self._edit_counter = self.edit_count + 1
         self.reset_cache()
         return new_node_id
 
@@ -598,6 +621,7 @@ class GraphModifiers:
         if symmetric:
             self.__graph__[destination_id][origin_id] = distance
         self.__inverse_graph__ = None
+        self._edit_counter = self.edit_count + 1
         self.reset_cache()
 
     def remove_node(
@@ -637,6 +661,7 @@ class GraphModifiers:
                     origin_dict.pop(node_id)
         removed_node = self.__graph__.pop()
         self.__inverse_graph__ = None
+        self._edit_counter = self.edit_count + 1
         self.reset_cache()
         return removed_node
 
@@ -677,5 +702,6 @@ class GraphModifiers:
             self.__graph__[destination_id].pop(origin_id, None)
         res = self.__graph__[origin_id].pop(destination_id, None)
         self.__inverse_graph__ = None
+        self._edit_counter = self.edit_count + 1
         self.reset_cache()
         return res

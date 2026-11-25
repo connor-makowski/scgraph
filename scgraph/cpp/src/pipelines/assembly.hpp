@@ -9,7 +9,7 @@
 
 // Functions that assemble a network file from raw edges, for a network too large for
 // Python (the roads of the planet). Read the header of
-// scgraph/pipelines/steps/step3_network_assembly.py first: it explains the algorithms,
+// scgraph/network_assembly.py first: it explains the algorithms,
 // and the docstrings of the Python functions give the inputs and the results. Each
 // function here gives the same results as its pure-Python version.
 namespace assembly {
@@ -85,17 +85,21 @@ private:
 };
 
 struct EdgeTable {
-    std::vector<int64_t> node_ids;
-    std::vector<int32_t> offsets, heads, kept;
+    std::vector<int64_t> external_node_ids;
+    // parallel_edges: the input index of each parallel edge, in rising order (the
+    // Python docstring of build_csr_from_edges defines a parallel edge)
+    std::vector<int32_t> node_first_edge_ids, edge_destination_node_ids, kept, parallel_edges;
     std::vector<double> weights;
 };
 
+// edge_class_ids is null for edges without classes: parallel_edges is then empty
 inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* destinations,
-                              const double* weights, int64_t edge_count) {
+                              const double* weights, int64_t edge_count,
+                              const uint8_t* edge_class_ids = nullptr) {
     if (edge_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 edges");
     // The origins, then the destinations that are not origins (few: most nodes are both)
     EdgeTable table;
-    std::vector<int64_t>& ids = table.node_ids;
+    std::vector<int64_t>& ids = table.external_node_ids;
     ids.reserve(edge_count);
     for (int64_t a = 0; a < edge_count; ++a) {
         if (origins[a] != destinations[a]) ids.push_back(origins[a]);
@@ -117,17 +121,17 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
     const int32_t n = static_cast<int32_t>(ids.size());
 
     // Edges by position, self-loops marked -1
-    std::vector<int32_t> tails(edge_count, -1), heads(edge_count, -1);
+    std::vector<int32_t> tails(edge_count, -1), edge_destination_node_ids(edge_count, -1);
     const IdIndex index(ids);
     index.find_each(origins, edge_count, [&](int64_t a, int64_t position) {
         if (origins[a] != destinations[a]) tails[a] = static_cast<int32_t>(position);
     });
     index.find_each(destinations, edge_count, [&](int64_t a, int64_t position) {
-        if (origins[a] != destinations[a]) heads[a] = static_cast<int32_t>(position);
+        if (origins[a] != destinations[a]) edge_destination_node_ids[a] = static_cast<int32_t>(position);
     });
 
-    // Edges by tail (a counting sort), each packed as head << 32 | input index, then each
-    // row sorted: by head, then input index. Rows are short and in one place
+    // Edges by tail (a counting sort), each packed as destination_id << 32 | input index, then each
+    // row sorted: by destination id, then input index. Rows are short and in one place
     std::vector<int32_t> start(static_cast<size_t>(n) + 1, 0);
     for (int64_t a = 0; a < edge_count; ++a) {
         if (a + AHEAD < edge_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + AHEAD] + 1]);
@@ -138,60 +142,80 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
     for (int64_t a = 0; a < edge_count; ++a) {
         if (a + 2 * AHEAD < edge_count && tails[a + 2 * AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + 2 * AHEAD]]);
         if (a + AHEAD < edge_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&edges[start[tails[a + AHEAD]]]);
-        if (tails[a] >= 0) edges[start[tails[a]]++] = static_cast<uint64_t>(heads[a]) << 32 | a;
+        if (tails[a] >= 0) edges[start[tails[a]]++] = static_cast<uint64_t>(edge_destination_node_ids[a]) << 32 | a;
     }
     // Free them (assigning {} would keep the memory)
     std::vector<int32_t>().swap(tails);
-    std::vector<int32_t>().swap(heads);
+    std::vector<int32_t>().swap(edge_destination_node_ids);
 
-    // Now start[u] is where row u ends; offsets overwrite it, behind the reads. Of
-    // parallel edges, keep the shortest, the first in the input on a tie
-    table.heads.reserve(edges.size());
+    // Now start[u] is where row u ends; node_first_edge_ids overwrite it, behind the reads. Of the
+    // edges between the same two nodes, keep the shortest, the first in the input on a tie
+    table.edge_destination_node_ids.reserve(edges.size());
     table.weights.reserve(edges.size());
     table.kept.reserve(edges.size());
+    // The shortest edge so far of each class between two nodes, -1 for a class without
+    // an edge. A class is one byte, so 256 entries hold every class
+    std::vector<int64_t> shortest_of_class(256, -1);
     int32_t begin = 0;
     for (int32_t u = 0; u < n; ++u) {
         const int32_t end = start[u];
-        start[u] = static_cast<int32_t>(table.heads.size());
+        start[u] = static_cast<int32_t>(table.edge_destination_node_ids.size());
         std::sort(edges.begin() + begin, edges.begin() + end);
         for (int64_t i = begin + AHEAD; i < end + AHEAD && i < static_cast<int64_t>(edges.size()); ++i) {
             ASSEMBLY_PREFETCH(&weights[static_cast<uint32_t>(edges[i])]);
         }
         for (int32_t i = begin; i < end;) {
-            const uint32_t head = edges[i] >> 32;
+            const int32_t first = i;
+            const uint32_t destination_id = edges[i] >> 32;
             uint32_t best = static_cast<uint32_t>(edges[i]);
-            for (++i; i < end && edges[i] >> 32 == head; ++i) {
+            for (++i; i < end && edges[i] >> 32 == destination_id; ++i) {
                 const uint32_t a = static_cast<uint32_t>(edges[i]);
                 if (weights[a] < weights[best]) best = a;
             }
-            table.heads.push_back(head);
+            table.edge_destination_node_ids.push_back(destination_id);
             table.kept.push_back(best);
             table.weights.push_back(weights[best]);
+            if (!edge_class_ids || i - first < 2) continue;
+            // The edges first to i - 1 join the same two nodes, in input order. The
+            // shortest of each class is parallel, except the kept edge
+            for (int32_t j = first; j < i; ++j) {
+                const uint32_t edge_id = static_cast<uint32_t>(edges[j]);
+                int64_t& shortest = shortest_of_class[edge_class_ids[edge_id]];
+                if (shortest < 0 || weights[edge_id] < weights[shortest]) shortest = edge_id;
+            }
+            for (int32_t j = first; j < i; ++j) {
+                int64_t& shortest = shortest_of_class[edge_class_ids[static_cast<uint32_t>(edges[j])]];
+                if (shortest >= 0 && shortest != best) table.parallel_edges.push_back(static_cast<int32_t>(shortest));
+                shortest = -1;  // each class once, and the table is empty for the next two nodes
+            }
         }
         begin = end;
     }
-    start[n] = static_cast<int32_t>(table.heads.size());
-    table.offsets = std::move(start);
+    std::sort(table.parallel_edges.begin(), table.parallel_edges.end());
+    start[n] = static_cast<int32_t>(table.edge_destination_node_ids.size());
+    table.node_first_edge_ids = std::move(start);
     return table;
 }
 
-// Offsets of rows over count items: from 0 to count, never decreasing
-inline void check_offsets(const int32_t* offsets, int64_t rows, int64_t count) {
-    bool valid = rows >= 0 && offsets[0] == 0 && offsets[rows] == count;
-    for (int64_t r = 0; valid && r < rows; ++r) valid = offsets[r] <= offsets[r + 1];
-    if (!valid) throw std::invalid_argument("offsets must rise from 0 to the number of items");
+// The first ids of rows over count items: from 0 to count, never decreasing
+inline void check_first_ids(const int32_t* first_ids, int64_t rows, int64_t count) {
+    bool valid = rows >= 0 && first_ids[0] == 0 && first_ids[rows] == count;
+    for (int64_t r = 0; valid && r < rows; ++r) valid = first_ids[r] <= first_ids[r + 1];
+    if (!valid) throw std::invalid_argument("first_ids must rise from 0 to the number of items");
 }
 
 struct Components {
     std::vector<int32_t> labels, sizes;
 };
 
-inline Components find_strongly_connected_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
-                                                int64_t edge_count) {
-    check_offsets(offsets, node_count, edge_count);
+inline Components find_strongly_connected_components(const int32_t* node_first_edge_ids,
+                                                     const int32_t* edge_destination_node_ids, int64_t node_count,
+                                                     int64_t edge_count) {
+    check_first_ids(node_first_edge_ids, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
     for (int64_t a = 0; a < edge_count; ++a) {
-        if (heads[a] < 0 || heads[a] >= n) throw std::out_of_range("head out of range");
+        if (edge_destination_node_ids[a] < 0 || edge_destination_node_ids[a] >= n)
+            throw std::out_of_range("destination id out of range");
     }
     // Kosaraju: order the nodes by the end of a depth-first search, then search the
     // reverse graph from the last one finished
@@ -201,27 +225,28 @@ inline Components find_strongly_connected_components(const int32_t* offsets, con
     for (int32_t first = 0; first < n; ++first) {
         if (seen[first]) continue;
         seen[first] = 1;
-        path.push_back({first, offsets[first]});
+        path.push_back({first, node_first_edge_ids[first]});
         while (!path.empty()) {
             const auto [node, edge] = path.back();
-            if (edge == offsets[node + 1]) {
+            if (edge == node_first_edge_ids[node + 1]) {
                 path.pop_back();
                 finished.push_back(node);
                 continue;
             }
             path.back().second = edge + 1;
-            if (!seen[heads[edge]]) {
-                seen[heads[edge]] = 1;
-                path.push_back({heads[edge], offsets[heads[edge]]});
+            if (!seen[edge_destination_node_ids[edge]]) {
+                seen[edge_destination_node_ids[edge]] = 1;
+                path.push_back({edge_destination_node_ids[edge], node_first_edge_ids[edge_destination_node_ids[edge]]});
             }
         }
     }
     std::vector<int32_t> reverse_start(static_cast<size_t>(n) + 1, 0), reverse(edge_count);
-    for (int64_t a = 0; a < edge_count; ++a) ++reverse_start[heads[a] + 1];
+    for (int64_t a = 0; a < edge_count; ++a) ++reverse_start[edge_destination_node_ids[a] + 1];
     for (int32_t u = 0; u < n; ++u) reverse_start[u + 1] += reverse_start[u];
     std::vector<int32_t> next(reverse_start.begin(), reverse_start.end() - 1);
     for (int32_t u = 0; u < n; ++u) {
-        for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) reverse[next[heads[a]]++] = u;
+        for (int32_t a = node_first_edge_ids[u]; a < node_first_edge_ids[u + 1]; ++a)
+            reverse[next[edge_destination_node_ids[a]]++] = u;
     }
     std::vector<int32_t> component(n, -1), stack;
     int32_t count = 0;
@@ -258,56 +283,63 @@ inline Components find_strongly_connected_components(const int32_t* offsets, con
 }
 
 struct Contracted {
-    std::vector<int32_t> kept, origins, heads, member_offsets, members;
+    std::vector<int32_t> kept, origins, edge_destination_node_ids, member_offsets, members;
     std::vector<double> weights;
 };
 
 // The same rules, in the same order of operations, as contract_chains_python in
 // assembly.py: the two versions give the same edges and the same sums.
-// node_modes and edge_classes may be null: the graph then has no modes, or no classes.
-inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
-                                  const uint8_t* node_modes, int64_t node_count, int64_t edge_count,
-                                  double max_km_between_nodes, const uint8_t* edge_classes) {
-    check_offsets(offsets, node_count, edge_count);
+// node_mode_ids and edge_class_ids may be null: the graph then has no node modes, or no classes.
+// kept_node_flags may be null. Otherwise it has one byte for each node, and a node with a byte other
+// than 0 is never removed.
+inline Contracted contract_chains(const int32_t* node_first_edge_ids, const int32_t* edge_destination_node_ids, const double* weights,
+                                  const uint8_t* node_mode_ids, int64_t node_count, int64_t edge_count,
+                                  double max_km_between_nodes, const uint8_t* edge_class_ids,
+                                  const uint8_t* kept_node_flags = nullptr) {
+    check_first_ids(node_first_edge_ids, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
     for (int32_t u = 0; u < n; ++u) {
-        for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
-            const int32_t v = heads[a];
-            if (v < 0 || v >= n || v == u || (a > offsets[u] && v <= heads[a - 1]))
+        for (int32_t a = node_first_edge_ids[u]; a < node_first_edge_ids[u + 1]; ++a) {
+            const int32_t v = edge_destination_node_ids[a];
+            if (v < 0 || v >= n || v == u || (a > node_first_edge_ids[u] && v <= edge_destination_node_ids[a - 1]))
                 throw std::out_of_range("rows must rise within the nodes, without loops");
             if (indegree[v] == 0) first[v] = u;
             else if (indegree[v] == 1) second[v] = u;
             ++indegree[v];
         }
     }
-    auto degree = [&](int32_t v) { return offsets[v + 1] - offsets[v]; };
+    auto degree = [&](int32_t v) { return node_first_edge_ids[v + 1] - node_first_edge_ids[v]; };
     auto edge = [&](int32_t u, int32_t v) {  // the index of edge u -> v
-        return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
+        return static_cast<int32_t>(std::lower_bound(edge_destination_node_ids + node_first_edge_ids[u],
+                                                     edge_destination_node_ids + node_first_edge_ids[u + 1], v) -
+                                    edge_destination_node_ids);
     };
     std::vector<char> chain(n), keep(n), seen(n, 0);
     for (int32_t v = 0; v < n; ++v) {
-        const int32_t* out = heads + offsets[v];
+        const int32_t* out = edge_destination_node_ids + node_first_edge_ids[v];
         // Predecessors are seen in rising order, so first < second
         const bool two_way = degree(v) == 2 && indegree[v] == 2 && first[v] == out[0] && second[v] == out[1];
         const bool one_way = degree(v) == 1 && indegree[v] == 1 && first[v] != out[0];
         // All the edges that leave v or enter v have one class: two edges for a one-way node, four for a
         // two-way node. Called for a pass-through node only, which has these edges.
         auto has_one_class = [&]() {
-            const uint8_t c = edge_classes[offsets[v]];
-            return edge_classes[edge(first[v], v)] == c &&
-                   (one_way || (edge_classes[offsets[v] + 1] == c && edge_classes[edge(second[v], v)] == c));
+            const uint8_t c = edge_class_ids[node_first_edge_ids[v]];
+            return edge_class_ids[edge(first[v], v)] == c &&
+                   (one_way || (edge_class_ids[node_first_edge_ids[v] + 1] == c && edge_class_ids[edge(second[v], v)] == c));
         };
         chain[v] = (two_way || one_way) &&
-                   (!node_modes || (node_modes[out[0]] == node_modes[v] &&
-                                    node_modes[two_way ? out[1] : first[v]] == node_modes[v])) &&
-                   (!edge_classes || has_one_class());
+                   (!node_mode_ids || (node_mode_ids[out[0]] == node_mode_ids[v] &&
+                                    node_mode_ids[two_way ? out[1] : first[v]] == node_mode_ids[v])) &&
+                   (!edge_class_ids || has_one_class()) && !(kept_node_flags && kept_node_flags[v]);
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
-    std::unordered_set<uint64_t> pairs;  // (origin, head) of the edges made by contraction
+    std::unordered_set<uint64_t> pairs;  // (origin, destination id) of the edges made by contraction
     auto exists = [&](int32_t u, int32_t v) {  // an input edge, or an edge made
-        return pairs.count(static_cast<uint64_t>(u) << 32 | v) || std::binary_search(heads + offsets[u], heads + offsets[u + 1], v);
+        return pairs.count(static_cast<uint64_t>(u) << 32 | v) ||
+               std::binary_search(edge_destination_node_ids + node_first_edge_ids[u],
+                                  edge_destination_node_ids + node_first_edge_ids[u + 1], v);
     };
     // Each input edge is the member of one edge at most: reserved once, never copied as
     // they grow, and only the pages used are resident
@@ -320,8 +352,10 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         pairs.insert(static_cast<uint64_t>(u) << 32 | v);
     };
     for (int32_t u = 0; u < n; ++u) {
-        for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
-            if (keep[u] && keep[heads[a]]) pool.push_back(a), edges.push_back({u, heads[a], weights[a], (int32_t)pool.size() - 1, 1});
+        for (int32_t a = node_first_edge_ids[u]; a < node_first_edge_ids[u + 1]; ++a) {
+            if (keep[u] && keep[edge_destination_node_ids[a]])
+                pool.push_back(a),
+                    edges.push_back({u, edge_destination_node_ids[a], weights[a], (int32_t)pool.size() - 1, 1});
         }
     }
     std::vector<int32_t> nodes, path;
@@ -329,13 +363,14 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
     auto contract = [&](int32_t s, int32_t a) {
         nodes.assign(1, s);
         path.assign(1, a);
-        while (!keep[heads[path.back()]]) {  // walk to the next kept node
-            const int32_t v = heads[path.back()];
+        while (!keep[edge_destination_node_ids[path.back()]]) {  // walk to the next kept node
+            const int32_t v = edge_destination_node_ids[path.back()];
             seen[v] = 1;
             nodes.push_back(v);
-            path.push_back(offsets[v] + (degree(v) == 2 && heads[offsets[v]] == nodes[nodes.size() - 2]));
+            path.push_back(node_first_edge_ids[v] +
+                           (degree(v) == 2 && edge_destination_node_ids[node_first_edge_ids[v]] == nodes[nodes.size() - 2]));
         }
-        nodes.push_back(heads[path.back()]);
+        nodes.push_back(edge_destination_node_ids[path.back()]);
         // Cut where the length from the canonical end reaches max_km_between_nodes
         const int32_t length = static_cast<int32_t>(path.size());
         double total = 0.0;
@@ -370,12 +405,12 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         }
     };
     for (int32_t s = 0; s < n; ++s) {
-        for (int32_t a = offsets[s]; a < offsets[s + 1]; ++a) {
-            if (!chain[s] && chain[heads[a]] && !seen[heads[a]]) contract(s, a);
+        for (int32_t a = node_first_edge_ids[s]; a < node_first_edge_ids[s + 1]; ++a) {
+            if (!chain[s] && chain[edge_destination_node_ids[a]] && !seen[edge_destination_node_ids[a]]) contract(s, a);
         }
     }
     for (int32_t v = 0; v < n; ++v) {  // isolated cycles
-        if (chain[v] && !seen[v]) keep[v] = seen[v] = 1, contract(v, offsets[v]);
+        if (chain[v] && !seen[v]) keep[v] = seen[v] = 1, contract(v, node_first_edge_ids[v]);
     }
     std::unordered_set<uint64_t>().swap(pairs);  // freed before the result is built
     std::vector<char>().swap(chain), std::vector<char>().swap(seen);
@@ -394,37 +429,39 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
     }
     std::vector<int32_t>().swap(pool);
-    result.origins.reserve(edges.size()), result.heads.reserve(edges.size()), result.weights.reserve(edges.size());
+    result.origins.reserve(edges.size()), result.edge_destination_node_ids.reserve(edges.size()),
+        result.weights.reserve(edges.size());
     for (const Edge& x : edges) {
         result.origins.push_back(position[x.u]);
-        result.heads.push_back(position[x.v]);
+        result.edge_destination_node_ids.push_back(position[x.v]);
         result.weights.push_back(x.km);
     }
     return result;
 }
 
 struct Shapes {
-    std::vector<int32_t> points, offsets;
+    std::vector<int32_t> points, edge_first_shape_point_ids;
 };
 
 // Same formulas and order of operations as the Python twin, and no fused multiply-add
 // (CMakeLists.txt), so that both keep the same points
-inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const int32_t* offsets,
+inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const int32_t* edge_first_shape_point_ids,
                               const int32_t* endpoint_coords, int64_t shape_count, double tolerance_meters) {
     if (!(tolerance_meters >= 0)) throw std::invalid_argument("tolerance_meters must be >= 0");
-    check_offsets(offsets, shape_count, point_count);
+    check_first_ids(edge_first_shape_point_ids, shape_count, point_count);
     constexpr double PI = 3.141592653589793;
     constexpr double METRES = 6371000.0 * PI / 1.8e9;  // per 1e-7 degree of latitude
     const double tolerance2 = tolerance_meters * tolerance_meters;
     Shapes result;
-    result.offsets.push_back(0);
+    result.edge_first_shape_point_ids.push_back(0);
     std::vector<double> x, y;
     std::vector<char> keep;
     std::vector<std::pair<int64_t, int64_t>> stack;
     for (int64_t s = 0; s < shape_count; ++s) {
         const int32_t* end = endpoint_coords + 4 * s;
-        const int64_t base = 2 * (static_cast<int64_t>(offsets[s]) - 1);  // point i of the polyline at base + 2 * i
-        const int64_t last = offsets[s + 1] - offsets[s] + 1;
+        // Point i of the polyline is at base + 2 * i.
+        const int64_t base = 2 * (static_cast<int64_t>(edge_first_shape_point_ids[s]) - 1);
+        const int64_t last = edge_first_shape_point_ids[s + 1] - edge_first_shape_point_ids[s] + 1;
         const double kx = METRES * std::cos(end[0] * PI / 1.8e9);
         x.resize(last + 1);
         y.resize(last + 1);
@@ -467,7 +504,7 @@ inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const 
         for (int64_t i = 1; i < last; ++i) {
             if (keep[i]) result.points.insert(result.points.end(), points + (base + 2 * i), points + (base + 2 * i + 2));
         }
-        result.offsets.push_back(static_cast<int32_t>(result.points.size() / 2));
+        result.edge_first_shape_point_ids.push_back(static_cast<int32_t>(result.points.size() / 2));
     }
     return result;
 }

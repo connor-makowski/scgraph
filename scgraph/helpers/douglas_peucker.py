@@ -3,15 +3,10 @@
 import math
 from array import array
 from collections.abc import Sequence
-from scgraph._internal import is_sorted
+from scgraph.array_checks import is_sorted_from_zero
 
 # Metres per 1e-7 degree of latitude
 _METRES = 6371000.0 * math.pi / 1.8e9
-
-
-def _is_monotonically_increasing(offsets):
-    """Return True if offsets start at 0 and are monotonically non-decreasing."""
-    return offsets[0] == 0 and is_sorted(offsets)
 
 
 def perpendicular_distance(
@@ -81,19 +76,19 @@ def douglas_peucker(
     stack = [(0, n - 1)]
     while stack:
         a, b = stack.pop()
-        farthest_idx = -1
+        farthest_point_id = -1
         farthest_dist = tolerance
         for i in range(a + 1, b):
             d = perpendicular_distance(coords[i], coords[a], coords[b])
             if d > max_distances[i]:
                 max_distances[i] = d
             if d > farthest_dist:
-                farthest_idx = i
+                farthest_point_id = i
                 farthest_dist = d
-        if farthest_idx >= 0:
-            keep[farthest_idx] = True
-            stack.append((a, farthest_idx))
-            stack.append((farthest_idx, b))
+        if farthest_point_id >= 0:
+            keep[farthest_point_id] = True
+            stack.append((a, farthest_point_id))
+            stack.append((farthest_point_id, b))
 
     # Guarantee min_points by retaining points with the highest deviations
     kept_count = sum(keep)
@@ -111,7 +106,7 @@ def douglas_peucker(
 
 def simplify_shapes(
     shape_points: array | memoryview,
-    shape_offsets: array | memoryview,
+    edge_first_shape_point_ids: array | memoryview,
     endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array, array]:
@@ -125,8 +120,10 @@ def simplify_shapes(
     Args:
         shape_points: The shape points of all the edges, as int32 values in units of
             1e-7 degree: the latitude of a point, then its longitude.
-        shape_offsets: The int32 offsets of the shapes. The points of shape `i` are
-            the points `shape_offsets[i]` to `shape_offsets[i + 1] - 1`.
+        edge_first_shape_point_ids: For each edge, the id of its first shape point
+            (int32), and one more value at the end. The points of shape `i` are
+            the points `edge_first_shape_point_ids[i]`
+            to `edge_first_shape_point_ids[i + 1] - 1`.
         endpoint_coords: Four int32 values for each shape, in units of 1e-7 degree:
             the latitude and the longitude of the origin, then of the destination.
             The function always keeps these two ends.
@@ -134,14 +131,15 @@ def simplify_shapes(
             shape, in meters. It is zero or more.
 
     Returns:
-        `(kept_points, kept_offsets)`: the kept shape points and their offsets, in
-        the layout of `shape_points` and `shape_offsets`.
+        `(kept_points, kept_edge_first_shape_point_ids)`: the kept shape points, and
+        for each edge the id of its first kept point, in the layout of
+        `shape_points` and `edge_first_shape_point_ids`.
 
     Raises:
         ValueError: `tolerance_meters` is negative, an array has the wrong length, or
-            the offsets do not start at 0 or decrease.
+            `edge_first_shape_point_ids` does not start at 0, or decreases.
     """
-    shapes = len(shape_offsets) - 1
+    shapes = len(edge_first_shape_point_ids) - 1
     if not tolerance_meters >= 0:
         raise ValueError("tolerance_meters must be >= 0")
     if (
@@ -150,18 +148,24 @@ def simplify_shapes(
         or len(endpoint_coords) != 4 * shapes
     ):
         raise ValueError("expected two ints per point and four ends per shape")
-    if shape_offsets[shapes] != len(
+    if edge_first_shape_point_ids[shapes] != len(
         shape_points
-    ) // 2 or not _is_monotonically_increasing(shape_offsets):
-        raise ValueError("offsets must rise from 0 to the number of items")
+    ) // 2 or not is_sorted_from_zero(edge_first_shape_point_ids):
+        raise ValueError(
+            "edge_first_shape_point_ids must rise from 0 to the number of items"
+        )
 
     tolerance2 = tolerance_meters * tolerance_meters
-    kept, kept_offsets = array("i"), array("i", [0])
+    kept, kept_edge_first_shape_point_ids = array("i"), array("i", [0])
     for s in range(shapes):
         lat0, lon0 = endpoint_coords[4 * s], endpoint_coords[4 * s + 1]
         kx = _METRES * math.cos(lat0 * math.pi / 1.8e9)
         x, y = [], []
-        line = shape_points[2 * shape_offsets[s] : 2 * shape_offsets[s + 1]]
+        line = shape_points[
+            2
+            * edge_first_shape_point_ids[s] : 2
+            * edge_first_shape_point_ids[s + 1]
+        ]
         for latitude, longitude in zip(
             [lat0, *line[::2], endpoint_coords[4 * s + 2]],
             [lon0, *line[1::2], endpoint_coords[4 * s + 3]],
@@ -197,5 +201,5 @@ def simplify_shapes(
         for i in range(1, last):
             if keep[i]:
                 kept.extend(line[2 * i - 2 : 2 * i])
-        kept_offsets.append(len(kept) // 2)
-    return kept, kept_offsets
+        kept_edge_first_shape_point_ids.append(len(kept) // 2)
+    return kept, kept_edge_first_shape_point_ids

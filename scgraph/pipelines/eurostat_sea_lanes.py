@@ -6,9 +6,11 @@ Eurostat stores the ends of a lane cut at the antimeridian twice, at -180 and at
 Route, Northwest Passage) are dropped: no query can avoid a passage yet, and these are
 open only part of the year.
 
-`build_sea_lane_arrays` gives the same network as arrays, with the class of each edge,
-for a pipeline that joins the sea lanes to other modes. The class of an edge is the
-`pass` of its lane, for example `suez`. It is `open_sea` for a lane outside a passage.
+The class of an edge is the `pass` of its lane, for example `suez`. It is `open_sea`
+for a lane outside a passage.
+
+`build_sea_lane_arrays` gives the same network as the arrays of a graph, for a pipeline
+that joins the sea lanes to other networks.
 """
 
 import contextlib
@@ -16,12 +18,12 @@ import json
 import struct
 from array import array
 
+from scgraph import network_assembly
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
-from scgraph.pipelines import CLASS_ROWS
-from scgraph.pipelines.steps import step3_network_assembly
+from scgraph.pipelines import CLASS_IDS, CLASSES
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 4
 
 SOURCES = {
     "sea_lanes": {
@@ -64,20 +66,10 @@ def _read_lines(files):
 
 
 def build(files: dict[str, str]) -> GeoGraph:
-    lines = [line for line, _ in _read_lines(files)]
-    geojson = files["sea_lanes"] + ".geojson"
-    with open(geojson, "w") as file:
-        json.dump({"type": "GeometryCollection", "geometries": lines}, file)
-    return GeoGraph.load_from_geojson(geojson, precision=COORDINATE_DECIMALS)
+    """Build the sea lanes as a GeoGraph, with the class of each edge.
 
-
-def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
-    """Build the sea lanes as the arrays of a graph, with the class of each edge.
-
-    The nodes and the edges are those of the GeoGraph that `build` returns. The nodes
-    are in the order of the GeoGraph. The edges of a node are sorted by head. `build`
-    makes one edge each way between two consecutive points of a lane. The two edges have
-    the class of the lane.
+    A lane gives one node for each of its points, and one edge each way between two
+    consecutive points. The two edges have the class of the lane.
 
     Example: a lane with the `pass` value `suez` has the points A, B and C. The edges
     A-B, B-A, B-C and C-B have the class `suez`.
@@ -86,48 +78,105 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         files: The path of the downloaded file of the source `sea_lanes`.
 
     Returns:
-        The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
-        it, with `edge_classes`. The edges have no shape points.
+        The GeoGraph of the lanes.
     """
-    sea = build(files)
-
-    def to_units(
-        point,
-    ):  # a [latitude, longitude] point, in units of 1e-7 degree
-        return round(point[0] * 1e7), round(point[1] * 1e7)
-
-    # The class row of an edge, by the points of its two ends. `load_from_geojson`
-    # rounds each point of a lane with `format_coord_list`. No segment of the pinned
-    # file is in two lines of different passages.
-    class_row_of_edge = {}
-    for line, passage in _read_lines(files):
-        points = [
-            to_units(format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1])
+    lines = _read_lines(files)
+    geojson = files["sea_lanes"] + ".geojson"
+    with open(geojson, "w") as file:
+        json.dump(
+            {
+                "type": "GeometryCollection",
+                "geometries": [line for line, _ in lines],
+            },
+            file,
+        )
+    sea = GeoGraph.load_from_geojson(geojson, precision=COORDINATE_DECIMALS)
+    # The name of the class of each edge, by its two nodes. A node is found by its
+    # point: `load_from_geojson` rounds each point of a lane with
+    # `format_coord_list`. No segment of the pinned file is in two lines of
+    # different passages.
+    node_of_point = {
+        _convert_to_e7_degrees(point): node_id
+        for node_id, point in enumerate(sea.nodes)
+    }
+    edge_class_names = [{} for _ in sea.nodes]
+    for line, passage in lines:
+        nodes = [
+            node_of_point[
+                _convert_to_e7_degrees(
+                    format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1]
+                )
+            ]
             for lon_lat in line["coordinates"]
         ]
-        class_row = CLASS_ROWS[passage or "open_sea"]
-        for a, b in zip(points, points[1:]):
-            class_row_of_edge[a, b] = class_row_of_edge[b, a] = class_row
-    offsets, heads, weights = (
-        step3_network_assembly.build_csr_from_adjacency_list(
-            sea.graph_object.graph
-        )
+        for a, b in zip(nodes, nodes[1:]):
+            edge_class_names[a][b] = edge_class_names[b][a] = (
+                passage or "open_sea"
+            )
+    # The same graph and the same nodes, with the class of each edge
+    return GeoGraph(
+        graph=sea.graph_object,
+        nodes=sea.nodes,
+        external_node_ids=list(sea.external_node_ids),
+        coordinate_dtype=sea.coordinate_dtype,
+        classes=[
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in CLASSES.items()
+        ],
+        edge_classes=edge_class_names,
     )
-    points = [to_units(point) for point in sea.nodes]
+
+
+def _convert_to_e7_degrees(point):
+    # A [latitude, longitude] point, in units of 1e-7 degree
+    return round(point[0] * 1e7), round(point[1] * 1e7)
+
+
+def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
+    """Build the sea lanes as the arrays of a graph, for a pipeline that joins them
+    to other networks.
+
+    The nodes and the edges are those of the GeoGraph that `build` returns, with
+    the nodes in the same order. The edges of a node are sorted by destination id.
+
+    Args:
+        files: The path of the downloaded file of the source `sea_lanes`.
+
+    Returns:
+        The graph as a dict of arrays, as `network_assembly.build_graph_from_pieces` returns
+        it, with `edge_class_ids`. The edges have no shape points.
+    """
+    sea = build(files)
+    class_id_of_edge = {
+        (edge["origin_id"], edge["destination_id"]): CLASS_IDS[
+            edge["edge_class"]
+        ]
+        for edge in sea.get_edges()
+    }
+    node_first_edge_ids, edge_destination_node_ids, weights = (
+        network_assembly.build_csr_from_adjacency_list(sea.graph_object.graph)
+    )
     return {
-        "offsets": offsets,
-        "heads": heads,
-        "weights": weights,
-        "node_points": array("i", (x for point in points for x in point)),
-        "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
+        "node_first_edge_ids": node_first_edge_ids,
+        "edge_destination_node_ids": edge_destination_node_ids,
+        "metric_length": weights,
+        "node_points": array(
+            "i",
+            (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
+        ),
+        "edge_first_shape_point_ids": array(
+            "i", bytes(4 * (len(edge_destination_node_ids) + 1))
+        ),
         "shape_points": array("i"),
-        "node_ids": array("q", sea.node_ids),
-        "edge_classes": array(
+        "external_node_ids": array("q", sea.external_node_ids),
+        "edge_class_ids": array(
             "B",
             (
-                class_row_of_edge[points[u], points[v]]
-                for u in range(len(points))
-                for v in heads[offsets[u] : offsets[u + 1]]
+                class_id_of_edge[u, v]
+                for u in range(len(sea.nodes))
+                for v in edge_destination_node_ids[
+                    node_first_edge_ids[u] : node_first_edge_ids[u + 1]
+                ]
             ),
         ),
     }

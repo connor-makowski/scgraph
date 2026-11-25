@@ -22,6 +22,14 @@ needs_the_cpp_extension = pytest.mark.skipif(
 
 
 def assert_result(realized, expected):
+    # Every route has `metric_totals`, and the expected results of release
+    # 3.6.0 do not have it: the comparison ignores it when they do not.
+    if isinstance(realized, dict) and "metric_totals" not in expected:
+        realized = {
+            key: value
+            for key, value in realized.items()
+            if key != "metric_totals"
+        }
     if isinstance(realized, dict) and "length" in realized:
         realized = {**realized, "length": hard_round(3, realized["length"])}
     if isinstance(expected, dict) and "length" in expected:
@@ -42,17 +50,19 @@ def great_circle_km(a, b):
 
 def build_main_roads(files, *, work_dir=None):
     """Build the main roads and the vehicle ferries of the OSM file `files["roads"]`,
-    as the arrays of a network file and a modes table.
+    as the arrays of a network file and a node modes table.
 
     The function is the `build` of a small pipeline for the tests. For the roads
-    alone, it runs the steps that the pipeline `geofabrik_multimodal` runs for each
+    alone, it runs the steps that the pipeline `osm_region_multimodal` runs for each
     mode: read and cut the ways, store the pieces as a graph, assemble the arrays.
     Its select functions give no class.
     """
-    from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
+    from scgraph import network_assembly
+    from scgraph.helpers import osm
+    from scgraph.pipelines.steps import step1_osm_ways
 
-    pieces = step1_osm_ways.build_way_pieces(
-        files["roads"],
+    pieces = osm.build_way_pieces(
+        step1_osm_ways.get_source(files["roads"]),
         {
             "road": {
                 "ways": step1_osm_ways.select_main_roads,
@@ -63,8 +73,8 @@ def build_main_roads(files, *, work_dir=None):
         step1_osm_ways.MAX_KM_BETWEEN_NODES,
         os.path.join(work_dir, "ways") if work_dir else None,
     )
-    graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
-    arrays = step3_network_assembly.assemble_network(
+    graph = network_assembly.build_graph_from_pieces(pieces["road"])
+    arrays = network_assembly.assemble_network(
         graph,
         max_km_between_nodes=step1_osm_ways.MAX_KM_BETWEEN_NODES,
         min_component_nodes=None,  # only the largest component

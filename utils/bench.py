@@ -39,7 +39,8 @@ Subsets (--only) and the changes that need them:
                (graph.py, geograph.py queries, cpp/src/graph*)
     grid       GridGraph (grid.py, bucket algorithms)
     hierarchy  contraction hierarchies and TNR
-    misc       distance matrix, cached shortest path, Visvalingam
+    misc       distance matrix, cached shortest path, a metric and a query by it,
+               Visvalingam
     snap       SnapIndex against GeoKDTree on world_highways: build, memory, and
                1,000 queries of three kinds (cpp/src/snap_index.*,
                cpp/src/float4.hpp, helpers/snap_index.py, helpers/hilbert.py)
@@ -564,6 +565,33 @@ def bench_misc(results):
             ms / calls,
         )
         results.check("misc", f"cached|{label}", round_length(out["length"]))
+
+    # A version without metrics has no `create_metric`: its two rows stay empty
+    if hasattr(type(uf_geo), "create_metric"):
+        # us_freeway has no classes, so every edge gets one weight per km: 100 km/h
+        ms, _ = timed(uf_geo.create_metric, "hours", weight_per_km=1 / 100)
+        results.cell(
+            "misc",
+            ["Create Metric (one weight per km)", "us_freeway"],
+            "Time",
+            ms,
+        )
+
+        def get_shortest_path_by_hours():
+            return uf_geo.get_shortest_path(orig, dest, metric="hours")
+
+        # This call builds the graph of the metric, which is not timed below
+        get_shortest_path_by_hours()
+        ms, out = timed(get_shortest_path_by_hours)
+        results.cell(
+            "misc",
+            ["Shortest Path by a Metric", "us_freeway"],
+            "Time",
+            ms,
+        )
+        results.check(
+            "misc", "metric|hours", round_length(out["metric_totals"]["hours"])
+        )
 
     vis_data = [[i, i % 2 + (i / 10000)] for i in range(10000)]
     visvalingam(vis_data, pct_to_keep=0.1)

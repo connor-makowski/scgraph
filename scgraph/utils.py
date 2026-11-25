@@ -16,15 +16,14 @@ import warnings
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
-from scgraph._internal import warn_deprecated
+from scgraph.deprecations import warn_deprecated
 
-# Constants for haversine and cheap ruler calculations
-earth_radius = {
-    "km": 6371,
-    "m": 6371000,
-    "mi": 3959,
-    "ft": 3959 * 5280,
-}
+# The length of 1 km in each unit, by the exact definitions: 1 mile is 1.609344
+# km, and 1 foot is 0.3048 m. Every conversion of a length reads this table.
+units_per_km = {"km": 1, "m": 1000, "mi": 1 / 1.609344, "ft": 1000 / 0.3048}
+# The radius of the earth in each unit, for `haversine` and `cheap_ruler`: 6371
+# km times the length of 1 km in the unit, from the table above
+earth_radius = {unit: 6371 * length for unit, length in units_per_km.items()}
 radians_per_degree = pi / 180  # radians per degree
 cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
 
@@ -196,8 +195,18 @@ def distance_converter(
         raise ValueError("input_units must be one of 'mi', 'km', 'm' or 'ft'")
     if output_units not in ["mi", "km", "m", "ft"]:
         raise ValueError("output_units must be one of 'mi', 'km', 'm' or 'ft'")
-    km_table = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
-    return (distance / km_table[input_units]) * km_table[output_units]
+    return (distance / units_per_km[input_units]) * units_per_km[output_units]
+
+
+def get_units_per_km(geograph_units: str) -> float:
+    """Return 1 km in the units of a geograph: 0.621 for `mi`.
+
+    The value is the one of `units_per_km`. An unknown unit gives 1.
+
+    Args:
+        geograph_units: The `geograph_units` of the geograph.
+    """
+    return units_per_km.get(geograph_units, 1)
 
 
 def get_line_path(

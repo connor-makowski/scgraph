@@ -11,17 +11,17 @@
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate) {
     const int n = (int)graph_data.size();
-    std::vector<int32_t> offsets(n + 1, 0);
+    std::vector<int32_t> node_first_edge_ids(n + 1, 0);
     for (int i = 0; i < n; ++i) {
-        if (offsets[i] + graph_data[i].size() > INT32_MAX) {
+        if (node_first_edge_ids[i] + graph_data[i].size() > INT32_MAX) {
             throw std::length_error("a graph holds at most 2^31 - 1 edges");
         }
-        offsets[i + 1] = offsets[i] + (int32_t)graph_data[i].size();
+        node_first_edge_ids[i + 1] = node_first_edge_ids[i] + (int32_t)graph_data[i].size();
     }
-    std::vector<int32_t> heads;
+    std::vector<int32_t> edge_destination_node_ids;
     std::vector<double> weights;
-    heads.reserve(offsets[n]);
-    weights.reserve(offsets[n]);
+    edge_destination_node_ids.reserve(node_first_edge_ids[n]);
+    weights.reserve(node_first_edge_ids[n]);
     for (size_t i = 0; i < graph_data.size(); ++i) {
         for (const auto& [node, weight] : graph_data[i]) {
             // An edge to a node outside the graph would be indexed out of bounds
@@ -34,42 +34,42 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
                     "Destination id " + std::to_string(node) + " at origin " +
                     std::to_string(i) + " is not in the graph");
             }
-            heads.push_back(node);
+            edge_destination_node_ids.push_back(node);
             weights.push_back(weight);
         }
     }
-    this->set_graph(CsrGraph(std::move(offsets), std::move(heads), std::move(weights)));
+    this->set_graph(CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)));
     this->reset_cache();
     if (validate) {
         this->validate();
     }
 }
 
-void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m,
+void Graph::load_csr(const int32_t* node_first_edge_ids, const int32_t* edge_destination_node_ids, const double* weights, int n, int64_t m,
                      std::shared_ptr<const void> owner) {
-    if (n < 0 || offsets[0] != 0 || offsets[n] != m) {
-        throw std::invalid_argument("offsets must start at 0 and end at the number of edges");
+    if (n < 0 || node_first_edge_ids[0] != 0 || node_first_edge_ids[n] != m) {
+        throw std::invalid_argument("node_first_edge_ids must start at 0 and end at the number of edges");
     }
-    // Offsets first: heads are read only within [0, m)
+    // node_first_edge_ids first: edge_destination_node_ids are read only within [0, m)
     for (int u = 0; u < n; ++u) {
-        if (offsets[u] > offsets[u + 1]) {
-            throw std::invalid_argument("offsets must be non-decreasing");
+        if (node_first_edge_ids[u] > node_first_edge_ids[u + 1]) {
+            throw std::invalid_argument("node_first_edge_ids must be non-decreasing");
         }
     }
     for (int u = 0; u < n; ++u) {
-        for (int32_t j = offsets[u]; j < offsets[u + 1]; ++j) {
-            if (heads[j] < 0 || heads[j] >= n) {
+        for (int32_t j = node_first_edge_ids[u]; j < node_first_edge_ids[u + 1]; ++j) {
+            if (edge_destination_node_ids[j] < 0 || edge_destination_node_ids[j] >= n) {
                 throw std::invalid_argument(
-                    "Destination id " + std::to_string(heads[j]) + " at origin " +
+                    "Destination id " + std::to_string(edge_destination_node_ids[j]) + " at origin " +
                     std::to_string(u) + " is not in the graph");
             }
         }
     }
     if (owner) {
-        this->set_graph(CsrGraph(std::move(owner), offsets, heads, weights, n, m));
+        this->set_graph(CsrGraph(std::move(owner), node_first_edge_ids, edge_destination_node_ids, weights, n, m));
     } else {
-        this->set_graph(CsrGraph(std::vector<int32_t>(offsets, offsets + n + 1),
-                                  std::vector<int32_t>(heads, heads + m),
+        this->set_graph(CsrGraph(std::vector<int32_t>(node_first_edge_ids, node_first_edge_ids + n + 1),
+                                  std::vector<int32_t>(edge_destination_node_ids, edge_destination_node_ids + m),
                                   std::vector<double>(weights, weights + m)));
     }
     this->reset_cache();
@@ -85,8 +85,8 @@ void Graph::reset_cache() {
 }
 
 // Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
-// 8 times the median edge weight of the searched graph (1 if that median is 0), and never so
-// small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
+// 8 times the median finite edge weight of the searched graph (1 if that median is 0), and
+// never so small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
 // GraphUtils._get_bucket_width in graph_utils.py
 double Graph::resolve_bucket_width(const CsrGraph& g,
                                    std::optional<double> bucket_width, double max_weight) {
@@ -99,7 +99,13 @@ double Graph::resolve_bucket_width(const CsrGraph& g,
     } else {
         double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache_ : bucket_width_cache_;
         if (cache < 0.0) {
-            std::vector<double> weights(g.all_weights().begin(), g.all_weights().end());
+            std::vector<double> weights;
+            weights.reserve(g.all_weights().size());
+            for (double weight : g.all_weights()) {
+                if (std::isfinite(weight)) {
+                    weights.push_back(weight);
+                }
+            }
             double median = 0.0;
             if (!weights.empty()) {
                 auto mid = weights.begin() + weights.size() / 2;
@@ -790,6 +796,14 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
 
         auto origin_entries = get_node_entries(orig);
         auto dest_entries = get_node_entries(dest);
+        // A node at an infinite distance has no bucket. On a reduced graph, a boundary node
+        // gets this distance when its path to the node of the query takes an edge whose
+        // weight is infinite
+        auto is_at_infinite_distance = [](const std::pair<int, double>& entry) {
+            return !std::isfinite(entry.second);
+        };
+        std::erase_if(origin_entries, is_at_infinite_distance);
+        std::erase_if(dest_entries, is_at_infinite_distance);
         std::unordered_map<int, double> orig_map(origin_entries.begin(), origin_entries.end());
         std::unordered_map<int, double> dest_map(dest_entries.begin(), dest_entries.end());
 

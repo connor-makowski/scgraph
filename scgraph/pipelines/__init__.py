@@ -25,7 +25,7 @@ WHAT A PIPELINE MODULE HOLDS
 - `SOURCES`: a dict that gives a name to each source. A source is a dict:
     - `url`: where the source is. The runner replaces `{region}` in it by the `region`
       argument of `build_geograph`. A pipeline needs a region when one of its URLs
-      holds `{region}`.
+      holds `{region}`, and takes none otherwise: the runner refuses another call.
     - `credit`: the credit line that a user cites with results.
     - `license`: an SPDX identifier. Write `LicenseRef-…` when SPDX has no identifier,
       and `NOASSERTION` when the license could not be established.
@@ -39,13 +39,15 @@ WHAT A PIPELINE MODULE HOLDS
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
     - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
-    - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
+    - `(arrays, node_modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
-      file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
-      order). The weights are in km. `modes` is the modes table (see below).
-      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
-      `edge_classes`, the class of each edge (see *The classes*). The runner then
-      writes the names of `CLASSES` into the header of the network file.
+      file: by node mode, then along a Hilbert curve (`scgraph.network_assembly.assemble_network`
+      gives this order). `metric_length` holds km. `arrays` also holds `node_mode_ids`, the
+      node mode id of each node, when the network has several node modes; the runner
+      writes the count of the nodes of each node mode in its place. `node_modes` lists
+      the node modes (see below). `osm_region_multimodal` and `osm_world_multimodal`
+      do this. `arrays` may hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
+      writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
   them.
@@ -55,6 +57,8 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
+- `CLASSES`, optional: the classes of the pipeline, in place of the classes of this
+  package (see *The classes*).
 
 The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
@@ -75,43 +79,50 @@ When that function returns a dict, the dict must identify the source, and the ru
 does not compute `sha256` and `bytes`. `step1_osm_ways.download_streamed` gives the `bytes` and
 the `md5` that the server publishes.
 
-THE MODES TABLE
+THE NODE MODES
 
-The mode of a node says what the node is: a node of a network (`road`, `rail`, `sea`)
-or a hub (`port`, `airport`, `rail_terminal`). The modes table is a list with one
-dict per mode: its `name`, and the `source` that gives the ids of its nodes. A network
-with one mode gives `[{"name": None}]`.
+The node mode of a node is the kind of place where the node is: on a network (`road`,
+`rail`, `sea`) or at a hub (`port`, `airport`, `rail_terminal`). `node_modes`,
+the second value of `build`, lists the node modes: one dict for each node mode, with its
+`name` and the `source` that gives the ids of its nodes. A network with one node mode gives `[{"name": None}]`.
 
 THE CLASSES
 
 The class of an edge is its category in the source: a motorway, a vehicle ferry, a
-main railway line, a sea passage. `CLASSES` holds the names of the classes:
+main railway line, a sea passage. `CLASSES` gives the edge mode
+of each class. The edge mode of a class is the kind of transport of its edges: `road`,
+`rail`, `sea` or `air`:
 
-- roads: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
+- `road`: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
   `primary_link`, `ferry`, `shuttle_train`, `road_connector`;
-- railways: `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other`,
+- `rail`: `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other`,
   `rail_connector`;
-- sea lanes: `open_sea` for a lane outside a passage, the passages `babelmandeb`,
+- `sea`: `open_sea` for a lane outside a passage, the passages `babelmandeb`,
   `bering`, `corinth`, `dover`, `gibraltar`, `kiel`, `magellan`, `malacca`, `panama`
   and `suez`, and `sea_connector`;
-- `flight`.
+- `air`: `flight`.
 
 The purpose of a class is one speed for all its edges. So the connectors of a hub have
 classes of their own: a sea connector can be 2,500 km long. No class has the name of
-a mode.
+an edge mode.
 
 A pipeline records classes when its select functions give them. A select function
 returns the direction of a way: 1, -1 or 0. It may return a pair in its place: the
-direction and the name of a class, for example `(1, "motorway")`. A pipeline of your
-own uses the names of `CLASSES` only.
+direction and the name of a class, for example `(1, "motorway")`. A select function
+uses the names of `CLASSES` only.
 
-A network file holds the class of each edge (`ARCHITECTURE.md`, section 7), and
-`network_file.read` returns it. A GeoGraph does not hold the classes.
+A pipeline that fills `edge_class_ids` itself may define its own `CLASSES` dict in its
+module, with the same form. A value of `edge_class_ids` is then the id of a class of
+that `CLASSES`, and the runner writes its classes into the header.
+
+A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
+class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
+loaded from the file holds them: `GeoGraph.classes` and `GeoGraph.get_edges`.
 
 HOW TO RUN A PIPELINE
 
-    GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
-    python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
+    GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")
+    python -m scgraph.pipelines.network_builder osm_region_multimodal --region europe/denmark --validate
 
 The first line builds the network, or loads it from the cache. The command builds the
 network without loading it, and prints the path of its file. With `--validate`, the
@@ -120,31 +131,38 @@ network enters the cache only if it passes its cases.
 THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
-step logs one line at DEBUG, with its counts and its duration (`_internal.log_step`).
-The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
-each step:
+step logs one line at DEBUG, with its counts and its duration (`step_logs.log_step`).
+The functions of steps 2 and 4 are in `scgraph.pipelines.steps`, with the downloads of
+step 1. `GeoGraph.load_from_osm` calls the other functions too, so they are in
+`scgraph.helpers.osm` and in `scgraph.network_assembly`:
 
-1. Read the sources. `step1_osm_ways.build_way_pieces` reads the ways of an OpenStreetMap
-   file that the select functions keep. It takes the select functions
-   of each mode. One read of the file serves every mode. Each mode gets its own
-   junctions and its own pieces, so a road never joins a railway. The function
-   cuts each way at the junctions of its mode, and where a piece reaches
-   `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
-2. Join the modes. `step2_hub_connectors.join_networks_at_hubs` joins the networks of
-   several modes at hubs: ports, airports and rail terminals. `step2_land_mask.LandMask` tells land
-   from water for the connectors of a hub.
-3. Assemble the graph. `step3_network_assembly.build_graph_from_pieces` stores the pieces as
-   a graph. `step3_network_assembly.assemble_network` keeps the strongly connected
-   components, contracts the chains of nodes and puts the nodes in the order of the
-   file. No chain is contracted across two modes or two classes.
+1. Read the sources. `scgraph.helpers.osm.build_way_pieces` reads the ways of an
+   OpenStreetMap file that the select functions keep. It takes the select functions of
+   each network, such as the road network. One read of the file serves every network.
+   Each network gets its own junctions and its own pieces, so a road never joins a
+   railway. The function cuts each way at the junctions of its network, and where a
+   piece reaches `max_km_between_nodes`. It simplifies the shape of each piece to within
+   50 m. It attaches the ferries to road nodes (`build_ferry_edges`).
+2. Join the networks. `step2_hub_connectors.join_networks_at_hubs` joins the road, rail
+   and sea networks at hubs: ports, airports and rail terminals.
+   `step2_land_mask.LandMask` tells land from water for the connectors of a hub.
+3. Assemble the graph. `scgraph.network_assembly.build_graph_from_pieces` stores the
+   pieces as a graph. `scgraph.helpers.osm.read_turn_restrictions` reads the turn
+   restrictions of the file, and `list_forbidden_turns` gives them as forbidden turns
+   of the road graph. After step 2, `forbid_turns` adds the nodes that make the graph
+   follow them (`scgraph/turn_restrictions.py`). A hub is then joined to a junction
+   that still has one node, and each added node gets the connectors of its junction.
+   `assemble_network` keeps the strongly connected components, contracts the chains
+   of nodes and puts the nodes in the order of the file. No chain is contracted
+   across two node modes or two classes, or through a junction with several nodes.
 4. Validate the network. `step4_validation_cases.validate_network` checks the built
    file against the cases of `VALIDATION`.
 
-A graph has two layouts in the steps. From `step3_network_assembly.build_graph_from_pieces` on, a
-graph is a dict of the arrays of the network file. `scgraph.helpers.osm.read_osm` and
-`scgraph.helpers.components.keep_largest_strongly_connected_component` use the layout of a
-GeoGraph, because `load_from_osm` calls them.
+From `build_graph_from_pieces` on, a graph is a dict of the
+arrays of the network file. `GeoGraph.load_from_osm` runs steps 1 and 3 on one node
+mode, without the contraction of the chains, and keeps the arrays in memory. So a
+network of `load_from_osm` and a network of a pipeline follow the turn restrictions
+by the same code.
 
 WHAT THE NETWORK FILE RECORDS
 
@@ -164,10 +182,10 @@ The header holds no clock time. The time of the download is in `cache.json`, in 
 cache.
 
 `scgraph.pipelines.derived_networks` derives a network file from another network file, with no
-download. The derived file holds some modes of its parent file, and its land networks
-inside a bbox. Its header has no `description`. It also records `derivation`: the
-`parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of
-the derivation.
+download. The derived file holds the nodes of some node modes of its parent file, and
+its land networks inside a bbox. Its header has no `description`. It also records
+`derivation`: the `parent_content_sha256`, and the `node_modes`, the `bbox` and the
+`min_component_nodes` of the derivation.
 
 Two builds give the same file, byte for byte, when they have the same pipeline, the
 same sources, the same version of scgraph, the same backend, and the same platform
@@ -175,7 +193,7 @@ with the same C library or macOS version. A test checks this. The C++ build and 
 pure-Python build give the same nodes, the same edges and the same lengths. Two
 things may differ: the order of the edges of a node, and the choice between two
 routes of the same length. A test checks this with `eurostat_sea_lanes` and
-`geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
+`osm_region_multimodal`, on small inputs. Between two platforms, a few lengths or
 shape points may differ in the last bit, because the math libraries differ.
 
 A PIPELINE OF YOUR OWN
@@ -198,7 +216,8 @@ def build(files):
 ```
 
 Save it as `cycleways.py`. Then `import cycleways` and
-`GeoGraph.build_geograph(cycleways, region="europe/luxembourg")` build the network.
+`GeoGraph.build_geograph(pipeline=cycleways, region="europe/luxembourg")` build the
+network.
 The cache keeps it under the last part of the name of the module, in
 `networks/cycleways/europe/luxembourg/`. To adapt a pipeline of scgraph, copy its
 module under another name: scgraph refuses a module that has the name of one of its
@@ -207,78 +226,31 @@ pipelines. Two modules with the same last name share one cache entry.
 HOW TO ADD A NETWORK TO SCGRAPH
 
 1. Add the module to this package, with the names above.
-2. Add its name to `NAMES` below and to the `Literal` of `GeoGraph.build_geograph`,
-   in alphabetical order. A test checks that the two lists are the same.
-3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
-   and in the docstring of `scgraph/__init__.py`.
+2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/networks.py` and to the
+   `Literal` of `GeoGraph.build_geograph`, in alphabetical order. A test checks that the
+   two lists are the same.
+3. Add its row to the table of *Building Networks from Their Sources*, in
+   `guides/networks.md`.
 4. Add its cases to `steps/step4_validation_cases/cases/` and list them in `VALIDATION`.
 5. Build and validate the network with the command above.
 
 scgraph does not import this package when it is imported. The functions that need it
-import it when they are called: `load_from_osm`, `build_geograph`,
+import it when they are called: `build_geograph`,
 `list_buildable_geographs`, `clear_geograph_cache`, and `load_geograph` for a network
 of a network release.
 """
 
 import importlib.metadata
 import inspect
-import logging
-import os
 import platform
 import sysconfig
 
-import requests
-
+from scgraph.edge_classes import CLASS_IDS, CLASSES
+from scgraph.files import download_file
+from scgraph.networks import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
 
-logger = logging.getLogger(__name__)
-
-__all__ = ["CLASSES", "NAMES", "download_file"]
-
-NAMES = (
-    "eurostat_sea_lanes",
-    "geofabrik_multimodal",
-    "osm_world_multimodal",
-)
-# The names of the classes (the docstring of this module, *The classes*)
-CLASSES = (
-    # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
-    "motorway",
-    "motorway_link",
-    "trunk",
-    "trunk_link",
-    "primary",
-    "primary_link",
-    "ferry",
-    "shuttle_train",
-    "road_connector",
-    # A high-speed line is `rail_highspeed`. Another line takes its class from its
-    # `usage` value.
-    "rail_highspeed",
-    "rail_main",
-    "rail_branch",
-    "rail_other",
-    "rail_connector",
-    # Sea lanes: `open_sea` outside a passage, then the passages of the source
-    "open_sea",
-    "babelmandeb",
-    "bering",
-    "corinth",
-    "dover",
-    "gibraltar",
-    "kiel",
-    "magellan",
-    "malacca",
-    "panama",
-    "suez",
-    "sea_connector",
-    "flight",
-)
-# The row of each class: the value that `edge_classes` holds for an edge of the class
-CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
-# In bytes. A larger download is logged at WARNING, which shows without a logging
-# setup.
-LARGE_DOWNLOAD_BYTES = 100e6
+__all__ = ["BUILDABLE_NETWORKS", "CLASSES", "download_file"]
 
 
 def build_metadata(
@@ -316,6 +288,7 @@ def build_metadata(
         "sources": sources,
         "software": {
             "scgraph": scgraph_version,
+            # The record names the build that ran: it chooses no kernel.
             "backend": "cpp" if has_cpp() else "python",
             "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },
@@ -325,34 +298,3 @@ def build_metadata(
             else {}
         ),
     }
-
-
-def download_file(url: str, filename: str | os.PathLike) -> None:
-    """Download `url` to `filename`. The function first logs the size of the file: at
-    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below. When the server gives the size, it
-    then logs at INFO the megabytes done at each tenth of the download.
-
-    Raises:
-        requests.HTTPError: The server refuses the request.
-    """
-    with requests.get(url, stream=True, timeout=60) as response:
-        response.raise_for_status()
-        size = int(response.headers.get("Content-Length", 0))
-        logger.log(
-            logging.WARNING if size > LARGE_DOWNLOAD_BYTES else logging.INFO,
-            "Downloading %s (%.1f MB)",
-            url,
-            size / 1e6,
-        )
-        next_tenth = 1
-        with open(filename, "wb") as file:
-            for chunk in response.iter_content(chunk_size=1 << 20):
-                file.write(chunk)
-                # The raw stream counts the bytes received, as Content-Length does,
-                # also when requests decompresses them.
-                done = response.raw.tell()
-                if size and done >= next_tenth * size / 10:
-                    logger.info(
-                        "Downloaded %.1f of %.1f MB", done / 1e6, size / 1e6
-                    )
-                    next_tenth = done * 10 // size + 1

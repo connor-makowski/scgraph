@@ -1,11 +1,11 @@
-"""Assemble a network release from the files that the workflow `build_networks.yml` made.
+"""Write the draft of a network release from the files that `build_networks.yml` made.
 
 Usage: python utils/draft_network_release.py FILES PREVIOUS RELEASE TAG COMMIT
 
 A network release is a set of network files published as the assets of one GitHub release.
 FILES holds the network files of this run: the world network, and the files that
 `scgraph.pipelines.derived_networks` derived from it. PREVIOUS holds `networks.json` of the
-previous network release, or nothing. The script writes into RELEASE:
+previous network release, or nothing. The script writes the draft into RELEASE:
 
 - each network file, compressed with gzip. A user decompresses a file before loading
   it;
@@ -27,7 +27,10 @@ import sys
 from pathlib import Path
 
 from scgraph import GeoGraph
-from scgraph.pipelines.derived_networks import describe_derived_network
+from scgraph.pipelines.derived_networks import (
+    DERIVED_NETWORKS,
+    describe_derived_network,
+)
 
 
 def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
@@ -58,21 +61,24 @@ def compress(file: Path, compressed_file: Path) -> None:
         shutil.copyfileobj(source, packed)
 
 
-def describe_network(file: Path, info: dict) -> str:
+def describe_network(file: Path) -> str:
     """Return the sentence that describes the network of a file, for the index.
 
     Args:
         file: The network file. Its name starts with the name of the network.
-        info: What `GeoGraph.get_scgraph_info` returns for the file.
 
     Returns:
         For a derived network, the sentence of `describe_derived_network`. For a built
-        network, the first paragraph of the docstring of its pipeline, which the file
-        records as `description`.
+        network, the first paragraph of the docstring of its pipeline. The file with
+        shapes of the network records this docstring as `description`. The file
+        without shapes is in the same folder and does not record it.
     """
-    if "derivation" in info:
-        return describe_derived_network(file.name.split(".")[0])
-    return " ".join(info["description"].split("\n\n")[0].split())
+    name = file.name.split(".")[0]
+    if name in DERIVED_NETWORKS:
+        return describe_derived_network(name)
+    file_with_shapes = file.with_name(f"{name}.scgraph")
+    description = GeoGraph.get_scgraph_info(file_with_shapes)["description"]
+    return " ".join(description.split("\n\n")[0].split())
 
 
 def write_release_draft(
@@ -132,7 +138,7 @@ def write_release_draft(
                 },
                 # Only a derived file has a derivation: its parent, modes and bbox
                 "derivation": info.get("derivation"),
-                "description": describe_network(file, info),
+                "description": describe_network(file),
             }
         )
     index = {"tag": tag, "networks": networks}
@@ -187,7 +193,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "",
             "To use a file, download it and decompress it (`gunzip FILE.gz`). Load "
             'it with `GeoGraph.load_from_scgraph("FILE")`, and keep some modes '
-            'only with `modes=["road"]`. This needs a version of scgraph that reads '
+            'only with `node_modes=["road"]`. This needs a version of scgraph that reads '
             "the file format version "
             f"{', '.join(map(str, format_versions))}. "
             '`GeoGraph.get_scgraph_info("FILE")` gives the sources of a file and '

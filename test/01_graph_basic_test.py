@@ -1,3 +1,6 @@
+import math
+from array import array
+
 import pytest
 from scgraph import Graph, PathNotFoundError
 from helpers import assert_result
@@ -202,6 +205,54 @@ def test_a_search_raises_path_not_found_between_two_parts_of_a_graph(
         search(origin_id=0, destination_id=3)
 
 
+# The three searches that have code of their own for an edge of infinite
+# weight, by the name of their method. The ring with two closed edges of
+# `test/33_graph_reduction_consistency_test.py` checks every search.
+_SEARCHES_WITH_CODE_FOR_INFINITY = [
+    "dijkstra_buckets",
+    "bidirectional_buckets",
+    "bmssp",
+]
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_WITH_CODE_FOR_INFINITY)
+def test_a_search_never_takes_an_edge_whose_weight_is_infinite(
+    graph_class, algorithm
+):
+    # The edges between nodes 0 and 3, 0 and 2, and 1 and 3 have an infinite
+    # weight: six of the twelve edges. The median weight of all the edges is
+    # then infinite, so a bucket search must set the width of its buckets from
+    # the other edges. The route 0 -> 1 -> 2 -> 3 costs 1 + 2 + 3 = 6.
+    graph_with_closed_shortcuts = graph_class(
+        [
+            {1: 1.0, 2: math.inf, 3: math.inf},
+            {0: 1.0, 2: 2.0, 3: math.inf},
+            {0: math.inf, 1: 2.0, 3: 3.0},
+            {0: math.inf, 1: math.inf, 2: 3.0},
+        ]
+    )
+    search = getattr(graph_with_closed_shortcuts, algorithm)
+
+    found = search(origin_id=0, destination_id=3)
+
+    assert_result(found, {"path": [0, 1, 2, 3], "length": 6})
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_WITH_CODE_FOR_INFINITY)
+def test_a_search_raises_path_not_found_when_every_route_takes_an_infinite_edge(
+    graph_class, algorithm
+):
+    # Node 1 is the only neighbour of node 2, and the two edges between them
+    # have an infinite weight.
+    graph_with_a_closed_dead_end = graph_class(
+        [{1: 1.0}, {0: 1.0, 2: math.inf}, {1: math.inf}]
+    )
+    search = getattr(graph_with_a_closed_dead_end, algorithm)
+
+    with pytest.raises(PathNotFoundError):
+        search(origin_id=0, destination_id=2)
+
+
 def test_get_path_weight_raises_for_a_path_that_uses_a_missing_link(
     graph_class,
 ):
@@ -210,6 +261,20 @@ def test_get_path_weight_raises_for_a_path_that_uses_a_missing_link(
 
     with pytest.raises(ValueError, match="No edge from node 0 to node 2"):
         graph.get_path_weight([0, 2])
+
+
+def test_a_graph_made_from_arrays_does_not_follow_a_later_change_of_them(
+    graph_class,
+):
+    # Node 0 has one edge, to node 1.
+    weights = array("d", [2.5])
+    graph = graph_class.from_edge_arrays(
+        array("i", [0, 1, 1]), array("i", [1]), weights
+    )
+
+    weights[0] = 7.0
+
+    assert graph.get(0) == {1: 2.5}
 
 
 def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):

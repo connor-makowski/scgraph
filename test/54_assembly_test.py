@@ -6,11 +6,11 @@ from itertools import groupby
 import pytest
 from helpers import great_circle_km, needs_the_cpp_extension
 
-from scgraph.pipelines.steps import step3_network_assembly
-from scgraph.pipelines.steps.near_nodes import NearNodes
+from scgraph import network_assembly
+from scgraph.helpers.near_nodes import NearNodes
 from scgraph.utils import has_cpp
 
-BACKENDS = {"python": step3_network_assembly.python}
+BACKENDS = {"python": network_assembly.python}
 if has_cpp():
     from scgraph import cpp
 
@@ -25,43 +25,47 @@ both_backends = pytest.mark.parametrize(
 BIG = 2**40  # an id beyond 32 bits
 
 
-# Edges between source ids, as (origin, destination, weight). The id 5 is on a
-# self-loop only, and -7 is a destination only.
+# Edges between source ids, as (origin, destination, weight, class). The id 5
+# is on a self-loop only, and -7 is a destination only.
 EDGES_WITH_PARALLELS_AND_LOOPS = [
-    (BIG, 10, 2.0),
-    (10, BIG, 1.0),
-    (BIG, 10, 1.5),  # shorter than edge 0
-    (5, 5, 1.0),
-    (BIG, 10, 1.5),  # as short as edge 2
-    (BIG, -7, 4.0),
-    (20, BIG, 3.0),
-    (BIG, 20, 0.5),
-    (20, BIG, 3.5),  # longer than edge 6
-    (10, 10, 0.5),  # a self-loop on a node that has other edges
+    (BIG, 10, 2.0, 0),
+    (10, BIG, 1.0, 0),
+    (BIG, 10, 1.5, 0),  # shorter than edge 0
+    (5, 5, 1.0, 0),
+    (BIG, 10, 1.5, 1),  # as short as edge 2, and of another class
+    (BIG, -7, 4.0, 0),
+    (20, BIG, 3.0, 0),
+    (BIG, 20, 0.5, 0),
+    (20, BIG, 3.5, 1),  # longer than edge 6, and of another class
+    (10, 10, 0.5, 1),  # a self-loop on a node that has other edges
+    (BIG, 10, 3.0, 1),  # longer than edge 4, and of the same class
 ]
 
 
 def _columns(edges):
-    """The origins, the destinations and the weights of `edges`, as the three
-    arrays that `build_csr_from_edges` takes."""
-    origins, destinations, weights = (
-        [edge[k] for edge in edges] for k in range(3)
-    )
-    return array("q", origins), array("q", destinations), array("d", weights)
+    """The origins, the destinations, the weights and the classes of `edges`,
+    as the four arrays that `build_csr_from_edges` takes."""
+    return [
+        array(typecode, [edge[k] for edge in edges])
+        for k, typecode in enumerate("qqdB")
+    ]
 
 
-# The result of `build_csr_from_edges` is (node ids, offsets, heads, weights,
-# kept). The ids are sorted: 5 is not among them. The rows are those of -7 (no
-# edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each sorted by
-# destination. `kept` gives the input index of each stored edge. From BIG to
-# 10, edge 2 is kept: edge 0 is longer, and edge 4 is as short but comes later.
-# From 20 to BIG, edge 6 is kept.
+# The result of `build_csr_from_edges` is (node ids, node_first_edge_ids, edge_destination_node_ids, weights,
+# kept, parallel_edges). The ids are sorted: 5 is not among them. The rows are
+# those of -7 (no edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20),
+# each sorted by destination. `kept` gives the input index of each stored
+# edge. From BIG to 10, edge 2 is kept: edge 0 is longer, and edge 4 is as
+# short but comes later. From 20 to BIG, edge 6 is kept. `parallel_edges`
+# gives the edges 4 and 8: each is the shortest edge of class 1 between its
+# two nodes, and is not kept.
 CSR_OF_THE_SHORTEST_EDGES = (
     [-7, 10, 20, BIG],
     [0, 0, 1, 2, 5],
     [3, 3, 0, 1, 2],
     [1.0, 3.0, 4.0, 1.5, 0.5],
     [1, 6, 5, 2, 7],
+    [4, 8],
 )
 
 
@@ -74,7 +78,7 @@ CSR_OF_THE_SHORTEST_EDGES = (
             CSR_OF_THE_SHORTEST_EDGES,
             id="parallel edges and self-loops",
         ),
-        pytest.param([], ([], [0], [], [], []), id="no edges"),
+        pytest.param([], ([], [0], [], [], [], []), id="no edges"),
     ],
 )
 def test_csr_from_edges_stores_the_shortest_edges_by_origin(
@@ -86,45 +90,66 @@ def test_csr_from_edges_stores_the_shortest_edges_by_origin(
 
 
 def _random_edges(seed):
-    # Few ids, so many self-loops and parallel edges; integer weights, so ties
+    # Few ids, so many self-loops and edges between the same two nodes; integer
+    # weights, so ties
     rng = random.Random(seed)
     ids = [rng.randrange(-(2**62), 2**62) for _ in range(300)]
-    return [
+    edges = [
         (rng.choice(ids), rng.choice(ids), float(rng.randint(1, 5)))
         for _ in range(5000)
     ]
+    return [(*edge, rng.randrange(3)) for edge in edges]  # three classes
 
 
 # The expected edges are found another way: the edges that are not self-loops
 # are sorted by origin, destination, weight and input index. The first edge of
 # each pair (origin, destination) is then its shortest edge, and the first in
-# the input among equals.
+# the input among equals. The same sort, with the class after the destination,
+# gives the shortest edge of each class of a pair. Such an edge is parallel
+# when it is not the kept edge of its pair.
 @both_backends
 @pytest.mark.parametrize("seed", range(3))
-def test_csr_from_random_edges_keeps_the_first_shortest_edge_of_each_pair(
+def test_csr_from_random_edges_finds_the_kept_and_the_parallel_edges(
     backend, seed
 ):
     edges = _random_edges(seed)
     sorted_edges = sorted(
         (origin, destination, weight, i)
-        for i, (origin, destination, weight) in enumerate(edges)
+        for i, (origin, destination, weight, _class) in enumerate(edges)
         if origin != destination
     )
     expected = [
         next(edges_of_pair)
         for _pair, edges_of_pair in groupby(sorted_edges, lambda edge: edge[:2])
     ]
-
-    node_ids, offsets, heads, weights, kept = backend.build_csr_from_edges(
-        *_columns(edges)
+    sorted_by_class = sorted(
+        (origin, destination, class_id, weight, i)
+        for i, (origin, destination, weight, class_id) in enumerate(edges)
+        if origin != destination
     )
+    shortest_of_each_class = {
+        next(edges_of_class)[-1]
+        for _class, edges_of_class in groupby(
+            sorted_by_class, lambda edge: edge[:3]
+        )
+    }
 
+    (
+        external_node_ids,
+        node_first_edge_ids,
+        edge_destination_node_ids,
+        weights,
+        kept,
+        parallel_edges,
+    ) = backend.build_csr_from_edges(*_columns(edges))
+
+    assert list(parallel_edges) == sorted(shortest_of_each_class - set(kept))
     assert list(kept) == [i for _, _, _, i in expected]
     assert list(weights) == [weight for _, _, weight, _ in expected]
     stored_pairs = [
-        (node_ids[u], node_ids[heads[a]])
-        for u in range(len(node_ids))
-        for a in range(offsets[u], offsets[u + 1])
+        (external_node_ids[u], external_node_ids[edge_destination_node_ids[a]])
+        for u in range(len(external_node_ids))
+        for a in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     ]
     assert stored_pairs == [
         (origin, destination) for origin, destination, _, _ in expected
@@ -163,12 +188,15 @@ def _reachable(rows, start):
 def test_strongly_connected_components_groups_nodes_that_reach_each_other(
     backend, rows
 ):
-    offsets, heads = array("i", [0]), array("i")
+    node_first_edge_ids, edge_destination_node_ids = array("i", [0]), array("i")
     for row in rows:
-        heads.extend(row)
-        offsets.append(len(heads))
+        edge_destination_node_ids.extend(row)
+        node_first_edge_ids.append(len(edge_destination_node_ids))
     labels, sizes = map(
-        list, backend.find_strongly_connected_components(offsets, heads)
+        list,
+        backend.find_strongly_connected_components(
+            node_first_edge_ids, edge_destination_node_ids
+        ),
     )
     reach = [_reachable(rows, u) for u in range(len(rows))]
     assert all(
@@ -184,9 +212,9 @@ def test_strongly_connected_components_groups_nodes_that_reach_each_other(
 # A graph of 6 nodes in three components. Node 0 is alone: its one edge goes
 # to node 1, and none comes back. Nodes 1, 2 and 3 are joined both ways (1-2
 # and 2-3). Nodes 4 and 5 are joined both ways. The edges are stored by origin:
-# the edges of node u are HEADS[OFFSETS[u]:OFFSETS[u + 1]].
-OFFSETS = array("i", [0, 1, 2, 4, 5, 6, 7])
-HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
+# the edges of node u are EDGE_DESTINATION_NODE_IDS[NODE_FIRST_EDGE_IDS[u]:NODE_FIRST_EDGE_IDS[u + 1]].
+NODE_FIRST_EDGE_IDS = array("i", [0, 1, 2, 4, 5, 6, 7])
+EDGE_DESTINATION_NODE_IDS = array("i", [1, 2, 1, 3, 2, 5, 4])
 
 
 @pytest.mark.parametrize(
@@ -205,8 +233,8 @@ HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
     ],
 )
 def test_components_are_kept_by_their_size(options, kept_nodes):
-    nodes, labels = step3_network_assembly.keep_strongly_connected_components(
-        OFFSETS, HEADS, **options
+    nodes, labels = network_assembly.keep_strongly_connected_components(
+        NODE_FIRST_EDGE_IDS, EDGE_DESTINATION_NODE_IDS, **options
     )
 
     assert list(nodes) == kept_nodes
@@ -284,16 +312,21 @@ POINTS_FROM_1_TO_2 = [[0.003, 0.003], [0.004, 0.006]]
 POINTS_FROM_2_TO_3 = [[0.003, 0.013], [0.004, 0.016]]
 
 
-def _by_node_ids(arrays, value_of_edge):
+def _by_external_node_ids(arrays, value_of_edge):
     """One value per edge of the network arrays, as a dict. Its keys are the
     pairs (id of the origin, id of the destination)."""
-    ids, offsets, heads = (
-        arrays[name] for name in ("node_ids", "offsets", "heads")
+    ids, node_first_edge_ids, edge_destination_node_ids = (
+        arrays[name]
+        for name in (
+            "external_node_ids",
+            "node_first_edge_ids",
+            "edge_destination_node_ids",
+        )
     )
     return {
-        (ids[u], ids[heads[edge]]): value_of_edge(edge)
+        (ids[u], ids[edge_destination_node_ids[edge]]): value_of_edge(edge)
         for u in range(len(ids))
-        for edge in range(offsets[u], offsets[u + 1])
+        for edge in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     }
 
 
@@ -302,7 +335,7 @@ def assembled(tmp_path_factory):
     """The arrays of the network built from the four pieces. The arguments
     keep every component, even of one node, and cut no edge: no chain reaches
     100 km."""
-    pieces = step3_network_assembly.PieceArrays(
+    pieces = network_assembly.PieceArrays(
         work_dir=tmp_path_factory.mktemp("pieces")
     )
     shapes = {1: POINTS_FROM_1_TO_2, 2: POINTS_FROM_2_TO_3}
@@ -315,8 +348,8 @@ def assembled(tmp_path_factory):
             [PLACES[origin], PLACES[destination]],
             shapes.get(origin, []),
         )
-    arrays = step3_network_assembly.assemble_network(
-        step3_network_assembly.build_graph_from_pieces(pieces),
+    arrays = network_assembly.assemble_network(
+        network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
@@ -329,7 +362,9 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     # The piece from 3 to 4 joins two components one way only: it is left
     # out. Place 2 is between 1 and 3 only: it is contracted. The edge from 1
     # to 3 has the length of the two pieces, 1 km + 2 km.
-    edges = _by_node_ids(assembled, lambda edge: assembled["weights"][edge])
+    edges = _by_external_node_ids(
+        assembled, lambda edge: assembled["metric_length"][edge]
+    )
 
     assert edges == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
 
@@ -337,7 +372,10 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
 def _shape_points(arrays, edge):
     """The points of the shape of `edge`, as (latitude, longitude) pairs in
     units of 1e-7 degree, the units of the network arrays."""
-    points, starts = arrays["shape_points"], arrays["shape_offsets"]
+    points, starts = (
+        arrays["shape_points"],
+        arrays["edge_first_shape_point_ids"],
+    )
     flat = points[2 * starts[edge] : 2 * starts[edge + 1]]
     return list(zip(flat[0::2], flat[1::2]))
 
@@ -345,7 +383,7 @@ def _shape_points(arrays, edge):
 def test_the_shape_of_a_contracted_edge_passes_through_the_contracted_node(
     assembled,
 ):
-    shapes = _by_node_ids(
+    shapes = _by_external_node_ids(
         assembled, lambda edge: _shape_points(assembled, edge)
     )
 
@@ -364,23 +402,26 @@ def test_the_shape_of_a_contracted_edge_passes_through_the_contracted_node(
 
 def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     # The road 1-2-3-4 has pieces of 1 km, both ways. It is a primary road up
-    # to place 3, then a trunk road. A class is a row of the classes table.
+    # to place 3, then a trunk road. A class is given by its id in the classes
+    # table.
     primary, trunk = 5, 3
     places = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [0, 0.03]}
-    pieces = step3_network_assembly.PieceArrays(work_dir=tmp_path)
-    for origin, class_row in ((1, primary), (2, primary), (3, trunk)):
+    pieces = network_assembly.PieceArrays(work_dir=tmp_path)
+    for origin, class_id in ((1, primary), (2, primary), (3, trunk)):
         ends = [places[origin], places[origin + 1]]
-        pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_row)
+        pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_id)
 
-    arrays = step3_network_assembly.assemble_network(
-        step3_network_assembly.build_graph_from_pieces(pieces),
+    arrays = network_assembly.assemble_network(
+        network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
 
     # Place 2 is contracted. Place 3 stays, and each edge has its class.
-    class_rows = _by_node_ids(arrays, lambda edge: arrays["edge_classes"][edge])
-    assert class_rows == {
+    class_ids = _by_external_node_ids(
+        arrays, lambda edge: arrays["edge_class_ids"][edge]
+    )
+    assert class_ids == {
         (1, 3): primary,
         (3, 1): primary,
         (3, 4): trunk,
@@ -389,18 +430,157 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
 
 
 def test_pieces_with_and_without_a_class_are_refused():
-    pieces = step3_network_assembly.PieceArrays()
+    pieces = network_assembly.PieceArrays()
     pieces.append(1, 2, 1.0, 0, [[0, 0], [0, 0.01]], [], 5)
     pieces.append(2, 3, 1.0, 0, [[0, 0.01], [0, 0.02]], [])
 
     with pytest.raises(ValueError, match="have a class and the others"):
-        step3_network_assembly.build_graph_from_pieces(pieces)
+        network_assembly.build_graph_from_pieces(pieces)
+
+
+# A one-way fork. The street from W enters the junction J, and two streets leave
+# J: to A and to B. The streets from A to B and from B to W let a route come
+# back to W. A street is (origin, destination): its ids in the source, which are
+# also its node ids in the graph. Street number i is i + 1 km long, and it has
+# one shape point. A class is given by its id in the classes table.
+W, J, A, B = range(4)
+FORK_STREETS = [(W, J), (J, A), (J, B), (A, B), (B, W)]
+FORK_PLACES = {W: [0, 0], J: [0, 0.01], A: [0.01, 0.02], B: [-0.01, 0.02]}
+FORK_CLASS_IDS = [5, 3, 5, 3, 5]
+# `scgraph.turn_restrictions` explains the node that this forbidden turn adds to
+# J. The street from W then enters the added node, and no street enters the
+# node of the junction.
+NO_TURN_FROM_W_TO_B = [W, J, B]
+
+
+def _fork_graph():
+    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    for i, (origin, destination) in enumerate(FORK_STREETS):
+        pieces.append(
+            origin,
+            destination,
+            i + 1.0,
+            1,
+            [FORK_PLACES[origin], FORK_PLACES[destination]],
+            [[0.02, 0.001 * i]],
+            FORK_CLASS_IDS[i],
+        )
+    return network_assembly.build_graph_from_pieces(pieces)
+
+
+def _length_class_and_shape(arrays):
+    return _by_external_node_ids(
+        arrays,
+        lambda edge: (
+            arrays["metric_length"][edge],
+            arrays["edge_class_ids"][edge],
+            _shape_points(arrays, edge),
+        ),
+    )
+
+
+def test_an_edge_of_an_added_node_has_the_length_the_class_and_the_shape_of_its_street():
+    fork = _fork_graph()
+
+    with_added_node = network_assembly.forbid_turns(fork, [NO_TURN_FROM_W_TO_B])
+
+    # The added node has the id of J in the source. So its edge to A, and the
+    # edge that enters it from W, are read here as the streets (J, A) and (W, J).
+    assert _length_class_and_shape(with_added_node) == _length_class_and_shape(
+        fork
+    )
+
+
+# A route may start at a junction that no route enters. So a junction with a
+# node in a kept component keeps all its nodes, with their edges.
+def test_a_kept_junction_keeps_its_node_that_no_edge_enters():
+    with_added_node = network_assembly.forbid_turns(
+        _fork_graph(), [NO_TURN_FROM_W_TO_B]
+    )
+
+    kept = network_assembly.keep_components(with_added_node, None)
+
+    # The street from J to B is an edge of the first node of the junction only.
+    assert set(_length_class_and_shape(kept)) == set(FORK_STREETS)
+
+
+# Two junctions are on the equator, at the longitudes 0 and 0.03. A primary
+# road of 4 km joins them both ways. A motorway of 3 km goes one way, from the
+# second junction to the first. Each test below gives its shape points to the
+# primary road. A class is given by its id in the classes table.
+MOTORWAY, PRIMARY = 0, 4
+
+
+def _motorway_and_primary_road(points_of_primary_road, junctions=(10, 20)):
+    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    ends = [[0, 0], [0, 0.03]]
+    pieces.append(*junctions, 3.0, -1, ends, [], MOTORWAY)
+    pieces.append(*junctions, 4.0, 0, ends, points_of_primary_road, PRIMARY)
+    return network_assembly.build_graph_from_pieces(pieces)
+
+
+def test_a_longer_road_of_another_class_between_two_junctions_is_split():
+    # From 20 to 10 the motorway is shorter, so its edge joins the junctions.
+    # The primary road is split in both directions. Its shape point is at one
+    # third of its way from 10 to 20. The new node -1 is there, so the two
+    # halves are 4/3 km and 8/3 km long.
+    graph = _motorway_and_primary_road([[0, 0.01]])
+
+    edges = _by_external_node_ids(
+        graph,
+        lambda edge: (
+            graph["edge_class_ids"][edge],
+            graph["metric_length"][edge],
+        ),
+    )
+    assert edges == {
+        (20, 10): (MOTORWAY, 3.0),
+        (10, -1): (PRIMARY, pytest.approx(4 / 3)),
+        (-1, 20): (PRIMARY, pytest.approx(8 / 3)),
+        (20, -1): (PRIMARY, pytest.approx(8 / 3)),
+        (-1, 10): (PRIMARY, pytest.approx(4 / 3)),
+    }
+
+
+def test_the_new_node_of_a_split_road_has_an_id_below_every_other_id():
+    # A source may give ids below zero: here the junction -7
+    graph = _motorway_and_primary_road([], junctions=(-7, 20))
+
+    assert list(graph["external_node_ids"]) == [-8, -7, 20]
+
+
+# A road is split at its middle shape point, or halfway between its two ends
+# when it has no shape point. The expected values are the shape points from 10
+# to the new node, the new node, and the shape points from the new node to 20,
+# in units of 1e-7 degree.
+@pytest.mark.parametrize(
+    "points_of_primary_road, expected",
+    [
+        pytest.param(
+            [[0.01, 0.01], [0.01, 0.015], [0.01, 0.02]],
+            ([(100000, 100000)], (100000, 150000), [(100000, 200000)]),
+            id="three shape points",
+        ),
+        pytest.param([], ([], (0, 150000), []), id="no shape point"),
+    ],
+)
+def test_a_road_is_split_at_its_middle_point_and_its_halves_keep_the_others(
+    points_of_primary_road, expected
+):
+    graph = _motorway_and_primary_road(points_of_primary_road)
+
+    shapes = _by_external_node_ids(
+        graph, lambda edge: _shape_points(graph, edge)
+    )
+    # The new node has the lowest id, so it is node 0
+    new_node = tuple(graph["node_points"][0:2])
+    assert (shapes[10, -1], new_node, shapes[-1, 20]) == expected
 
 
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     # PieceArrays stores the pieces by batches of 10,000. Each of the 10,002
     # pieces has one point, at its own latitude: i units of 1e-7 degree.
-    pieces = step3_network_assembly.PieceArrays(
+    pieces = network_assembly.PieceArrays(
         tolerance_meters=None, work_dir=tmp_path
     )
     for i in range(10_002):
@@ -408,7 +588,10 @@ def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     pieces.flush()
 
     last = 10_001
-    first_point, end = pieces.offsets[last], pieces.offsets[last + 1]
+    first_point, end = (
+        pieces.piece_first_shape_point_ids[last],
+        pieces.piece_first_shape_point_ids[last + 1],
+    )
 
     assert list(pieces.points[2 * first_point : 2 * end]) == [last, 0]
     assert list(pieces.origins[-2:]) == [10_000, 10_001]
@@ -419,7 +602,7 @@ def _csr(one_way=(), two_way=()):
     # origin
     edges = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
     columns = (array(t, c) for t, c in zip("qqd", zip(*edges)))
-    return step3_network_assembly.python.build_csr_from_edges(*columns)[1:4]
+    return network_assembly.python.build_csr_from_edges(*columns)[1:4]
 
 
 def _two_way(*pairs):
@@ -427,7 +610,7 @@ def _two_way(*pairs):
 
 
 # Each case below is the four arguments of `contract_chains`: a graph as
-# (offsets, heads, km), the mode of each node or None, the length at which a
+# (node_first_edge_ids, edge_destination_node_ids, km), the mode of each node or None, the length at which a
 # chain is cut, and the class of each edge or None. The edges are 1 km long.
 
 # Node 2 is between 1 and 3. Node 4 is a dead end off node 1.
@@ -491,7 +674,7 @@ ONE_WAY_ROAD_OF_TWO_CLASSES = (
     math.inf,
     array("B", [0, 0, 1, 1]),
 )
-# The edges of the road 0-1-2-3-4 are listed by origin, then by head: 0-1, 1-0,
+# The edges of the road 0-1-2-3-4 are listed by origin, then by destination id: 0-1, 1-0,
 # 1-2, 2-1, 2-3, 3-2, 3-4, 4-3. Only the edge from 2 to 1 has the class 1. Edges
 # of two classes enter node 1, and edges of two classes leave node 2. The four
 # edges of node 3 have the class 0.
@@ -506,7 +689,7 @@ ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS = (
 # `contract_chains` gives first the nodes that it keeps.
 @both_backends
 @pytest.mark.parametrize(
-    "graph, modes, max_km, edge_classes, kept_nodes",
+    "graph, node_mode_ids, max_km, edge_class_ids, kept_nodes",
     [
         pytest.param(
             *ROAD_WITH_A_DEAD_END,
@@ -556,11 +739,27 @@ ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS = (
     ],
 )
 def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
-    backend, graph, modes, max_km, edge_classes, kept_nodes
+    backend, graph, node_mode_ids, max_km, edge_class_ids, kept_nodes
 ):
-    kept, *_ = backend.contract_chains(*graph, modes, max_km, edge_classes)
+    kept, *_ = backend.contract_chains(
+        *graph, node_mode_ids, max_km, edge_class_ids
+    )
 
     assert list(kept) == kept_nodes
+
+
+@both_backends
+def test_contract_chains_keeps_a_node_that_the_caller_asks_to_keep(backend):
+    # Node 2 is between the nodes 1 and 3: it is contracted when no node is
+    # flagged in `kept_node_flags`.
+    graph, node_mode_ids, max_km, edge_class_ids = ROAD_WITH_A_DEAD_END
+    node_2_only = array("B", [0, 0, 1, 0, 0])
+
+    kept, *_ = backend.contract_chains(
+        *graph, node_mode_ids, max_km, edge_class_ids, node_2_only
+    )
+
+    assert list(kept) == [0, 1, 2, 3, 4]
 
 
 def _random_chains(seed):
@@ -583,10 +782,12 @@ def _random_chains(seed):
             if u != v
         )
     graph = _csr(*edges)
-    modes = array("B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1)))
+    node_mode_ids = array(
+        "B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1))
+    )
     max_km = rng.choice([math.inf, 0.5])
-    edge_classes = array("B", (rng.random() < 0.1 for _ in graph[1]))
-    return graph, modes, max_km, edge_classes
+    edge_class_ids = array("B", (rng.random() < 0.1 for _ in graph[1]))
+    return graph, node_mode_ids, max_km, edge_class_ids
 
 
 # The test below states what holds for any graph: it runs on the first seven
@@ -595,7 +796,7 @@ def _random_chains(seed):
 # graphs are taken without classes: classes only keep more nodes, and the test
 # after this one gives the random graphs their classes.
 on_every_graph = pytest.mark.parametrize(
-    "graph, modes, max_km",
+    "graph, node_mode_ids, max_km",
     [
         case[:3]
         for case in (
@@ -612,11 +813,11 @@ on_every_graph = pytest.mark.parametrize(
 )
 
 
-def _origin_of_each_edge(offsets):
+def _origin_of_each_edge(node_first_edge_ids):
     return [
         u
-        for u in range(len(offsets) - 1)
-        for _ in range(offsets[u], offsets[u + 1])
+        for u in range(len(node_first_edge_ids) - 1)
+        for _ in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     ]
 
 
@@ -630,17 +831,17 @@ def _members_of_each_edge(member_offsets, members):
 @both_backends
 @on_every_graph
 def test_contracted_edges_replace_the_chains_of_the_graph(
-    backend, graph, modes, max_km
+    backend, graph, node_mode_ids, max_km
 ):
-    offsets, heads, weights = graph
-    origin_of = _origin_of_each_edge(offsets)
+    node_first_edge_ids, edge_destination_node_ids, weights = graph
+    origin_of = _origin_of_each_edge(node_first_edge_ids)
 
     kept, origins, ends, km, member_offsets, members = backend.contract_chains(
-        *graph, modes, max_km
+        *graph, node_mode_ids, max_km
     )
 
     # Every edge is a member of exactly one contracted edge
-    assert sorted(members) == list(range(len(heads)))
+    assert sorted(members) == list(range(len(edge_destination_node_ids)))
     # The contracted edges are sorted by origin then end, without twin or loop
     pairs = list(zip(origins, ends))
     assert pairs == sorted(set(pairs))
@@ -649,11 +850,11 @@ def test_contracted_edges_replace_the_chains_of_the_graph(
     members_of = _members_of_each_edge(member_offsets, members)
     for origin, end, edges in zip(origins, ends, members_of):
         assert origin_of[edges[0]] == kept[origin]
-        assert heads[edges[-1]] == kept[end]
+        assert edge_destination_node_ids[edges[-1]] == kept[end]
         # Each member starts where the one before ends, at a contracted node
         for edge, next_edge in zip(edges, edges[1:]):
-            assert heads[edge] == origin_of[next_edge]
-            assert heads[edge] not in kept
+            assert edge_destination_node_ids[edge] == origin_of[next_edge]
+            assert edge_destination_node_ids[edge] not in kept
     # A contracted edge has the length of its members
     assert list(km) == pytest.approx(
         [sum(weights[edge] for edge in edges) for edges in members_of]
@@ -662,7 +863,10 @@ def test_contracted_edges_replace_the_chains_of_the_graph(
     # `km_along` gives the length of each contracted edge by the nodes that it
     # passes. A chain that has no reverse edge is compared with itself.
     km_along = {
-        (origin_of[edges[0]], *(heads[edge] for edge in edges)): length
+        (
+            origin_of[edges[0]],
+            *(edge_destination_node_ids[edge] for edge in edges),
+        ): length
         for edges, length in zip(members_of, km)
     }
     for nodes, length in km_along.items():
@@ -673,15 +877,15 @@ def test_contracted_edges_replace_the_chains_of_the_graph(
 @both_backends
 def test_the_members_of_a_contracted_edge_have_the_same_class(backend):
     for seed in range(6):
-        graph, modes, max_km, edge_classes = _random_chains(seed)
+        graph, node_mode_ids, max_km, edge_class_ids = _random_chains(seed)
 
         *_, member_offsets, members = backend.contract_chains(
-            *graph, modes, max_km, edge_classes
+            *graph, node_mode_ids, max_km, edge_class_ids
         )
 
         for edges in _members_of_each_edge(member_offsets, members):
             assert (
-                len({edge_classes[edge] for edge in edges}) == 1
+                len({edge_class_ids[edge] for edge in edges}) == 1
             ), f"seed {seed}"
 
 
@@ -691,15 +895,15 @@ def test_the_members_of_a_contracted_edge_have_the_same_class(backend):
 @needs_the_cpp_extension
 def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
     for seed in range(6):
-        graph, modes, max_km, edge_classes = _random_chains(seed)
-        without_classes = (*graph, modes, max_km)
-        for arguments in (without_classes, (*without_classes, edge_classes)):
+        graph, node_mode_ids, max_km, edge_class_ids = _random_chains(seed)
+        without_classes = (*graph, node_mode_ids, max_km)
+        for arguments in (without_classes, (*without_classes, edge_class_ids)):
             contracted = cpp.contract_chains(*arguments)
 
             assert list(map(list, contracted)) == list(
                 map(
                     list,
-                    step3_network_assembly.python.contract_chains(*arguments),
+                    network_assembly.python.contract_chains(*arguments),
                 )
             ), f"seed {seed}"
 
@@ -709,15 +913,18 @@ def _simplify(backend, ends, interior, tolerance_m):
     from (ends[0], ends[1]) to (ends[2], ends[3]) through the points of
     `interior`, all as (latitude, longitude) in units of 1e-7 degree: about
     1.1 cm at the equator. The kernel gets two shapes: an empty one, then
-    this one. It must then find the points of this shape through the offsets."""
+    this one. It must then find the points of this shape through `edge_first_shape_point_ids`.
+    """
     points = array("i", [value for point in interior for value in point])
-    kept, offsets = backend.simplify_shapes(
+    kept, edge_first_shape_point_ids = backend.simplify_shapes(
         points,
         array("i", [0, 0, len(interior)]),
         array("i", (0, 0, 0, 1000) + ends),
         tolerance_m,
     )
-    flat = kept[2 * offsets[1] : 2 * offsets[2]]
+    flat = kept[
+        2 * edge_first_shape_point_ids[1] : 2 * edge_first_shape_point_ids[2]
+    ]
     return list(zip(flat[0::2], flat[1::2]))
 
 
@@ -808,12 +1015,14 @@ def test_simplify_shapes_gives_where_the_points_of_each_shape_start(backend):
     # Three shapes along the equator: no interior point, then a point that is
     # kept (past the end of the line), then a point that is dropped.
     points = array("i", [0, 1500000, 0, 500000])
-    offsets = array("i", [0, 0, 1, 2])
+    edge_first_shape_point_ids = array("i", [0, 0, 1, 2])
     ends = array("i", ALONG_THE_EQUATOR * 3)
 
-    kept, kept_offsets = backend.simplify_shapes(points, offsets, ends, 10)
+    kept, kept_edge_first_shape_point_ids = backend.simplify_shapes(
+        points, edge_first_shape_point_ids, ends, 10
+    )
 
-    assert list(kept_offsets) == [0, 0, 1, 1]
+    assert list(kept_edge_first_shape_point_ids) == [0, 0, 1, 1]
     assert list(kept) == [0, 1500000]
 
 
@@ -838,5 +1047,5 @@ def test_the_cpp_kernel_simplifies_random_walks_as_the_python_kernel():
         ends, interior = _random_shape(seed)
 
         assert _simplify(cpp, ends, interior, 20) == _simplify(
-            step3_network_assembly.python, ends, interior, 20
+            network_assembly.python, ends, interior, 20
         ), f"seed {seed}"
