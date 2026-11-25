@@ -72,6 +72,19 @@ The package `scgraph.pipelines` builds networks from their online sources. A pip
 * `derived_networks.derive_network_file` writes a network file from another network file, the parent file, and downloads nothing. The derived file holds some node modes of the parent file, and its roads, railways and rail terminals inside a bbox.
 * The costly functions of `step2_land_mask` and of `scgraph.network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`). Their pure-Python version gives the same results.
 
+A build of roads runs these steps in this order. Each line says, on the right, what the step does for the turn restrictions.
+
+```
+read the ways -> build the graph -> list the forbidden turns
+     -> join the hubs            each junction still has one node
+     -> add the junction nodes   scgraph/turn_restrictions.py explains the method
+     -> keep the components      a junction keeps all its nodes or none
+     -> contract the chains      never through a junction with several nodes
+     -> order the nodes          the nodes of a junction stay together
+```
+
+`load_from_osm` runs the same functions, without the hubs and without the contraction of the chains.
+
 The guide [Network Pipelines](scgraph/pipelines/README.md) follows one build, one derivation, one network release and one load, with the numbers of real runs.
 
 #### Design Choices
@@ -138,7 +151,8 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 A `GeoGraph` adds these attributes to its `Graph`:
 
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
-* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node.
+* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. In a network that follows turn restrictions, they name a junction, which may have several nodes.
+* **Turn restrictions**: A network that follows the turn restrictions of its source gives some junctions more than one node. [`turn_restrictions.py`](scgraph/turn_restrictions.py) explains the method, with diagrams. The nodes of a junction follow each other. They have the same point, the same external id and the same node mode. The row of this node mode in `node_modes` has `has_turn_restrictions`.
 * **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0.
 * **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
 * **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
@@ -250,6 +264,8 @@ A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding bo
 * `'quadrant'`: the closest node in each of the four quadrants around the point.
 * `'all'`: every node within `node_addition_lat_lon_bound` degrees of latitude and of longitude of the point. If there is none, the closest node.
 
+**A junction with several nodes.** A query point that is connected to one node of a junction is connected to each of them, at the same distance (`connect_to_nodes_of_junctions` in `scgraph/turn_restrictions.py`). So a route may end at any node of the junction. The same module says why this is also right for a route that starts there.
+
 **The off-graph legs.** With `'quadrant'` or `'all'`, a point has several candidate nodes. The search multiplies the km of each off-graph leg by `node_addition_circuity` (default: 4). Without this penalty, a route could reach a distant node in a straight line, for example across land in a sea network, and not enter the network at a nearby node.
 
 The result multiplies the km of each off-graph leg by `off_graph_circuity` (default: 1), in place of the penalty. A value of `1.2` models winding streets, and `0` leaves the off-graph legs out.
@@ -328,13 +344,14 @@ flowchart TD
 ### Static CSR Contraction (`network_assembly.contract_chains`)
 
 `contract_chains` works on the CSR arrays of a build:
-* It takes `(node_first_edge_ids, edge_destination_node_ids, weights, node_mode_ids, max_km_between_nodes, edge_class_ids)` and returns a `ContractedGraph` namedtuple:
+* It takes `(node_first_edge_ids, edge_destination_node_ids, weights, node_mode_ids, max_km_between_nodes, edge_class_ids, kept_node_flags)` and returns a `ContractedGraph` namedtuple:
   * `kept`: the ids of the kept nodes.
   * `origins`, `edge_destination_node_ids`, `weights`: the contracted edges.
   * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
 * `edge_class_ids` is optional: the class of each edge. The header of `scgraph/network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into pieces of about that length (default: no cut).
+* `kept_node_flags` is optional: one byte for each node. A node with a byte other than 0 is never removed. `assemble_network` flags the nodes of each junction that has several nodes, so that no edge is merged through such a junction.
 * A piece that would create a self-loop or a duplicate edge is split at its midpoint. So the node that the build put in the middle of a split edge is kept (the guide [Network Pipelines](scgraph/pipelines/README.md#2-reading-and-cutting-the-ways), step 2).
 * `build_chain_shapes` gives each contracted edge the shape points of its members.
 
@@ -521,7 +538,7 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | `metadata.crs` | `str` | `EPSG:4326`. |
 | `metadata.metrics` | `list[dict]` | One row for each metric, `length` first. |
 | `metadata.node_order` | `str` | `"hilbert"`. |
-| `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. |
+| `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. A row has `"has_turn_restrictions": true` when the node mode follows turn restrictions: a junction may then have several nodes (`scgraph/turn_restrictions.py`). |
 | `metadata.classes` | `list[dict]` | Only with `edge_class_ids`: one row for each class, its `name` and `edge_mode`. 255 rows at most. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: `name`, `region`, and `PIPELINE_VERSION` as `version`. |
 | `metadata.software` | `dict` | The `scgraph` version, `backend` (`cpp` or `python`) and `platform` of the build. |
@@ -561,7 +578,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 * **Weights**: `read` refuses weights of another dtype than `float64`.
 * **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
 * **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8.
-* **`external_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id; `read` does not check it.
+* **`external_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id, except the nodes of one junction, in a node mode with `has_turn_restrictions`; `read` does not check it.
 
 The arrays of the example, weights rounded (count of values in parentheses):
 

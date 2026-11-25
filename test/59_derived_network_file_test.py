@@ -244,6 +244,63 @@ def test_the_header_of_a_derived_file_records_its_derivation(
     }
 
 
+# A one-way fork with a turn restriction, as a build stores it
+# (`scgraph/turn_restrictions.py`). The street from W enters the junction J, and
+# two streets leave J: to A and to B. The streets from A to B and from B to W
+# let a route come back to W. Each street is 1 km long. The turn from W to B is
+# forbidden, so J has two nodes, with the external id 20. The street from W
+# enters the second one, which has no edge to B. No edge enters the first one.
+# A parent file has several node modes and edge shapes: the network also has
+# one sea node, and no edge has a shape point.
+def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
+    w, first_node_of_j, added_node_of_j, a, b = range(5)
+    fork = GeoGraph(
+        graph=[
+            {added_node_of_j: 1.0},
+            {a: 1.0, b: 1.0},
+            {a: 1.0},
+            {b: 1.0},
+            {w: 1.0},
+            {},
+        ],
+        nodes=[
+            [0, 0],
+            [0, 0.01],
+            [0, 0.01],
+            [0.01, 0.02],
+            [-0.01, 0.02],
+            [-1, 0],
+        ],
+        intermediate_nodes=[{} for _ in range(6)],
+        external_node_ids=[10, 20, 20, 30, 40, 50],
+        node_mode_ids=[0] * 5 + [1],
+        node_modes=[
+            {"name": "road", "source": "osm", "has_turn_restrictions": True},
+            {"name": "sea", "source": "sea"},
+        ],
+        coordinate_dtype="int32",
+    )
+    parent_file = str(tmp_path / "fork.scgraph")
+    fork.save_as_scgraph(
+        parent_file,
+        metadata=pipelines.build_metadata(
+            "osm_world_multimodal", None, 1, SOURCES
+        ),
+    )
+    derived_file = str(tmp_path / "derived.scgraph")
+
+    derived_networks.derive_network_file(
+        parent_file, derived_file, node_modes=["road"], min_component_nodes=2
+    )
+
+    # A route that starts at J takes the street to B
+    route = GeoGraph.load_from_scgraph(derived_file).get_shortest_path(
+        {"latitude": 0, "longitude": 0.01},
+        {"latitude": -0.01, "longitude": 0.02},
+    )
+    assert route["length"] == pytest.approx(1.0)
+
+
 def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
     # The network of the parent file has 8 nodes. The smallest component that a
     # derivation keeps has 10 nodes, unless the call gives another size.

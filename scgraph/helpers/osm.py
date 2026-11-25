@@ -47,6 +47,96 @@ at the first point where a piece reaches `max_km_between_nodes`.
 Example: two roads share node 7, and no other node. Pass 1 meets node 7 twice, so node
 7 is a junction, and each road is cut there.
 
+HOW A TURN RESTRICTION IS READ
+
+A "turn restriction" says which turn a driver may not make at a junction, or the only
+turn that the driver may make. OpenStreetMap stores it as a relation with the tag
+`type=restriction`. Its members have three roles:
+
+- `from`: the way by which the driver arrives;
+- `via`: the node where the driver turns, or one or more ways that the driver follows
+  between the `from` way and the `to` way;
+- `to`: the way by which the driver leaves.
+
+Its tag `restriction` gives its kind. A value that starts with `no_`, such as
+`no_left_turn`, forbids the turn from the `from` way to the `to` way. A value that
+starts with `only_`, such as `only_straight_on`, forbids every other turn from the
+`from` way.
+
+The turn restrictions are read for a car, whatever ways the select functions keep. A
+select function says which ways a network keeps. It does not say which vehicle drives
+on them. So `read_turn_restrictions` takes the vehicle that most road networks are
+built for. The tag `except` of a relation lists the vehicles that may make the turn,
+with `;` between them. A relation that excepts a car (`_EXCEPTED_VEHICLES`) is not
+read.
+
+`read_turn_restrictions` reads a relation when all of these are true:
+
+1. Its tag `restriction` starts with `no_` or `only_`. So a relation that holds for
+   some hours (`restriction:conditional`) or for one kind of vehicle
+   (`restriction:hgv`) is not read.
+2. Its tag `except` does not name `motorcar` or `motor_vehicle`. Example:
+   `except=psv; motorcar` excepts buses and cars, so the relation is not read.
+3. It has one `from` way, one `to` way, and one `via` node or some `via` ways.
+
+Example: a relation with `restriction=no_left_turn` has the way 10 as `from`, the
+node 3 as `via` and the way 11 as `to`. It is read as
+`TurnRestriction(is_only=False, from_way_id=10, via_node_id=3, via_way_ids=[],
+to_way_id=11)`.
+
+A turn restriction names its ways by their ids. `list_forbidden_turns` finds the
+edges of these ways in a graph, and gives each turn restriction as forbidden turns. A
+"forbidden turn" is a list of node ids that no route may follow in this order.
+`scgraph/turn_restrictions.py` explains what a build does with a forbidden turn.
+
+The graph is a dict of arrays, as `network_assembly.build_graph_from_pieces` returns
+it. `edge_way_ids` gives the id of the way of each edge, and `external_node_ids`
+gives the OpenStreetMap id of each node. A way is cut at each junction, and at some
+other nodes when it is long. So a way is one edge or more, one after the other.
+
+A forbidden turn is built in four steps:
+
+1. The "turn nodes" are the nodes where the driver turns. With a `via` node, it is
+   this node alone. With `via` ways, they are the nodes of these ways, from the node
+   where the driver leaves the `from` way to the node where the driver enters the
+   `to` way.
+2. The "node before the turn" is the origin of the edge of the `from` way that ends
+   at the first turn node.
+3. The "node after the turn" is the destination of the edge of the `to` way that
+   leaves the last turn node.
+4. The forbidden turn is the node before the turn, the turn nodes, then the node
+   after the turn.
+
+Example: the way 10 goes through the nodes 1, 2 and 3 of OpenStreetMap, and the way 11
+goes from node 3 to node 4. Node 2 is a shape point, so the graph has the nodes 1, 3
+and 4. A relation forbids the turn from the way 10 to the way 11 at node 3. The turn
+node is node 3. The node before the turn is node 1: the edge from node 1 to node 3 is
+the edge of the way 10 that ends at node 3. The node after the turn is node 4. The
+forbidden turn is the nodes 1, 3 and 4, given by their ids in the graph.
+
+An `only_` restriction gives one forbidden turn for each other edge that leaves the
+last turn node. In the example, with `only_left_turn` and one more edge from node 3
+to a node 5, the forbidden turn is the nodes 1, 3 and 5.
+
+A relation with the same way as `from` and as `to`, and a `via` node, forbids a
+U-turn at this node: the driver arrives along the way and may not go back along it.
+Each edge of the way that ends at the `via` node gives one forbidden turn: back to
+the node that the edge comes from. Example: the two-way way 10 goes through the
+nodes 1, 3 and 6, and the `via` node is node 3. The forbidden turns are the nodes
+1, 3, 1 and the nodes 6, 3, 6. A one-way way has no edge back, so no route can make
+its forbidden turn. A driver may still go straight on along the way.
+
+A turn restriction gives no forbidden turn in these cases:
+
+- The graph does not have one of its edges. Example: the graph does not keep the `to`
+  way, or the `from` way is a one-way street that leaves the `via` node.
+- A step above has two answers or more. Example: the `via` node is in the middle of
+  the `from` way, so two edges of this way end there.
+- Its `via` ways do not follow each other. The `from` way and the first `via` way
+  meet at one node only. From there, each `via` way is followed edge after edge to
+  its other end, where the next `via` way or the `to` way leaves.
+- It is an `only_` restriction with the same way as `from` and as `to`.
+
 HOW THE WAYS OF TWO NODE MODES ARE KEPT SEPARATE
 
 One read is used for every node mode. Each node mode has its own junctions and its own
@@ -71,7 +161,8 @@ import os
 from array import array
 from bisect import bisect_left
 from collections import defaultdict
-from collections.abc import Callable, Container, Iterator
+from collections.abc import Callable, Container, Iterator, Sequence
+from typing import NamedTuple
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
@@ -104,6 +195,10 @@ MAIN_ROADS = {
 MAX_KM_BETWEEN_NODES = 2
 # The farthest that an end of a ferry may be from the road node that it joins, in km
 FERRY_END_KM = 2
+
+# The values of the tag `except` that except a car. A turn restriction with one of
+# them does not hold for a car, so it is not read.
+_EXCEPTED_VEHICLES = {"motorcar", "motor_vehicle"}
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
 
@@ -271,7 +366,9 @@ def locate_ways(
     class_names: Container[str] = (),
 ) -> tuple[
     dict[str, _Junctions],
-    Iterator[tuple[str, str, int, str | None, list[tuple[int, list[float]]]]],
+    Iterator[
+        tuple[str, str, int, str | None, list[tuple[int, list[float]]], int]
+    ],
 ]:
     """Locate the ways of `source` that the select functions keep.
 
@@ -305,11 +402,12 @@ def locate_ways(
         `(junctions, polylines)`. `junctions[mode]` holds the OSM ids of the nodes
         where kept ways of the node mode `mode` meet, or where one of them crosses
         itself. `id in junctions[mode]` tests one id. `polylines` is a generator of
-        `(node mode, kind, direction, class_name, vertices)`. `class_name` is the class
-        that the select function gave to the way, or None. `vertices` is a list of
-        `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
-        polyline, in the form that `cut_polylines` takes. A way is split where one
-        of its nodes is missing from the file.
+        `(node mode, kind, direction, class_name, vertices, way_id)`. `class_name` is
+        the class that the select function gave to the way, or None. `vertices` is a
+        list of `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
+        polyline, in the form that `cut_polylines` takes. `way_id` is the id of the
+        way in the file. A way is split where one of its nodes is missing from the
+        file.
 
     Memory: the ids of the nodes of the kept ways take about 1.5 GB, whatever the file
     (one bit for each possible id). With several node modes, pass 1 also holds the ids
@@ -441,7 +539,7 @@ def locate_ways(
             class_names=class_names,
         ):
             for piece in _split_at_unlocated_nodes(way.nodes):
-                yield mode, kind, direction, class_name, piece
+                yield mode, kind, direction, class_name, piece, way.id
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
@@ -537,7 +635,7 @@ def build_way_pieces(
         }
         # The ferries of each node mode, by the id of their class
         ferries = {mode: defaultdict(list) for mode in selects}
-        for mode, kind, direction, class_name, vertices in ways:
+        for mode, kind, direction, class_name, vertices, way_id in ways:
             # A way without a class has no row
             class_id = CLASS_IDS.get(class_name)
             if kind == "ferries":
@@ -549,7 +647,14 @@ def build_way_pieces(
             ):
                 ends = vertex_points[origin_id], vertex_points[destination_id]
                 pieces[mode].append(
-                    origin_id, destination_id, km, way, ends, shape, class_id
+                    origin_id,
+                    destination_id,
+                    km,
+                    way,
+                    ends,
+                    shape,
+                    class_id,
+                    way_id,
                 )
         for mode_pieces in pieces.values():
             mode_pieces.flush()
@@ -593,7 +698,8 @@ def build_way_pieces(
                     [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
                 ]
                 end_ids = ids[u % 2][u // 2], ids[v % 2][v // 2]
-                mode_pieces.append(*end_ids, km, 1, road, shape, class_id)
+                # A ferry edge joins two road nodes: it is the piece of no way
+                mode_pieces.append(*end_ids, km, 1, road, shape, class_id, 0)
             mode_pieces.flush()
             counts["edges"] = len(edges)
     if work_dir:
@@ -641,3 +747,218 @@ def _split_at_unlocated_nodes(way_nodes):
         piece = []
     if len(piece) > 1:
         yield piece
+
+
+class TurnRestriction(NamedTuple):
+    """A turn restriction of an OpenStreetMap file (module docstring, *How a turn
+    restriction is read*)."""
+
+    # True when the restriction gives the only turn that is allowed
+    is_only: bool
+    from_way_id: int
+    # The node where the driver turns, or None when the relation has `via` ways
+    via_node_id: int | None
+    # The ways between the `from` way and the `to` way, in the order of the relation
+    via_way_ids: list[int]
+    to_way_id: int
+
+
+def read_turn_restrictions(
+    source: "str | os.PathLike | object",
+) -> list[TurnRestriction]:
+    """Read the turn restrictions of an OpenStreetMap file.
+
+    Args:
+        source: The path of an OSM file, or a source object, as `locate_ways`
+            takes. The function calls `source.file(osmium.osm.RELATION)` once.
+
+    Returns:
+        The turn restrictions that the rules of the module docstring keep.
+    """
+    osmium = require_osmium()
+    restrictions = []
+    with _open_source(source, osmium.osm.RELATION) as file:
+        for relation in osmium.FileProcessor(
+            file, osmium.osm.RELATION
+        ).with_filter(osmium.filter.TagFilter(("type", "restriction"))):
+            kind = relation.tags.get("restriction", "")
+            # Mappers write `psv;motorcar` and `psv; motorcar`
+            excepted = {
+                vehicle.strip()
+                for vehicle in relation.tags.get("except", "").split(";")
+            }
+            if not kind.startswith(("no_", "only_")) or (
+                _EXCEPTED_VEHICLES & excepted
+            ):
+                continue
+            # The ids of the members of each role, by the type of the member:
+            # "n" for a node, "w" for a way
+            members = {"from": {}, "via": {}, "to": {}}
+            for member in relation.members:
+                if member.role in members:
+                    members[member.role].setdefault(member.type, []).append(
+                        member.ref
+                    )
+            from_way_ids = members["from"].get("w", [])
+            to_way_ids = members["to"].get("w", [])
+            via_node_ids = members["via"].get("n", [])
+            via_way_ids = members["via"].get("w", [])
+            if (
+                len(from_way_ids) == len(to_way_ids) == 1
+                and len(members["from"]) == len(members["to"]) == 1
+                and len(members["via"]) == 1
+                and (len(via_node_ids) == 1 or via_way_ids)
+            ):
+                restrictions.append(
+                    TurnRestriction(
+                        kind.startswith("only_"),
+                        from_way_ids[0],
+                        via_node_ids[0] if via_node_ids else None,
+                        via_way_ids,
+                        to_way_ids[0],
+                    )
+                )
+    return restrictions
+
+
+def list_forbidden_turns(
+    graph: dict, restrictions: Sequence["TurnRestriction"]
+) -> list[list[int]]:
+    """Give turn restrictions as the forbidden turns of a graph (module docstring,
+    *How a turn restriction is read*).
+
+    Args:
+        graph: The graph, as a dict of arrays with `edge_way_ids` and
+            `external_node_ids`. A graph without `edge_way_ids` gives no forbidden
+            turn.
+        restrictions: The turn restrictions, as `read_turn_restrictions` returns
+            them.
+
+    Returns:
+        The forbidden turns, each as a list of node ids of the graph.
+    """
+    if "edge_way_ids" not in graph or not restrictions:
+        return []
+    node_first_edge_ids = graph["node_first_edge_ids"]
+    edge_destination_node_ids = graph["edge_destination_node_ids"]
+    named_way_ids, via_node_ids = set(), set()
+    for restriction in restrictions:
+        named_way_ids.update(
+            (
+                restriction.from_way_id,
+                *restriction.via_way_ids,
+                restriction.to_way_id,
+            )
+        )
+        via_node_ids.add(restriction.via_node_id)
+    # The edges of each named way, as (origin id, destination id)
+    edges_of_way = {way_id: [] for way_id in named_way_ids}
+    edge_way_ids = graph["edge_way_ids"]
+    for origin_id in range(len(node_first_edge_ids) - 1):
+        for edge_id in range(
+            node_first_edge_ids[origin_id], node_first_edge_ids[origin_id + 1]
+        ):
+            if edge_way_ids[edge_id] in edges_of_way:
+                edges_of_way[edge_way_ids[edge_id]].append(
+                    (origin_id, edge_destination_node_ids[edge_id])
+                )
+    node_id_of_via = {
+        external_id: node_id
+        for node_id, external_id in enumerate(graph["external_node_ids"])
+        if external_id in via_node_ids
+    }
+
+    forbidden_turns = []
+    for restriction in restrictions:
+        from_edges = edges_of_way[restriction.from_way_id]
+        if (
+            restriction.via_node_id is not None
+            and restriction.from_way_id == restriction.to_way_id
+        ):
+            # A U-turn at the `via` node: the node after the turn is the node
+            # before the turn. The steps below would take the next node of the
+            # way as the node after the turn, and forbid to go straight on.
+            via_id = node_id_of_via.get(restriction.via_node_id)
+            if not restriction.is_only:
+                forbidden_turns.extend(
+                    [before_id, via_id, before_id]
+                    for before_id, destination_id in from_edges
+                    if destination_id == via_id
+                )
+            continue
+        # 1. The turn nodes
+        if restriction.via_node_id is not None:
+            turn_node_ids = [node_id_of_via.get(restriction.via_node_id)]
+        else:
+            turn_node_ids = _follow_via_ways(
+                from_edges,
+                [edges_of_way[way_id] for way_id in restriction.via_way_ids],
+            )
+        if turn_node_ids is None or turn_node_ids[0] is None:
+            continue
+        # 2. The node before the turn. 3. The node after the turn. The driver
+        # does not come back along the first `via` way, nor go on along the last
+        # one.
+        before_node_ids = [
+            origin_id
+            for origin_id, destination_id in from_edges
+            if destination_id == turn_node_ids[0]
+            and origin_id not in turn_node_ids[1:2]
+        ]
+        after_node_ids = [
+            destination_id
+            for origin_id, destination_id in edges_of_way[restriction.to_way_id]
+            if origin_id == turn_node_ids[-1]
+            and destination_id not in turn_node_ids[-2:-1]
+        ]
+        if len(before_node_ids) != 1 or len(after_node_ids) != 1:
+            continue
+        # 4. The forbidden turn, or one for each other edge of the last turn node
+        first_node_ids = before_node_ids + turn_node_ids
+        if not restriction.is_only:
+            forbidden_turns.append(first_node_ids + after_node_ids)
+            continue
+        last = turn_node_ids[-1]
+        forbidden_turns.extend(
+            first_node_ids + [destination_id]
+            for destination_id in edge_destination_node_ids[
+                node_first_edge_ids[last] : node_first_edge_ids[last + 1]
+            ]
+            if destination_id != after_node_ids[0]
+        )
+    return forbidden_turns
+
+
+def _follow_via_ways(from_edges, edges_of_via_ways):
+    """Return the turn nodes of a restriction with `via` ways, or None when the ways
+    do not follow each other in one way only.
+
+    `from_edges` are the edges of the `from` way, and `edges_of_via_ways` are the
+    edges of each `via` way, in the order of travel. An edge is
+    `(origin id, destination id)`.
+    """
+    # The node where the `from` way meets the first `via` way
+    meeting_node_ids = {destination_id for _, destination_id in from_edges} & {
+        origin_id for origin_id, _ in edges_of_via_ways[0]
+    }
+    if len(meeting_node_ids) != 1:
+        return None
+    turn_node_ids = [meeting_node_ids.pop()]
+    for via_edges in edges_of_via_ways:
+        # Follow the way from the last turn node to its other end, edge after
+        # edge, without turning back
+        previous_id = None
+        while True:
+            next_ids = [
+                destination_id
+                for origin_id, destination_id in via_edges
+                if origin_id == turn_node_ids[-1]
+                and destination_id != previous_id
+            ]
+            if len(next_ids) != 1 or next_ids[0] in turn_node_ids:
+                break
+            previous_id = turn_node_ids[-1]
+            turn_node_ids.append(next_ids[0])
+        if previous_id is None:  # the way does not leave the last turn node
+            return None
+    return turn_node_ids

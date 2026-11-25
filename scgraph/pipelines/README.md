@@ -213,6 +213,15 @@ orders the nodes.
   classes. A chain longer than `max_km_between_nodes` keeps nodes along it. In this build, 151
   nodes stay because the class changes there.
 - **Keep the node of a split.** The new node in the middle of a split road (step 2) stays.
+- **Keep a junction with a turn restriction.** Before this step, the pipeline applies the
+  turn restrictions of OpenStreetMap between two kept roads. A junction with a turn
+  restriction then has more than one road node, at the same point
+  (`scgraph/turn_restrictions.py` explains why). Such a junction keeps all its nodes or loses
+  them all, and no chain is contracted through it. The table above comes from the extract of
+  2026-11-18, built without the turn restrictions. The numbers of this item come from another
+  build, on the extract of 2026-11-16. There, the turn restrictions forbid 1,091 turns and
+  add 1,028 nodes to the 66,145 nodes of the joined graph. The network file has 876
+  junctions with more than one node.
 - **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve. Nodes
   that are near on the map are then near in the file, so a search reads nearby memory.
 

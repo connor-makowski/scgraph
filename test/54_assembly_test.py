@@ -438,6 +438,72 @@ def test_pieces_with_and_without_a_class_are_refused():
         network_assembly.build_graph_from_pieces(pieces)
 
 
+# A one-way fork. The street from W enters the junction J, and two streets leave
+# J: to A and to B. The streets from A to B and from B to W let a route come
+# back to W. A street is (origin, destination): its ids in the source, which are
+# also its node ids in the graph. Street number i is i + 1 km long, and it has
+# one shape point. A class is given by its id in the classes table.
+W, J, A, B = range(4)
+FORK_STREETS = [(W, J), (J, A), (J, B), (A, B), (B, W)]
+FORK_PLACES = {W: [0, 0], J: [0, 0.01], A: [0.01, 0.02], B: [-0.01, 0.02]}
+FORK_CLASS_IDS = [5, 3, 5, 3, 5]
+# `scgraph.turn_restrictions` explains the node that this forbidden turn adds to
+# J. The street from W then enters the added node, and no street enters the
+# node of the junction.
+NO_TURN_FROM_W_TO_B = [W, J, B]
+
+
+def _fork_graph():
+    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    for i, (origin, destination) in enumerate(FORK_STREETS):
+        pieces.append(
+            origin,
+            destination,
+            i + 1.0,
+            1,
+            [FORK_PLACES[origin], FORK_PLACES[destination]],
+            [[0.02, 0.001 * i]],
+            FORK_CLASS_IDS[i],
+        )
+    return network_assembly.build_graph_from_pieces(pieces)
+
+
+def _length_class_and_shape(arrays):
+    return _by_external_node_ids(
+        arrays,
+        lambda edge: (
+            arrays["metric_length"][edge],
+            arrays["edge_class_ids"][edge],
+            _shape_points(arrays, edge),
+        ),
+    )
+
+
+def test_an_edge_of_an_added_node_has_the_length_the_class_and_the_shape_of_its_street():
+    fork = _fork_graph()
+
+    with_added_node = network_assembly.forbid_turns(fork, [NO_TURN_FROM_W_TO_B])
+
+    # The added node has the id of J in the source. So its edge to A, and the
+    # edge that enters it from W, are read here as the streets (J, A) and (W, J).
+    assert _length_class_and_shape(with_added_node) == _length_class_and_shape(
+        fork
+    )
+
+
+# A route may start at a junction that no route enters. So a junction with a
+# node in a kept component keeps all its nodes, with their edges.
+def test_a_kept_junction_keeps_its_node_that_no_edge_enters():
+    with_added_node = network_assembly.forbid_turns(
+        _fork_graph(), [NO_TURN_FROM_W_TO_B]
+    )
+
+    kept = network_assembly.keep_components(with_added_node, None)
+
+    # The street from J to B is an edge of the first node of the junction only.
+    assert set(_length_class_and_shape(kept)) == set(FORK_STREETS)
+
+
 # Two junctions are on the equator, at the longitudes 0 and 0.03. A primary
 # road of 4 km joins them both ways. A motorway of 3 km goes one way, from the
 # second junction to the first. Each test below gives its shape points to the
@@ -680,6 +746,20 @@ def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
     )
 
     assert list(kept) == kept_nodes
+
+
+@both_backends
+def test_contract_chains_keeps_a_node_that_the_caller_asks_to_keep(backend):
+    # Node 2 is between the nodes 1 and 3: it is contracted when no node is
+    # flagged in `kept_node_flags`.
+    graph, node_mode_ids, max_km, edge_class_ids = ROAD_WITH_A_DEAD_END
+    node_2_only = array("B", [0, 0, 1, 0, 0])
+
+    kept, *_ = backend.contract_chains(
+        *graph, node_mode_ids, max_km, edge_class_ids, node_2_only
+    )
+
+    assert list(kept) == [0, 1, 2, 3, 4]
 
 
 def _random_chains(seed):
