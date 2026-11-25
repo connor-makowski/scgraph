@@ -1583,8 +1583,8 @@ class Graph(
 
     @staticmethod
     def from_edge_arrays(
-        offsets: array | memoryview,
-        heads: array | memoryview,
+        node_first_edge_ids: array | memoryview,
+        edge_destination_node_ids: array | memoryview,
         weights: array | memoryview,
         copy: bool = True,
     ) -> "Graph":
@@ -1592,13 +1592,13 @@ class Graph(
         Function:
 
         - Create a Graph from its edges stored by origin (compressed sparse rows), as in a `.scgraph` network file
-        - The edges of node `u` go to `heads[offsets[u]:offsets[u + 1]]`, with the same slice of `weights`
+        - The edges of node `u` go to `edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]`, with the same slice of `weights`
 
         Required Arguments:
 
-        - `offsets`
+        - `node_first_edge_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per node plus one
-        - `heads`
+        - `edge_destination_node_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per edge
         - `weights`
             - Type: sequence of floats (float64 array in the C++ backend), one per edge
@@ -1610,22 +1610,31 @@ class Graph(
             - What: Whether the graph copies the three arrays. If False, the C++ backend reads the arrays in place and keeps them alive: do not modify them afterwards. The pure-Python backend always copies them
             - Default: True
         """
-        n = len(offsets) - 1
+        n = len(node_first_edge_ids) - 1
         if (
             n < 0
-            or offsets[0] != 0
-            or offsets[-1] != len(heads)
-            or len(weights) != len(heads)
+            or node_first_edge_ids[0] != 0
+            or node_first_edge_ids[-1] != len(edge_destination_node_ids)
+            or len(weights) != len(edge_destination_node_ids)
         ):
             raise ValueError(
-                "expected offsets from 0 to the number of edges and one weight per edge"
+                "expected node_first_edge_ids from 0 to the number of edges and one weight per edge"
             )
-        if len(heads) and (min(heads) < 0 or max(heads) >= n):
+        if len(edge_destination_node_ids) and (
+            min(edge_destination_node_ids) < 0
+            or max(edge_destination_node_ids) >= n
+        ):
             raise ValueError("an edge goes to a node that is not in the graph")
         return Graph(
             [
-                dict(zip(heads[start:end], weights[start:end]))
-                for start, end in zip(offsets, offsets[1:])
+                dict(
+                    zip(
+                        edge_destination_node_ids[start:end], weights[start:end]
+                    )
+                )
+                for start, end in zip(
+                    node_first_edge_ids, node_first_edge_ids[1:]
+                )
             ]
         )
 

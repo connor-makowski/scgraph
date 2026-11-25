@@ -40,14 +40,14 @@ void GraphReducer::reduce(int iterations) {
                 // Count outflows excluding self-loop
                 size_t outflows_len = 0;
                 for (const auto& edge : graph[u]) {
-                    if (edge.head != (int)u) {
+                    if (edge.destination_id != (int)u) {
                         outflows_len++;
                     }
                 }
 
                 size_t inflows_len = 0;
                 for (const auto& edge : inverse_graph[u]) {
-                    if (edge.head != (int)u) {
+                    if (edge.destination_id != (int)u) {
                         inflows_len++;
                     }
                 }
@@ -62,14 +62,14 @@ void GraphReducer::reduce(int iterations) {
                         // Get set of outflows and inflows
                         std::set<int> outflows;
                         for (const auto& edge : graph[u]) {
-                            if (edge.head != (int)u) {
-                                outflows.insert(edge.head);
+                            if (edge.destination_id != (int)u) {
+                                outflows.insert(edge.destination_id);
                             }
                         }
                         bool subset = true;
                         for (const auto& edge : inverse_graph[u]) {
-                            if (edge.head != (int)u) {
-                                if (outflows.find(edge.head) == outflows.end()) {
+                            if (edge.destination_id != (int)u) {
+                                if (outflows.find(edge.destination_id) == outflows.end()) {
                                     subset = false;
                                     break;
                                 }
@@ -91,7 +91,7 @@ void GraphReducer::reduce(int iterations) {
                     }
                     for (const Row& adjacency : {graph[u], inverse_graph[u]}) {
                         for (const auto& edge : adjacency) {
-                            int v = edge.head;
+                            int v = edge.destination_id;
                             if (v >= 0 && v < (int)n && !is_reduced[v]) {
                                 dirty[v] = 1;
                             }
@@ -128,7 +128,7 @@ void GraphReducer::reduce(int iterations) {
                             continue;
                         }
                         for (const auto& edge : graph[curr]) {
-                            int v = edge.head;
+                            int v = edge.destination_id;
                             if (v >= 0 && v < (int)n && visited[v] != stamp) {
                                 visited[v] = stamp;
                                 q.push_back(v);
@@ -150,7 +150,7 @@ void GraphReducer::reduce(int iterations) {
                             continue;
                         }
                         for (const auto& edge : inverse_graph[curr]) {
-                            int v = edge.head;
+                            int v = edge.destination_id;
                             if (v >= 0 && v < (int)n && visited[v] != stamp) {
                                 visited[v] = stamp;
                                 q.push_back(v);
@@ -212,14 +212,14 @@ void GraphReducer::reduce(int iterations) {
                 int curr = q.back();
                 q.pop_back();
                 for (const auto& edge : graph[curr]) {
-                    int v = edge.head;
+                    int v = edge.destination_id;
                     if (v != curr && v >= 0 && v < (int)n && is_reduced[v] && reduced_node_chain_ids[v] == -1) {
                         reduced_node_chain_ids[v] = current_chain_id;
                         q.push_back(v);
                     }
                 }
                 for (const auto& edge : inverse_graph[curr]) {
-                    int v = edge.head;
+                    int v = edge.destination_id;
                     if (v != curr && v >= 0 && v < (int)n && is_reduced[v] && reduced_node_chain_ids[v] == -1) {
                         reduced_node_chain_ids[v] = current_chain_id;
                         q.push_back(v);
@@ -279,7 +279,7 @@ void GraphReducer::reduce(int iterations) {
             }
 
             for (const auto& edge : graph[u]) {
-                int v = edge.head;
+                int v = edge.destination_id;
                 double w = edge.weight;
                 double new_dist = dist + w;
                 if (seen[v] != stamp || new_dist < best_dist[v]) {
@@ -327,7 +327,7 @@ void GraphReducer::reduce(int iterations) {
             }
 
             for (const auto& edge : inverse_graph[u]) {
-                int v = edge.head;
+                int v = edge.destination_id;
                 double w = edge.weight;
                 double new_dist = dist + w;
                 if (seen[v] != stamp || new_dist < best_dist[v]) {

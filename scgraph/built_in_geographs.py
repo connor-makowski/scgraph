@@ -89,7 +89,7 @@ def warn_deprecated_load(name: str, geograph_url: str) -> None:
         warnings.warn(
             f"The network '{name}' of scgraph 3.6.0 is deprecated. scgraph 5.0 "
             f"removes it. Use '{replacement}', a released network with newer "
-            "data. Its results differ (README, section Migrating from 3.6).",
+            "data. Its results differ (MIGRATING.md).",
             DeprecationWarning,
             stacklevel=3,
         )

@@ -142,6 +142,7 @@ class GeoGraph(
             - Type: list of dicts | None
             - What: The node modes, each a dict with its `name` (str or None) and, optionally, the `source` of its node ids (the name of an entry of the network's sources); read back as `node_modes`
             - Note: At most 256 node modes; two node modes may have the same name (two sea networks merged)
+            - Note: A node mode with `"has_turn_restrictions": True` follows turn restrictions: some of its junctions have more than one node (`scgraph/turn_restrictions.py`). The nodes of a junction come one right after the other, with the same external id and the same point. A query point that is connected to one node of a junction is connected to each of them
             - Default: None (one node mode, without a name: `[{"name": None}]`)
         - `coordinate_dtype`
             - Type: str
@@ -222,9 +223,10 @@ class GeoGraph(
         self._metrics = {}
         # The record of `length`, as `_read_metric("length")` last built it
         self._length_metric = None
-        # The offsets, the heads and the lengths of the edges of `graph_object`
-        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them. The id of an edge
-        # is its position in the heads. The graph and its count of edits at that
+        # The arrays of the edges of `graph_object`
+        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
+        # `edge_destination_node_ids` and the lengths. The id of an edge is its position in `edge_destination_node_ids`.
+        # The graph and its count of edits at that
         # time show whether the graph was edited since.
         self._edge_arrays = None
         self._edge_arrays_graph = None
@@ -234,9 +236,14 @@ class GeoGraph(
         # after an edit.
         self._edge_class_ids = None
         if classes is not None or edge_classes is not None:
-            offsets, heads, _ = self._read_edge_arrays()
+            node_first_edge_ids, edge_destination_node_ids, _ = (
+                self._read_edge_arrays()
+            )
             self._edge_classes = EdgeClasses.build_from_class_names(
-                classes, edge_classes, offsets, heads
+                classes,
+                edge_classes,
+                node_first_edge_ids,
+                edge_destination_node_ids,
             )
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None
@@ -281,21 +288,27 @@ class GeoGraph(
         **kwargs,
     ) -> "GeoGraph":
         # Create a geograph from what a loader read, with the other arguments of
-        # the constructor. `edge_arrays` are the offsets, the heads and the
+        # the constructor. `edge_arrays` are the node_first_edge_ids, the edge_destination_node_ids and the
         # lengths of the edges of the graph, in the order of
         # `Graph.get_edge_arrays`. The geograph keeps them without a copy.
         # `edge_class_ids` is the class id of each edge, by edge id, when a
         # network file holds it. `metrics` are the metrics other than `length`.
         geograph = cls(**kwargs)
         geograph._set_edge_arrays(edge_arrays, edge_class_ids)
-        offsets, heads, _ = edge_arrays
+        node_first_edge_ids, edge_destination_node_ids, _ = edge_arrays
         if edge_class_ids is not None:
             geograph._edge_classes = EdgeClasses(
-                classes, offsets, heads, edge_class_ids
+                classes,
+                node_first_edge_ids,
+                edge_destination_node_ids,
+                edge_class_ids,
             )
         elif classes is not None or edge_classes is not None:
             geograph._edge_classes = EdgeClasses.build_from_class_names(
-                classes, edge_classes, offsets, heads
+                classes,
+                edge_classes,
+                node_first_edge_ids,
+                edge_destination_node_ids,
             )
         geograph._metrics = dict(metrics or {})
         return geograph

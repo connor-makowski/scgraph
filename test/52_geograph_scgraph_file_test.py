@@ -636,9 +636,9 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
 # The tests below write a file from arrays with `network_file.write`, as a
 # pipeline does. This is the way to write a file that `save_as_scgraph` would
 # never write. The edges are stored by origin: the edges of node u go to
-# heads[offsets[u]:offsets[u + 1]]. The header names the metrics of the file:
-# the length first. Another metric gives its weight for 1 km between a query
-# point and its node: here, no toll.
+# edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]].
+# The header names the metrics of the file: the length first. Another metric
+# gives its weight for 1 km between a query point and its node: here, no toll.
 LENGTH_IN_KM = {"name": "length", "unit": "km"}
 TOLL = {"name": "toll", "unit": "EUR", "off_graph_weight_per_km": 0.0}
 ROAD_AND_PORT = [
@@ -661,8 +661,8 @@ def _two_road_nodes_and_a_port():
     """The arrays of a network of three nodes: two road nodes joined both
     ways, and a port without edges. The first node id is beyond 32 bits."""
     return {
-        "offsets": array("i", [0, 1, 2, 2]),
-        "heads": array("i", [1, 0]),
+        "node_first_edge_ids": array("i", [0, 1, 2, 2]),
+        "edge_destination_node_ids": array("i", [1, 0]),
         "metric_length": array("d", [1.0, 1.0]),
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
         "external_node_ids": array("q", [2**40, 7, -1]),
@@ -697,7 +697,7 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
         ),
         pytest.param(
             {
-                "shape_offsets": array("i", [0, 0, 0]),
+                "edge_first_shape_point_ids": array("i", [0, 0, 0]),
                 "shape_points": array("i"),
             },
             "coordinates of two dtypes",
@@ -851,37 +851,37 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
             id="more node ids than nodes",
         ),
         pytest.param(
-            {"offsets": array("i", [0, 2, 1, 2])},
-            "invalid offsets",
-            id="offsets that decrease",
+            {"node_first_edge_ids": array("i", [0, 2, 1, 2])},
+            "invalid node_first_edge_ids",
+            id="node_first_edge_ids that decrease",
         ),
         pytest.param(
-            {"heads": array("i", [-1, 0])},
+            {"edge_destination_node_ids": array("i", [-1, 0])},
             "edge to a missing node",
             id="an edge to a node that does not exist",
         ),
         pytest.param(
-            {"heads": array("i", [1, 3])},
+            {"edge_destination_node_ids": array("i", [1, 3])},
             "edge to a missing node",
             id="an edge to a node after the last node",
         ),
         pytest.param(
             {
-                "shape_offsets": array("i", [0, 1, 0]),
+                "edge_first_shape_point_ids": array("i", [0, 1, 0]),
                 "shape_points": array("d"),
             },
-            "invalid shape offsets",
-            id="shape offsets that decrease",
+            "invalid edge_first_shape_point_ids",
+            id="edge_first_shape_point_ids that decrease",
         ),
         pytest.param(
             {
                 # The second edge now goes to the port: a load of the road
-                # reads the shape offsets of the first edge only.
-                "heads": array("i", [1, 2]),
-                "shape_offsets": array("i", [0, 2, 1]),
+                # reads `edge_first_shape_point_ids` for the first edge only.
+                "edge_destination_node_ids": array("i", [1, 2]),
+                "edge_first_shape_point_ids": array("i", [0, 2, 1]),
                 "shape_points": array("d", [0.0, 0.0]),
             },
-            "invalid shape offsets",
+            "invalid edge_first_shape_point_ids",
             id="a shape that ends after the last shape point",
         ),
         pytest.param(
@@ -947,8 +947,8 @@ def _write_road_port_and_sea(
     km.
     """
     arrays = {
-        "offsets": array("i", [0, 1, 3, 4, 5, 7]),
-        "heads": array("i", [1, 0, 2, 3, 4, 2, 3]),
+        "node_first_edge_ids": array("i", [0, 1, 3, 4, 5, 7]),
+        "edge_destination_node_ids": array("i", [1, 0, 2, 3, 4, 2, 3]),
         "metric_length": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
         "metric_toll": array("d", [10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
         "node_points": array(
@@ -956,7 +956,7 @@ def _write_road_port_and_sea(
             [10, -10, 11, -11, 20, -20, 30, -30, 31, -31],
         ),
         "external_node_ids": array("i", [10, 11, 20, 30, 31]),
-        "shape_offsets": array("i", [0, 1, 3, 5, 7, 7, 8, 9]),
+        "edge_first_shape_point_ids": array("i", [0, 1, 3, 5, 7, 7, 8, 9]),
         "shape_points": array(
             coordinate_typecode,
             [10, 11]
@@ -1148,8 +1148,8 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     # such a view as bytes: the save fails after it wrote the first arrays.
     every_second_value = memoryview(array("d", [1.0, 0.0, 1.0, 0.0]))[::2]
     arrays = {
-        "offsets": array("i", [0, 1, 2]),
-        "heads": array("i", [1, 0]),
+        "node_first_edge_ids": array("i", [0, 1, 2]),
+        "edge_destination_node_ids": array("i", [1, 0]),
         "metric_length": every_second_value,
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0]),
     }
@@ -1373,7 +1373,7 @@ def _cut_before_the_end(data):
 
 def _give_an_array_a_wrong_dtype(data):
     header = _read_header(data)
-    header["arrays"]["heads"]["dtype"] = "float64"
+    header["arrays"]["edge_destination_node_ids"]["dtype"] = "float64"
     return _replace_header(data, header)
 
 
@@ -1389,7 +1389,9 @@ def _say_the_header_as_long_as_the_file(data):
 
 def _place_an_array_before_the_arrays(data):
     header = _read_header(data)
-    header["arrays"]["offsets"]["offset"] = -_find_start_of_arrays(data)
+    header["arrays"]["node_first_edge_ids"]["offset"] = -_find_start_of_arrays(
+        data
+    )
     return _replace_header(data, header)
 
 
@@ -1404,11 +1406,11 @@ def _put_the_header_in_a_json_list(data):
 
 
 def _point_an_edge_to_a_node_that_does_not_exist(data):
-    return _replace_int32(data, "heads", 0, 99)
+    return _replace_int32(data, "edge_destination_node_ids", 0, 99)
 
 
-def _set_an_offset_past_the_edges(data):
-    return _replace_int32(data, "offsets", 1, 2**30)
+def _set_a_first_edge_id_past_the_edges(data):
+    return _replace_int32(data, "node_first_edge_ids", 1, 2**30)
 
 
 # A damaged file must be refused with a message that names the damage. It
@@ -1435,7 +1437,10 @@ def _set_an_offset_past_the_edges(data):
             _point_an_edge_to_a_node_that_does_not_exist,
             "edge to a missing node|is not in the graph",
         ),
-        (_set_an_offset_past_the_edges, "invalid offsets|non-decreasing"),
+        (
+            _set_a_first_edge_id_past_the_edges,
+            "invalid node_first_edge_ids|non-decreasing",
+        ),
     ],
 )
 def test_a_damaged_file_is_refused(file_to_damage, damage, message):
@@ -1446,14 +1451,16 @@ def test_a_damaged_file_is_refused(file_to_damage, damage, message):
 
 
 # A later version of scgraph may add an array to the file. Here the header
-# names the bytes of `heads` a second time, as `later_array`.
+# names the bytes of `edge_destination_node_ids` a second time, as `later_array`.
 def test_a_file_with_an_array_that_scgraph_does_not_know_is_read_without_it(
     file_to_damage,
 ):
     known_arrays, _ = network_file.read(str(file_to_damage))
     data = file_to_damage.read_bytes()
     header = _read_header(data)
-    header["arrays"]["later_array"] = header["arrays"]["heads"]
+    header["arrays"]["later_array"] = header["arrays"][
+        "edge_destination_node_ids"
+    ]
     file_to_damage.write_bytes(_replace_header(data, header))
 
     arrays, _ = network_file.read(str(file_to_damage))
@@ -1462,25 +1469,29 @@ def test_a_file_with_an_array_that_scgraph_does_not_know_is_read_without_it(
 
 
 # The C++ build reads the shapes in place and does not check them all at
-# load. Shape offsets past the shape points are refused at load, or when the
-# shape is read.
-def test_a_route_refuses_shape_offsets_that_go_past_the_shape_points(
+# load. A value of `edge_first_shape_point_ids` past the shape points is refused at
+# load, or when the shape is read.
+def test_a_route_refuses_edge_first_shape_point_ids_that_go_past_the_shape_points(
     file_to_damage,
 ):
     data = file_to_damage.read_bytes()
-    file_to_damage.write_bytes(_replace_int32(data, "shape_offsets", 1, 2**30))
+    file_to_damage.write_bytes(
+        _replace_int32(data, "edge_first_shape_point_ids", 1, 2**30)
+    )
 
-    with pytest.raises(ValueError, match="invalid shape offsets"):
+    with pytest.raises(ValueError, match="invalid edge_first_shape_point_ids"):
         _route_0_to_1(GeoGraph.load_from_scgraph(str(file_to_damage)))
 
 
-def test_reading_a_shape_refuses_shape_offsets_that_go_past_the_shape_points(
+def test_reading_a_shape_refuses_edge_first_shape_point_ids_that_go_past_the_shape_points(
     file_to_damage,
 ):
     data = file_to_damage.read_bytes()
-    file_to_damage.write_bytes(_replace_int32(data, "shape_offsets", 1, 2**30))
+    file_to_damage.write_bytes(
+        _replace_int32(data, "edge_first_shape_point_ids", 1, 2**30)
+    )
 
-    with pytest.raises(ValueError, match="invalid shape offsets"):
+    with pytest.raises(ValueError, match="invalid edge_first_shape_point_ids"):
         dict(
             GeoGraph.load_from_scgraph(str(file_to_damage)).intermediate_nodes[
                 0

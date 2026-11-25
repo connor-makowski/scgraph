@@ -48,7 +48,7 @@ def _walk(pred, node):
     return path
 
 
-# Custom algorithms written as the README shows: they read search_graph and
+# Custom algorithms written as the guides show: they read search_graph and
 # search_inverse_graph, and accept dicts of nodes with distances
 @PyGraph.algorithm
 def _custom(self, origin_id, destination_id):

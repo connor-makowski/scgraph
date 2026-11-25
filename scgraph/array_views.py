@@ -39,15 +39,18 @@ class EdgeShapes(Sequence):
     """
 
     def __init__(self, arrays):
-        self._offsets, self._heads = arrays["offsets"], arrays["heads"]
+        self._node_first_edge_ids, self._edge_destination_node_ids = (
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_node_ids"],
+        )
         self._starts, self._points = (
-            arrays["shape_offsets"],
+            arrays["edge_first_shape_point_ids"],
             arrays["shape_points"],
         )
         self._scale = network_file.get_units_per_degree(self._points)
 
     def __len__(self):
-        return len(self._offsets) - 1
+        return len(self._node_first_edge_ids) - 1
 
     def __getitem__(self, origin):
         if isinstance(origin, slice):
@@ -57,21 +60,28 @@ class EdgeShapes(Sequence):
             origin += len(self)
         if not 0 <= origin < len(self):
             raise IndexError("node index out of range")
-        heads, starts = self._heads, self._starts
+        edge_destination_node_ids, starts = (
+            self._edge_destination_node_ids,
+            self._starts,
+        )
         return MappingProxyType(
             {
-                heads[edge]: self._read_shape(starts[edge], starts[edge + 1])
+                edge_destination_node_ids[edge]: self._read_shape(
+                    starts[edge], starts[edge + 1]
+                )
                 for edge in range(
-                    self._offsets[origin], self._offsets[origin + 1]
+                    self._node_first_edge_ids[origin],
+                    self._node_first_edge_ids[origin + 1],
                 )
                 if starts[edge + 1] != starts[edge]
             }
         )
 
     def _read_shape(self, first, last):
-        # A mapped file's shape offsets are checked here, where they are read
+        # A mapped file's `edge_first_shape_point_ids` are checked here, where they are
+        # read
         if not 0 <= first <= last <= len(self._points) // 2:
-            raise ValueError("invalid shape offsets")
+            raise ValueError("invalid edge_first_shape_point_ids")
         flat, scale = self._points[2 * first : 2 * last].tolist(), self._scale
         return [
             [flat[i] / scale, flat[i + 1] / scale]
@@ -85,21 +95,27 @@ class EdgeShapes(Sequence):
         each edge of the path between them; in one C loop in the C++ build"""
         if _shape_path is not None:
             return _shape_path(
-                self._offsets,
-                self._heads,
+                self._node_first_edge_ids,
+                self._edge_destination_node_ids,
                 self._starts,
                 self._points,
                 path if type(path) is list else list(path),
                 coordinates,
             )
-        offsets, heads, count = self._offsets, self._heads, len(self)
+        node_first_edge_ids, edge_destination_node_ids, count = (
+            self._node_first_edge_ids,
+            self._edge_destination_node_ids,
+            len(self),
+        )
         starts, result = self._starts, [coordinates[0]]
         for i in range(len(path) - 1):
             origin, destination = path[i], path[i + 1]
             # Nodes added after loading (add_coord_node) have no shapes
             if origin < count:
-                for edge in range(offsets[origin], offsets[origin + 1]):
-                    if heads[edge] == destination:
+                for edge in range(
+                    node_first_edge_ids[origin], node_first_edge_ids[origin + 1]
+                ):
+                    if edge_destination_node_ids[edge] == destination:
                         result += self._read_shape(
                             starts[edge], starts[edge + 1]
                         )

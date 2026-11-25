@@ -16,5 +16,6 @@ def is_sorted(values: Iterable) -> bool:
 
 def is_sorted_from_zero(values: Sequence) -> bool:
     """Return whether the first value is 0 and no value is smaller than the value
-    before it, as in an array of offsets. `values` holds at least one value."""
+    before it, as in an array of node_first_edge_ids. `values` holds at least one value.
+    """
     return values[0] == 0 and is_sorted(values)

@@ -11,7 +11,7 @@ def warn_deprecated(
     name: str,
     stacklevel: int = 3,
     instead: str = "scgraph reports its messages through the logging module "
-    "(README, section Logging)",
+    "(guides/routing.md, section Logging)",
 ) -> None:
     """
     Warns that a function or a parameter is deprecated.

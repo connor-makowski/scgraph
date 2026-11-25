@@ -12,9 +12,9 @@ WORDS
 - An edge is "closed" in a metric when its weight is infinity. No route by this
   metric takes it.
 - An "edge id" is the position of an edge in the arrays of a graph (`Graph.get_edge_arrays`).
-  The edges of the node `u` have the ids `offsets[u]` to `offsets[u + 1] - 1`, and
-  `heads[edge_id]` is the node that the edge goes to. An array "by edge id" has
-  one value for each edge, at the id of the edge.
+  The node `u` has the edges of ids `node_first_edge_ids[u]` to
+  `node_first_edge_ids[u + 1] - 1`, and `edge_destination_node_ids[edge_id]` is the node
+  that the edge goes to. An array "by edge id" has one value for each edge, at its id.
 - A "class" is the category of an edge, such as `motorway`. Each class has an
   "edge mode", such as `road`. A "class id" is the position of a class in
   `GeoGraph.classes`, and the class id 255 means "no class".
@@ -343,16 +343,16 @@ def parse_weight(
 def copy_with_edge_weights(
     weights: array | memoryview,
     edge_weights: dict,
-    offsets: array | memoryview,
-    heads: array | memoryview,
+    node_first_edge_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
 ) -> array:
     """Return a copy of the weights of a metric with the weights of `edge_weights`.
 
     Args:
         weights: The weight of each edge, by edge id.
         edge_weights: `{(origin id, destination id): weight}`. None closes an edge.
-        offsets: The id of the first edge of each node (see the module docstring).
-        heads: The destination of each edge.
+        node_first_edge_ids: The id of the first edge of each node (module docstring).
+        edge_destination_node_ids: The destination of each edge.
 
     Raises:
         ValueError: A pair of nodes is not an edge, or a weight is below zero or
@@ -361,7 +361,12 @@ def copy_with_edge_weights(
     weights_with_edge_weights = array("d")
     weights_with_edge_weights.frombytes(memoryview(weights).cast("B"))
     for (origin_id, destination_id), weight in edge_weights.items():
-        edge_id = find_edge_id(offsets, heads, origin_id, destination_id)
+        edge_id = find_edge_id(
+            node_first_edge_ids,
+            edge_destination_node_ids,
+            origin_id,
+            destination_id,
+        )
         if edge_id is None:
             raise ValueError(
                 f"edge_weights names an edge from node {origin_id} to node "

@@ -51,11 +51,11 @@ class GraphUtils:
     def get_edge_arrays(
         self, order: list[int] | None = None
     ) -> tuple[array, array, array]:
-        """The graph (unreduced) as edges by origin: int32 offsets and heads, float64
+        """The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_node_ids, float64
         weights, in the order in which searches visit the edges (the C++ backend gives
         views of its own arrays). The id of an edge is its position in these arrays.
         With `order` (order[new] = old), the rows of the nodes in that order, their
-        heads renumbered. `Graph.from_edge_arrays` builds a graph from the three
+        edge_destination_node_ids renumbered. `Graph.from_edge_arrays` builds a graph from the three
         arrays. `GeoGraph` calls this method: it is not in the public API and may change.
         """
         rows, new_id = self.graph, None
@@ -68,14 +68,18 @@ class GraphUtils:
                     raise IndexError("order must list every node once")
                 new_id[old] = new
             rows = map(rows.__getitem__, order)
-        offsets, heads, weights = array("i", [0]), array("i"), array("d")
+        node_first_edge_ids, edge_destination_node_ids, weights = (
+            array("i", [0]),
+            array("i"),
+            array("d"),
+        )
         for row in rows:
-            heads.extend(
+            edge_destination_node_ids.extend(
                 row if new_id is None else map(new_id.__getitem__, row)
             )
             weights.extend(row.values())
-            offsets.append(len(heads))
-        return offsets, heads, weights
+            node_first_edge_ids.append(len(edge_destination_node_ids))
+        return node_first_edge_ids, edge_destination_node_ids, weights
 
     @property
     def inverse_graph(self) -> list[dict[int, int | float]]:

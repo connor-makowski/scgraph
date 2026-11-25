@@ -26,8 +26,8 @@ class GeoGraphEdges:
     def _read_edge_arrays(
         self, check_edge_count: bool = False
     ) -> tuple[array | memoryview, ...]:
-        # Return the offsets, the heads and the lengths of the edges of
-        # `graph_object`. The method reads them again when the graph or its count
+        # Return the arrays of the edges of `graph_object`: `node_first_edge_ids`,
+        # `edge_destination_node_ids` and the lengths. The method reads them again when the graph or its count
         # of edits has changed: the caller may have edited `graph_object` itself.
         # It then removes the metrics: a metric has the weight of each edge at the
         # id that the edge had before the edit.
@@ -58,8 +58,8 @@ class GeoGraphEdges:
         edge_arrays: tuple[array | memoryview, ...],
         edge_class_ids: array | memoryview | None = None,
     ) -> None:
-        # Keep the offsets, the heads and the lengths of the edges of
-        # `graph_object`, for `_read_edge_arrays`. `edge_class_ids` gives the
+        # Keep the arrays of the edges of `graph_object` for `_read_edge_arrays`:
+        # `node_first_edge_ids`, `edge_destination_node_ids` and the lengths. `edge_class_ids` gives the
         # class id of each of these edges when a network file holds it. With
         # None, `_read_edge_class_ids` computes it.
         self._edge_arrays = edge_arrays
@@ -71,10 +71,12 @@ class GeoGraphEdges:
         # Return the class id of each edge of `graph_object`, by edge id: 255 for
         # an edge without a class. Return None for a geograph without classes.
         # The array is computed at the first call, and again after an edit.
-        offsets, heads, _ = self._read_edge_arrays()
+        node_first_edge_ids, edge_destination_node_ids, _ = (
+            self._read_edge_arrays()
+        )
         if self._edge_class_ids is None:
             self._edge_class_ids = self._edge_classes.list_edge_class_ids(
-                offsets, heads
+                node_first_edge_ids, edge_destination_node_ids
             )
         return self._edge_class_ids
 
@@ -99,8 +101,13 @@ class GeoGraphEdges:
         - `length` is in `geograph_units`. `edge_class` is the name of the class of the edge and `edge_mode` is the edge mode of that class; both are None for an edge without a class
         - `metric_weights` is a dictionary `{name: weight}`: the weight of the edge in each metric other than `length`; infinity for an edge that is closed in the metric
         """
-        offsets, heads, _ = self._read_edge_arrays()
-        if origin_id is not None and not 0 <= origin_id < len(offsets) - 1:
+        node_first_edge_ids, edge_destination_node_ids, _ = (
+            self._read_edge_arrays()
+        )
+        if (
+            origin_id is not None
+            and not 0 <= origin_id < len(node_first_edge_ids) - 1
+        ):
             raise ValueError(f"Node {origin_id} is not in the geograph")
         self._edge_classes.check_class(edge_class)
         edges = self._iter_edges(origin_id)
@@ -109,7 +116,10 @@ class GeoGraphEdges:
             edges = (
                 (origin_id, edge_id)
                 for origin_id, edge_id in edges
-                if find_class(origin_id, heads[edge_id])["name"] == edge_class
+                if find_class(origin_id, edge_destination_node_ids[edge_id])[
+                    "name"
+                ]
+                == edge_class
             )
         return list(self._iter_edge_dicts(edges))
 
@@ -118,14 +128,19 @@ class GeoGraphEdges:
     ) -> Iterator[tuple[int, int]]:
         """Return each edge of one node, or every edge for None, as (origin id,
         edge id), in the order of the edges."""
-        offsets = self._read_edge_arrays()[0]
+        node_first_edge_ids = self._read_edge_arrays()[0]
         origin_ids = (
-            range(len(offsets) - 1) if origin_id is None else (origin_id,)
+            range(len(node_first_edge_ids) - 1)
+            if origin_id is None
+            else (origin_id,)
         )
         return (
             (origin_id, edge_id)
             for origin_id in origin_ids
-            for edge_id in range(offsets[origin_id], offsets[origin_id + 1])
+            for edge_id in range(
+                node_first_edge_ids[origin_id],
+                node_first_edge_ids[origin_id + 1],
+            )
         )
 
     def _iter_edge_dicts(
@@ -133,14 +148,14 @@ class GeoGraphEdges:
     ) -> Iterator[dict]:
         """Yield the dictionary of each edge, as `get_edges` returns it. `edges`
         gives each edge as (origin id, edge id)."""
-        _, heads, lengths = self._read_edge_arrays()
+        _, edge_destination_node_ids, lengths = self._read_edge_arrays()
         find_class = self._edge_classes.find_class
         weights_of_metrics = [
             (name, metric_record.weights)
             for name, metric_record in self._read_metrics().items()
         ]
         for origin_id, edge_id in edges:
-            destination_id = heads[edge_id]
+            destination_id = edge_destination_node_ids[edge_id]
             class_row = find_class(origin_id, destination_id)
             yield {
                 "origin_id": origin_id,
@@ -156,10 +171,17 @@ class GeoGraphEdges:
 
     def _find_path_edge_ids(self, path: list[int]) -> list[int]:
         # The id of each edge of a path
-        offsets, heads, _ = self._read_edge_arrays()
+        node_first_edge_ids, edge_destination_node_ids, _ = (
+            self._read_edge_arrays()
+        )
         edge_ids = []
         for origin_id, destination_id in zip(path, path[1:]):
-            edge_id = find_edge_id(offsets, heads, origin_id, destination_id)
+            edge_id = find_edge_id(
+                node_first_edge_ids,
+                edge_destination_node_ids,
+                origin_id,
+                destination_id,
+            )
             if edge_id is None:
                 raise ValueError(
                     f"The geograph has no edge from node {origin_id} to node "
