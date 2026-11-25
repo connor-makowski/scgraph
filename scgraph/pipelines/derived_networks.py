@@ -276,13 +276,15 @@ def derive_network_file(
         "keep the strongly connected components",
         network_assembly.count_nodes_and_edges(graph),
     ) as counts:
-        # 3. Keep the strongly connected components
-        kept_nodes, component_of_node = (
-            network_assembly.keep_strongly_connected_components(
+        # 3. Keep the strongly connected components. A junction with several
+        # nodes keeps them all (`scgraph/turn_restrictions.py`).
+        kept_nodes, component_of_node = network_assembly.keep_junctions_whole(
+            graph,
+            *network_assembly.keep_strongly_connected_components(
                 graph["node_first_edge_ids"],
                 graph["edge_destination_node_ids"],
                 min_component_nodes,
-            )
+            ),
         )
         if not len(kept_nodes):
             raise ValueError(

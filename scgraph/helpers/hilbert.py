@@ -45,7 +45,10 @@ def hilbert_order(
             nodes of one node mode stay together.
 
     Returns:
-        `order`, where `order[new_id]` is the old id of the node.
+        `order`, where `order[new_id]` is the old id of the node. Nodes with the
+        same point keep their order: the nodes of a junction stay together, the
+        node of the junction first
+        (`scgraph.turn_restrictions.find_nodes_of_junction`).
     """
     if node_mode_ids is None:
         return sorted(range(len(nodes)), key=lambda i: hilbert_key(*nodes[i]))

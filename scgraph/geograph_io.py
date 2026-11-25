@@ -13,6 +13,7 @@ from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
+from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, built_in_geographs, network_file
 import json
 import os
@@ -84,6 +85,7 @@ class GeoGraphIO:
 
         - Save the current geograph object as a geojson file specifed by `filename`
         - This is useful for understanding the underlying geograph and for debugging purposes
+        - The file holds the lines of the edges only: a geograph loaded from it follows no turn restriction
         - Returns None
 
         Required Arguments:
@@ -164,6 +166,7 @@ class GeoGraphIO:
         - Save the current geograph as a JSON file that can be used to recreate the geograph later
         - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
         - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
+        - A geograph that follows turn restrictions is also saved with its `external_node_ids`, `node_mode_ids` and `node_modes`. A geograph loaded from the file then follows the turn restrictions too
 
         Required Arguments:
 
@@ -197,6 +200,13 @@ class GeoGraphIO:
             extra_kwargs["intermediate_nodes"] = [
                 dict(row) for row in self.intermediate_nodes
             ]
+        if has_turn_restrictions(self):
+            # A load finds the nodes of a junction with these three values
+            # (`scgraph/turn_restrictions.py`). Another geograph is written
+            # without them, as release 3.6.0 writes it.
+            extra_kwargs["external_node_ids"] = list(self.external_node_ids)
+            extra_kwargs["node_mode_ids"] = list(self._read_node_mode_ids())
+            extra_kwargs["node_modes"] = self.node_modes
         with open(filename, "w") as f:
             json.dump(
                 {
@@ -524,6 +534,7 @@ class GeoGraphIO:
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        load_turn_restrictions: bool = True,
     ) -> "GeoGraph":
         """
         Function:
@@ -536,6 +547,9 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `external_node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
+        - A route makes no turn that a turn restriction of the file forbids, for cars (`load_turn_restrictions`)
+        - Some junctions then have more than one node, with the same point and the same external id. `scgraph/turn_restrictions.py` explains these nodes
+        - Conditional turn restrictions, and the turn restrictions of other vehicles, are not read
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
         - The load builds its graph with `scgraph.helpers.osm` and `scgraph.network_assembly`, as the OpenStreetMap pipelines do, on one node mode: it reads and cuts the ways, builds the graph, keeps the largest component and orders the nodes. It neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
@@ -581,6 +595,12 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
             - Default: False
+        - `load_turn_restrictions`
+            - Type: bool
+            - What: Whether to read the turn restrictions of the file (the relations with `type=restriction`): a route then makes no turn that one of them forbids, for cars; if False, a route may make any turn
+            - Default: True
+            - Note: Some junctions then have more than one node, with the same point and the same external id (`scgraph/turn_restrictions.py`)
+            - Note: The turn restrictions are read in one more pass over the file
 
         Raises:
 
@@ -600,6 +620,7 @@ class GeoGraphIO:
                     load_intermediate_nodes=load_intermediate_nodes,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    load_turn_restrictions=load_turn_restrictions,
                 )
             )
         from scgraph import network_assembly
@@ -607,6 +628,10 @@ class GeoGraphIO:
             MAX_KM_BETWEEN_NODES,
             build_way_pieces,
             select_main_roads_with_class,
+        )
+        from scgraph.helpers.osm import (
+            list_forbidden_turns,
+            read_turn_restrictions,
         )
 
         # The functions that the OpenStreetMap pipelines build their graph with,
@@ -629,6 +654,14 @@ class GeoGraphIO:
                 f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
             )
         arrays = network_assembly.build_graph_from_pieces(pieces)
+        forbidden_turns = (
+            list_forbidden_turns(arrays, read_turn_restrictions(filename))
+            if load_turn_restrictions
+            else []
+        )
+        # Only `list_forbidden_turns` reads the way of an edge
+        arrays.pop("edge_way_ids", None)
+        arrays = network_assembly.forbid_turns(arrays, forbidden_turns)
         if largest_component:
             arrays = network_assembly.keep_components(arrays, None)
         arrays = network_assembly.order_nodes(arrays)
@@ -657,6 +690,11 @@ class GeoGraphIO:
                     for name, edge_mode in CLASSES.items()
                 ]
                 if "edge_class_ids" in arrays
+                else None
+            ),
+            node_modes=(
+                [{"name": None, "has_turn_restrictions": True}]
+                if load_turn_restrictions
                 else None
             ),
         )

@@ -241,7 +241,7 @@ class StreamedPbf:
     def file(self, entities: "osmium.osm.osm_entity_bits") -> "osmium.io.File":
         """Start the child process of one pass. Return an input that gives osmium the
         header and one section of the file: the nodes for `osmium.osm.NODE`, the ways
-        otherwise.
+        for `osmium.osm.WAY`, and the relations otherwise.
         """
         if sys.platform == "win32":
             raise NotImplementedError(
@@ -249,9 +249,12 @@ class StreamedPbf:
             )
         osmium = require_osmium()
         header, ways, relations = self.about["layout"]
-        section = (
-            [header, ways] if entities & osmium.osm.NODE else [ways, relations]
-        )
+        if entities & osmium.osm.NODE:
+            section = [header, ways]
+        elif entities & osmium.osm.WAY:
+            section = [ways, relations]
+        else:
+            section = [relations, self.about["size"]]
         job = json.dumps({**self.about, "ranges": [[0, header], section]})
         self._pipe, write = os.pipe()
         # -P: not the modules of the current folder

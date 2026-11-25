@@ -24,6 +24,12 @@ from functools import partial
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Callable, Sequence
 from scgraph.errors import PathNotFoundError
+from scgraph.turn_restrictions import (
+    connect_to_nodes_of_junctions,
+    find_route_end_at_junction,
+    find_nodes_of_junction,
+    has_turn_restrictions,
+)
 
 if TYPE_CHECKING:  # Only for annotations.
     from scgraph import Graph
@@ -934,19 +940,25 @@ class GeoGraphRouting:
             units=self.geograph_units,
         )
         # Snap the origin and destination to their closest nodes in the graph
-        origin_id = self.__get_node_distances__(
-            node=origin,
-            circuity=node_addition_circuity,
-            node_addition_type=node_addition_type,
-            lat_lon_bound=node_addition_lat_lon_bound,
-            snap_index=snap_index,
+        origin_id = connect_to_nodes_of_junctions(
+            self,
+            self.__get_node_distances__(
+                node=origin,
+                circuity=node_addition_circuity,
+                node_addition_type=node_addition_type,
+                lat_lon_bound=node_addition_lat_lon_bound,
+                snap_index=snap_index,
+            ),
         )
-        destination_id = self.__get_node_distances__(
-            node=destination,
-            circuity=node_addition_circuity,
-            node_addition_type=destination_node_addition_type,
-            lat_lon_bound=node_addition_lat_lon_bound,
-            snap_index=snap_index,
+        destination_id = connect_to_nodes_of_junctions(
+            self,
+            self.__get_node_distances__(
+                node=destination,
+                circuity=node_addition_circuity,
+                node_addition_type=destination_node_addition_type,
+                lat_lon_bound=node_addition_lat_lon_bound,
+                snap_index=snap_index,
+            ),
         )
         # Calculate the circuity ratio for the node addition
         circuity_ratio = (
@@ -1373,6 +1385,7 @@ class GeoGraphRouting:
             * dist_multiplier
         )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
+        follows_turn_restrictions = has_turn_restrictions(self)
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []
@@ -1380,6 +1393,11 @@ class GeoGraphRouting:
             node_idx = snap_index.closest_idx(
                 point=[node["latitude"], node["longitude"]]
             )
+            if follows_turn_restrictions:
+                # A route starts at the first node of a junction, which has an
+                # edge along every street that leaves the junction
+                # (`scgraph/turn_restrictions.py`)
+                node_idx = find_nodes_of_junction(self, node_idx).start
             distance = (
                 haversine(
                     [node["latitude"], node["longitude"]],
@@ -1399,6 +1417,10 @@ class GeoGraphRouting:
                 if entry_idx_start == entry_idx_end:
                     output_matrix[node_idx_start][node_idx_end] = 0.0
                     continue
+                if follows_turn_restrictions:
+                    entry_idx_end = find_route_end_at_junction(
+                        self, graph_object, entry_idx_start, entry_idx_end
+                    )
                 try:
                     if output_metric == metric:
                         length = graph_object.cached_shortest_path(

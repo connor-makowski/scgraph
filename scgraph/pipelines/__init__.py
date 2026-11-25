@@ -147,15 +147,22 @@ step 1. `GeoGraph.load_from_osm` calls the other functions too, so they are in
    and sea networks at hubs: ports, airports and rail terminals.
    `step2_land_mask.LandMask` tells land from water for the connectors of a hub.
 3. Assemble the graph. `scgraph.network_assembly.build_graph_from_pieces` stores the
-   pieces as a graph. `assemble_network` keeps the strongly connected
-   components, contracts the chains of nodes and puts the nodes in the order of the
-   file. No chain is contracted across two node modes or two classes.
+   pieces as a graph. `scgraph.helpers.osm.read_turn_restrictions` reads the turn
+   restrictions of the file, and `list_forbidden_turns` gives them as forbidden turns
+   of the road graph. After step 2, `forbid_turns` adds the nodes that make the graph
+   follow them (`scgraph/turn_restrictions.py`). A hub is then joined to a junction
+   that still has one node, and each added node gets the connectors of its junction.
+   `assemble_network` keeps the strongly connected components, contracts the chains
+   of nodes and puts the nodes in the order of the file. No chain is contracted
+   across two node modes or two classes, or through a junction with several nodes.
 4. Validate the network. `step4_validation_cases.validate_network` checks the built
    file against the cases of `VALIDATION`.
 
 From `build_graph_from_pieces` on, a graph is a dict of the
 arrays of the network file. `GeoGraph.load_from_osm` runs steps 1 and 3 on one node
-mode, without the contraction of the chains, and keeps the arrays in memory.
+mode, without the contraction of the chains, and keeps the arrays in memory. So a
+network of `load_from_osm` and a network of a pipeline follow the turn restrictions
+by the same code.
 
 WHAT THE NETWORK FILE RECORDS
 

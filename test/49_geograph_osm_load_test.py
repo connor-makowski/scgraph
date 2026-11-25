@@ -10,6 +10,7 @@ from scgraph.pipelines import osm_region_multimodal
 from scgraph.helpers import osm
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.osm import TurnRestriction, read_turn_restrictions
 from scgraph.utils import has_cpp
 
 osmium = pytest.importorskip("osmium")
@@ -296,7 +297,7 @@ def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
 
     _, polylines = osm.locate_ways(osm_file, selects, ("highway",))
 
-    assert {kind for _, kind, _, _, _ in polylines} == {"ways"}
+    assert {kind for _, kind, _, _, _, _ in polylines} == {"ways"}
 
 
 def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
@@ -312,7 +313,7 @@ def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
 
     # Way 3 is the primary road from node 5 to node 6. Both modes keep it.
     modes_of_way_3 = {
-        mode for mode, _, _, _, vertices in polylines if vertices[0][0] == 5
+        mode for mode, _, _, _, vertices, _ in polylines if vertices[0][0] == 5
     }
     assert modes_of_way_3 == {"road", "primary_road"}
 
@@ -438,7 +439,8 @@ def planet_folder(osm_file, tmp_path_factory):
     filler ways, each with a note of 1 kB, make it 9.7 MB: 3 MB of nodes, then
     6.6 MB of ways. The notes are all different and the file is not compressed,
     so that it keeps this size. A filler way has no highway tag: no road
-    pipeline keeps it.
+    pipeline keeps it. The PBF ends with one relation: a turn restriction from
+    way 1 to way 2, at node 2.
     """
     folder = tmp_path_factory.mktemp("planet")
     header = osmium.io.Header()
@@ -467,6 +469,13 @@ def planet_folder(osm_file, tmp_path_factory):
                     tags={"note": f"{filler:08d}" * 125},
                 )
             )
+        writer.add_relation(
+            osmium.osm.mutable.Relation(
+                id=1,
+                members=[("w", 1, "from"), ("n", 2, "via"), ("w", 2, "to")],
+                tags={"type": "restriction", "restriction": "no_left_turn"},
+            )
+        )
     (folder / "planet.osm.pbf.md5").write_text("9a8b  planet.osm.pbf\n")
     return folder
 
@@ -545,6 +554,25 @@ def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
 
     # The PBF holds the ways of the small file, and filler that no select keeps.
     assert streamed == build_main_roads({"roads": osm_file})[0]
+
+
+def test_a_pbf_read_by_byte_ranges_gives_its_turn_restrictions(
+    planet_url, tmp_path
+):
+    layout = str(tmp_path / "layout.json")
+    step1_osm_ways.StreamedPbf.download(planet_url, layout)
+
+    restrictions = read_turn_restrictions(step1_osm_ways.get_source(layout))
+
+    assert restrictions == [
+        TurnRestriction(
+            is_only=False,
+            from_way_id=1,
+            via_node_id=2,
+            via_way_ids=[],
+            to_way_id=2,
+        )
+    ]
 
 
 def test_a_pbf_that_changes_on_the_server_stops_the_build(
