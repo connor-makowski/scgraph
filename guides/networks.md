@@ -116,7 +116,7 @@ GeoGraph.list_geographs()
 #  {"name": "marnet", "cached": False, "kind": "built-in", "description": "...", "superseded_by": "world_sea"}, ...]
 
 # What the cache holds: one dict per file, with its kind, name, region, path and size
-GeoGraph.get_cache_info()
+GeoGraph.list_geograph_cache()
 ```
 
 - **The place.** The cache is in the cache directory of the platform, for example `~/.cache/scgraph/` on Linux.

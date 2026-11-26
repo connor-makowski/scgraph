@@ -176,7 +176,7 @@ Two docstrings explain this code with an example:
 * The docstring of [`edge_classes.py`](scgraph/edge_classes.py) defines the class id and the edge id. It shows how the geograph finds the class of an edge by its two nodes, before and after an edit.
 * The docstring of [`metrics.py`](scgraph/metrics.py) defines a metric and an array by edge id. It shows how `create_metric` computes the weights.
 
-* **The edges**: `graph_object.get_edge_arrays()` gives the edges by origin, in three arrays: `node_first_edge_ids`, `edge_destination_node_ids` and the lengths.
+* **The edges**: `graph_object._get_edge_arrays()` gives the edges by origin, in three arrays: `node_first_edge_ids`, `edge_destination_node_ids` and the lengths.
 * **Where the classes come from**: A loader gives the classes, or the constructor with its arguments `classes` and `edge_classes`. `classes` gives the rows `{"name", "edge_mode"}`. `edge_classes` gives, for each node, a dict from the destination of an edge to the name of its class. `intermediate_nodes` has the same structure.
   * Without these arguments, a geograph made from a list of dictionaries has no classes.
 * **The array of the class ids**: A network file and the weights per km of `create_metric` need a `uint8` array by edge id: the class id of each edge. The geograph keeps this array beside the arrays of the edges.
@@ -203,7 +203,7 @@ An edit method of a `GeoGraph` removes the metrics at the call: `add_coord_node`
 
 | Change | How scgraph finds it |
 | :--- | :--- |
-| A call of `add_node`, `remove_node`, `add_edge` or `remove_edge` on `graph_object` | Each `Graph` counts its edits (`edit_count`). The geograph compares this count at the next read of the edges or of the metrics |
+| A call of `add_node`, `remove_node`, `add_edge` or `remove_edge` on `graph_object` | Each `Graph` counts its edits (`_edit_count`). The geograph compares this count at the next read of the edges or of the metrics |
 | A write into `graph_object.graph[u][v]` of a pure-Python graph | `create_metric` and `save_as_scgraph` count the edges, and raise a `ValueError` when the count changed |
 | A new weight on an existing edge, written into `graph_object.graph[u][v]` | scgraph does not find it, because the count of the edges stays the same |
 | A write into `graph_object.graph[u][v]` in the C++ build | Changes nothing, because this list is a copy |
@@ -297,7 +297,7 @@ If the search ran on a reduced graph, `run_with_reduced` replaces each contracte
 * **Totals**: `metric_totals` gives the total of each metric along the route, `length` first: the weights of its edges, plus the two off-graph legs. `metric_totals["length"]` is `length`. The total of the metric of the query is the value that the search returned, without the search penalty.
 * **Coordinates**: The `coordinate_path` is built from `nodes` and `intermediate_nodes`, in the requested format (`list_of_lists`, `list_of_dicts`, or GeoJSON).
 * **Legs**: With `output_legs=True`, the geograph cuts the edges of the path where the edge mode of their class changes. Each part is a leg, with its length, its totals and its length on each class. Its `mode` is the edge mode of its edges.
-  * One off-graph leg comes before the first leg, and one after the last leg: their `mode` is `off_graph`. The sum of the lengths of the legs is `length`, and the sum of their totals is `metric_totals`.
+  * One off-graph leg comes before the first leg, and one after the last leg: their `edge_mode` is `off_graph`. The sum of the lengths of the legs is `length`, and the sum of their totals is `metric_totals`.
   * `transfers` lists the transfers of the route, each with its node id and its node mode. The two nodes where an off-graph leg meets the network are not transfers.
 
 ---

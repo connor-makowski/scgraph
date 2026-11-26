@@ -64,7 +64,7 @@ def simplify_geojson(
     min_points: int = 3,
     silent: bool | None = None,
     algorithm: str | Callable = "visvalingam",
-    tolerance: float = 0.0,
+    tolerance_degrees: float = 0.0,
 ) -> list[list[list[float]]]:
     """
     Simplify the GeoJSON features by rounding coordinates and ensuring all geometries are MultiLineStrings.
@@ -90,7 +90,7 @@ def simplify_geojson(
     - silent: Deprecated and without effect. scgraph reports its messages through `logging`.
     - algorithm: Simplification algorithm to use
         - Options: 'visvalingam' (default), 'douglas_peucker', or a custom callable `(coords, min_points=...)`
-    - tolerance: Distance threshold for 'douglas_peucker'
+    - tolerance_degrees: Distance threshold for 'douglas_peucker', in degrees
         - Default: 0.0 (removes strictly colinear points)
 
     Returns:
@@ -142,7 +142,7 @@ def simplify_geojson(
                 elif algorithm == "douglas_peucker":
                     simplified = douglas_peucker(
                         new_line,
-                        tolerance=tolerance,
+                        tolerance=tolerance_degrees,
                         min_points=min_points,
                     )
                 elif callable(algorithm):

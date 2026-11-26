@@ -28,7 +28,7 @@ FANOUT = 8
 MAX_LEAVES_PER_QUERY = 16.0
 SORT_HINT = (
     "Sort them along a Hilbert curve and map the answers back: "
-    "order = scgraph.helpers.hilbert.hilbert_order(nodes); "
+    "order = scgraph.helpers.hilbert.get_hilbert_order(nodes); "
     "index = SnapIndex([nodes[i] for i in order]); "
     "node = order[index.closest_idx(point)]"
 )

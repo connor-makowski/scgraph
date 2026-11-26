@@ -219,11 +219,14 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_intermediate_nodes=False,
+        save_intermediate_nodes=False,
         min_component_nodes=1,
     )
 
-    assert GeoGraph.get_scgraph_info(no_shapes_file)["shapes"] is False
+    assert (
+        GeoGraph.get_scgraph_info(no_shapes_file)["has_intermediate_nodes"]
+        is False
+    )
     assert _km_from_node_1_to_node_21(
         no_shapes_file
     ) == _km_from_node_1_to_node_21(bbox_file)
@@ -541,10 +544,10 @@ def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     )
     # The road and the railway of Europe, the port and the sea lane. The
     # roads of the seven other regions are outside the bbox.
-    assert (europe["nodes"], europe["shapes"]) == (31, True)
+    assert (europe["nodes"], europe["has_intermediate_nodes"]) == (31, True)
     assert (
         europe_without_shapes["nodes"],
-        europe_without_shapes["shapes"],
+        europe_without_shapes["has_intermediate_nodes"],
     ) == (
         31,
         False,

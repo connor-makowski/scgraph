@@ -60,7 +60,7 @@ import logging
 from scgraph.pipelines.network_builder import build_network_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_network_file("osm_region_multimodal", region="europe/denmark", validate=True)
+build_network_file("osm_region_multimodal", region="europe/denmark", run_validation_cases=True)
 ```
 
 ### Build Steps

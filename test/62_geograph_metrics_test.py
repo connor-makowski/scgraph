@@ -1384,7 +1384,7 @@ def test_the_legs_of_a_route_are_its_parts_on_one_mode(network_with_minutes):
         {"rail_connector": 2000.0, "rail_main": 90000.0},
     )
     assert [
-        (leg["mode"], leg["length"], leg["class_lengths"])
+        (leg["edge_mode"], leg["length"], leg["class_lengths"])
         for leg in route["legs"]
     ] == [off_graph_leg, road_leg, rail_leg, road_leg, off_graph_leg]
     assert route["transfers"] == [
@@ -1466,7 +1466,7 @@ def test_a_route_without_an_edge_is_one_leg_off_the_graph(
 
     assert route["legs"] == [
         {
-            "mode": "off_graph",
+            "edge_mode": "off_graph",
             "length": pytest.approx(route["length"]),
             "metric_totals": {"length": pytest.approx(route["length"])},
             "class_lengths": {},
@@ -1484,7 +1484,9 @@ def test_the_edges_of_a_geograph_without_classes_make_one_leg_of_no_mode(
         output_legs=True,
     )
 
-    assert [(leg["mode"], leg["class_lengths"]) for leg in route["legs"]] == [
+    assert [
+        (leg["edge_mode"], leg["class_lengths"]) for leg in route["legs"]
+    ] == [
         ("off_graph", {}),
         (None, {None: 2.5}),
         ("off_graph", {}),

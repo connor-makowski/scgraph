@@ -379,7 +379,7 @@ def filled_cache(tmp_path):
 
 
 def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
-    info = GeoGraph.get_cache_info(str(filled_cache))
+    info = GeoGraph.list_geograph_cache(str(filled_cache))
     built_bytes = (
         (filled_cache / "networks/eurostat_sea_lanes/m.scgraph").stat().st_size
     )

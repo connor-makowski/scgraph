@@ -102,7 +102,7 @@ def test_simplify_geojson_with_douglas_peucker_removes_points_within_tolerance(
     filename = _write_geojson_of_the_line_with_a_peak_and_two_bumps(tmp_path)
 
     lines = simplify_geojson(
-        filename, algorithm="douglas_peucker", tolerance=0.5
+        filename, algorithm="douglas_peucker", tolerance_degrees=0.5
     )
 
     # The peak is 2 away from the line between the ends: kept. The two bumps

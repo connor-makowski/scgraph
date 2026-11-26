@@ -3,7 +3,7 @@
 This module is internal. A network of scgraph is a network that scgraph loads or builds
 by name. `GeoGraphNetworks` is the mixin of `GeoGraph` that holds these methods:
 `load_geograph`, `build_geograph`, `list_geographs`, `list_buildable_geographs`,
-`clear_geograph_cache` and `get_cache_info`. `scgraph.geograph` imports it.
+`clear_geograph_cache` and `list_geograph_cache`. `scgraph.geograph` imports it.
 
 The functions of the module do the work of these methods. They keep the files of the
 networks in the cache directory: they find them there and download them. The module
@@ -336,10 +336,12 @@ def clear_cache(
         cache_path.rmdir()
 
 
-def get_cache_info(cache_dir: str | os.PathLike | None = None) -> list[dict]:
+def list_geograph_cache(
+    cache_dir: str | os.PathLike | None = None,
+) -> list[dict]:
     """List what the cache directory holds.
 
-    The docstring of `GeoGraph.get_cache_info` gives the arguments and the result.
+    The docstring of `GeoGraph.list_geograph_cache` gives the arguments and the result.
     """
     cache_path = resolve_cache_dir(cache_dir)
     info = [
@@ -612,7 +614,7 @@ def build_network(
     refresh: bool,
     local_files_only: bool | None,
     node_modes: list[str] | str | None,
-    validate: bool,
+    run_validation_cases: bool,
 ) -> "GeoGraph":
     """Build a network of `GeoGraph.build_geograph` and load it, or return a lazy
     geograph that does.
@@ -634,7 +636,7 @@ def build_network(
                 refresh=refresh,
                 local_files_only=local_files_only,
                 node_modes=node_modes,
-                validate=validate,
+                run_validation_cases=run_validation_cases,
             )
         )
     from scgraph.pipelines.network_builder import build_network_file
@@ -647,7 +649,7 @@ def build_network(
             pipeline=pipeline,
             refresh=refresh,
             local_files_only=local_files_only,
-            validate=validate,
+            run_validation_cases=run_validation_cases,
         ),
         reduce_iterations=reduce_iterations,
         node_modes=node_modes,
@@ -813,7 +815,7 @@ class GeoGraphNetworks:
             - With the default `geograph_url`, also:
                 - `kind`: str — `"released"` for a network of the network release, `"built-in"` for a network of scgraph 3.6.0
                 - `description`: str — what the network holds
-                - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
+                - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_intermediate_nodes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
         """
         built_in_geographs.warn_deprecated_url(geograph_url)
@@ -855,7 +857,7 @@ class GeoGraphNetworks:
         return clear_cache(cache_dir=cache_dir, name=name, region=region)
 
     @staticmethod
-    def get_cache_info(
+    def list_geograph_cache(
         cache_dir: str | os.PathLike | None = None,
     ) -> list[dict]:
         """
@@ -882,7 +884,7 @@ class GeoGraphNetworks:
             - for `"released"` only: `network_release`, the tag of the network release
             - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
-        return get_cache_info(cache_dir=cache_dir)
+        return list_geograph_cache(cache_dir=cache_dir)
 
     @staticmethod
     def build_geograph(
@@ -903,7 +905,7 @@ class GeoGraphNetworks:
         refresh: bool = False,
         local_files_only: bool | None = None,
         node_modes: list[str] | str | None = None,
-        validate: bool = False,
+        run_validation_cases: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -956,7 +958,7 @@ class GeoGraphNetworks:
             - Type: list[str] | str | None
             - What: The names of the node modes to load from the built network, as in `load_from_scgraph`, for example `["road"]`
             - Default: None: every node mode
-        - `validate`
+        - `run_validation_cases`
             - Type: bool
             - What: Whether to check the built network against the validation cases of its pipeline; a network that fails is not kept in the cache, and a RuntimeError names the failed cases; a network that the cache already holds is checked as it is, and stays
             - Default: False
@@ -967,7 +969,7 @@ class GeoGraphNetworks:
 
         Raises:
 
-        - `RuntimeError` with `validate` if the network fails a validation case
+        - `RuntimeError` with `run_validation_cases` if the network fails a validation case
         - `ValueError` if `node_modes` names a node mode that the network does not have
         - `ValueError` for not one of `name` and `pipeline`, an unknown name, a pipeline module named like a network of scgraph, a missing, refused or invalid region, or a region without a source, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
@@ -984,7 +986,7 @@ class GeoGraphNetworks:
             refresh=refresh,
             local_files_only=local_files_only,
             node_modes=node_modes,
-            validate=validate,
+            run_validation_cases=run_validation_cases,
         )
 
     @staticmethod

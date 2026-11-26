@@ -6,7 +6,7 @@ imports `osmium` only when it reads a file.
 
 WHAT IT ANSWERS
 
-`download` and `download_streamed` are the download functions of the OpenStreetMap
+`download` and `write_pbf_layout_file` are the download functions of the OpenStreetMap
 sources. `get_source` gives the source that `scgraph.helpers.osm.build_way_pieces`
 reads. The docstring of `scgraph.helpers.osm` explains the select functions and the
 pieces.
@@ -43,7 +43,7 @@ __all__ = [
     "GEOFABRIK",
     "PLANET",
     "download",
-    "download_streamed",
+    "write_pbf_layout_file",
 ]
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
@@ -276,7 +276,7 @@ def get_source(
     return filename
 
 
-def download_streamed(
+def write_pbf_layout_file(
     url: str, filename: str | os.PathLike
 ) -> dict[str, str | int]:
     """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
@@ -295,7 +295,7 @@ def download_streamed(
 PLANET = {
     **GEOFABRIK,
     "url": "https://osm-planet-eu-central-1.s3.dualstack.eu-central-1.amazonaws.com/planet/pbf/2026/planet-261102.osm.pbf",
-    "download": download_streamed,
+    "download": write_pbf_layout_file,
 }
 _AGENT = {"User-Agent": "scgraph"}
 # In bytes. Below this distance, the start of a section is found blob by blob.

@@ -10,7 +10,7 @@ from scgraph.deprecations import warn_deprecated_parameter
 from scgraph.step_logs import log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
 from scgraph.turn_restrictions import has_turn_restrictions
@@ -309,7 +309,9 @@ class GeoGraphIO:
         # (by node mode only if there are several: the key is cheaper without)
         multimodal = len(self.node_modes) > 1
         try:
-            order = hilbert_order(nodes, node_mode_ids if multimodal else None)
+            order = get_hilbert_order(
+                nodes, node_mode_ids if multimodal else None
+            )
         except (OverflowError, ValueError):
             node = next(
                 (
@@ -329,7 +331,7 @@ class GeoGraphIO:
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
         node_first_edge_ids, edge_destination_node_ids, weights = (
-            self.graph_object.get_edge_arrays(order)
+            self.graph_object._get_edge_arrays(order)
         )
         if order is not None and edge_value_arrays:
             edge_value_arrays = {
@@ -785,7 +787,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `external_node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and `has_intermediate_nodes` and `external_node_ids`, which tell whether the file holds these arrays
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -1052,7 +1054,7 @@ class GeoGraphIO:
         node_list = list(osmnx_graph.nodes)
         node_list = [
             node_list[i]
-            for i in hilbert_order([located[node] for node in node_list])
+            for i in get_hilbert_order([located[node] for node in node_list])
         ]
         node_to_idx = {node: i for i, node in enumerate(node_list)}
 
@@ -1124,7 +1126,7 @@ class GeoGraphIO:
         # The graph is built first: the ids of its edges give the order of the
         # weights of a metric. The attributes of each edge, by edge id:
         graph_object = Graph(graph)
-        edge_arrays = graph_object.get_edge_arrays()
+        edge_arrays = graph_object._get_edge_arrays()
         node_first_edge_ids, edge_destination_node_ids, _ = edge_arrays
         edge_attributes = [
             attributes_of_origin[edge_destination_node_ids[edge_id]]
@@ -1368,7 +1370,7 @@ def _reorder_edge_values(
         edge_values: An array by edge id: one value for each edge, at its id.
         node_first_edge_ids: The id of the first edge of each node, before the new order.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
-            order of its edges, as `Graph.get_edge_arrays(order)` does.
+            order of its edges, as `Graph._get_edge_arrays(order)` does.
     """
     edge_values = memoryview(edge_values)
     reordered_edge_values = array(edge_values.format)
@@ -1419,7 +1421,7 @@ def renumber_in_hilbert_order(geograph):
             "metrics: it takes a geograph without them"
         )
     multimodal = len(geograph.node_modes) > 1
-    order = hilbert_order(
+    order = get_hilbert_order(
         geograph.nodes, geograph.node_mode_ids if multimodal else None
     )
     # Each node keeps its id (its position before ordering, if it had none)
@@ -1432,7 +1434,7 @@ def renumber_in_hilbert_order(geograph):
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
         graph = Graph.from_edge_arrays(
-            *geograph.graph_object.get_edge_arrays(order), copy=False
+            *geograph.graph_object._get_edge_arrays(order), copy=False
         )
     else:
         # Renumbered dicts, sharing the graph's weight objects (from_edge_arrays would not)

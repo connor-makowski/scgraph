@@ -67,7 +67,7 @@ THE DOWNLOAD FUNCTIONS
 
 A download function is `download(url, filename)`. It writes to `filename` what `build`
 reads. This is the source itself, or a small file that says how to read the source in
-place (`step1_osm_sources.download_streamed` does this for the planet, which is never stored).
+place (`step1_osm_sources.write_pbf_layout_file` does this for the planet, which is never stored).
 
 The function may return a dict. The runner adds it to the record of the source: the
 entry of the source in the header of the network file. For example, `step1_osm_sources.download`
@@ -76,7 +76,7 @@ returns the `version` of an OpenStreetMap extract, the time that its data is up 
 The runner also puts the `sha256` and the `bytes` of the downloaded file in the
 record. There is one exception. A source can have its own `download` in `SOURCES`.
 When that function returns a dict, the dict must identify the source, and the runner
-does not compute `sha256` and `bytes`. `step1_osm_sources.download_streamed` gives the `bytes` and
+does not compute `sha256` and `bytes`. `step1_osm_sources.write_pbf_layout_file` gives the `bytes` and
 the `md5` that the server publishes.
 
 THE NODE MODES

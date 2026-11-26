@@ -155,7 +155,9 @@ def test_list_geographs_describes_each_released_network(cache):
 
     assert all(network["description"] for network in released)
     assert all(
-        network["download_mb"] > network["download_mb_without_shapes"] > 0
+        network["download_mb"]
+        > network["download_mb_without_intermediate_nodes"]
+        > 0
         for network in released
     )
 

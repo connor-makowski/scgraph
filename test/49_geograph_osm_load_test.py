@@ -9,7 +9,7 @@ from scgraph import GeoGraph
 from scgraph.pipelines import osm_region_multimodal
 from scgraph.helpers import osm
 from scgraph.pipelines.steps import step1_osm_sources
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.helpers.osm import (
     TurnRestriction,
     read_turn_restrictions,
@@ -392,7 +392,7 @@ def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
         points[osm_id] for osm_id in whole_network.external_node_ids
     ]
 
-    assert hilbert_order(nodes) == list(range(len(nodes)))
+    assert get_hilbert_order(nodes) == list(range(len(nodes)))
     assert places_of_external_node_ids == [tuple(node) for node in nodes]
     # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
     # stores it the same way, as an int32.

@@ -88,7 +88,7 @@ def format_module(tag: str, networks: list[dict]) -> str:
         f'        "nodes": {files[name]["nodes"]},\n'
         f'        "edges": {files[name]["edges"]},\n'
         f'        "download_mb": {files[name]["compressed_bytes"] / 1e6:.1f},\n'
-        f'        "download_mb_without_shapes": '
+        f'        "download_mb_without_intermediate_nodes": '
         f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'
         f'        "data_up_to": {data_up_to[name]},\n'
         f'        "description": '

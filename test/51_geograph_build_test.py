@@ -26,7 +26,7 @@ from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph, network_assembly, network_file, pipelines
 from scgraph.helpers import osm
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
 from scgraph.pipelines.steps import step1_osm_sources
@@ -238,7 +238,7 @@ def test_build_geograph_numbers_the_nodes_along_the_hilbert_curve(
     # The lines of /lines.gpkg list their points in another order.
     geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
-    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
+    assert get_hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
 
 
 # The header of a network file says what built the network. The tests below
@@ -529,7 +529,7 @@ def test_build_file_caches_a_network_that_passes_its_validation(
     pipeline = _lines_pipeline(source)
 
     built_file = network_builder.build_network_file(
-        pipeline=pipeline, cache_dir=tmp_path, validate=True
+        pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
     )
 
     cached = GeoGraph.build_geograph(
@@ -547,7 +547,7 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            pipeline=pipeline, cache_dir=tmp_path, validate=True
+            pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
         )
 
     assert not (tmp_path / "networks" / "lines").exists()
@@ -566,7 +566,10 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            pipeline=failing, cache_dir=tmp_path, refresh=True, validate=True
+            pipeline=failing,
+            cache_dir=tmp_path,
+            refresh=True,
+            run_validation_cases=True,
         )
 
     cached_file = network_builder.build_network_file(
@@ -584,7 +587,7 @@ def test_build_geograph_refuses_a_network_that_fails_its_validation(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         GeoGraph.build_geograph(
-            pipeline=pipeline, cache_dir=tmp_path, validate=True
+            pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
         )
 
 
@@ -601,7 +604,7 @@ def test_validate_checks_a_cached_network_without_building_it_again(
         network_builder.build_network_file(
             pipeline=failing,
             cache_dir=tmp_path,
-            validate=True,
+            run_validation_cases=True,
             local_files_only=True,
         )
 
@@ -915,7 +918,9 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
             "osm_region_multimodal", region="nowhere", cache_dir=str(tmp_path)
         )
     # The small sources were downloaded before the extract. No network is built.
-    kinds = {entry["kind"] for entry in GeoGraph.get_cache_info(str(tmp_path))}
+    kinds = {
+        entry["kind"] for entry in GeoGraph.list_geograph_cache(str(tmp_path))
+    }
     assert "built" not in kinds
 
 

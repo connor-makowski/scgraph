@@ -54,16 +54,16 @@ def _cut_legs(edges: list[dict]) -> list[dict]:
             `GeoGraph.get_path_edges`).
 
     Returns:
-        One dict for each leg: its `mode`, its total `length`, its totals
+        One dict for each leg: its `edge_mode`, its total `length`, its totals
         `metric_totals` by name, its lengths by class `class_lengths` and its node
         ids `path`. A leg starts at the node where the leg before it ends.
     """
     legs = []
     for edge in edges:
-        if not legs or legs[-1]["mode"] != edge["edge_mode"]:
+        if not legs or legs[-1]["edge_mode"] != edge["edge_mode"]:
             legs.append(
                 {
-                    "mode": edge["edge_mode"],
+                    "edge_mode": edge["edge_mode"],
                     "length": 0.0,
                     "metric_totals": dict.fromkeys(edge["metric_weights"], 0.0),
                     "class_lengths": {},
@@ -631,7 +631,7 @@ class GeoGraphRouting:
             )
             off_graph_legs.append(
                 {
-                    "mode": "off_graph",
+                    "edge_mode": "off_graph",
                     "length": sum(
                         haversine(
                             start,
@@ -714,8 +714,8 @@ class GeoGraphRouting:
             - `coordinate_path`: A list of coordinates (latitude then longitude) in the order they are visited, in the format of `output_coordinate_path`
             - `length`: The length of the path, in `output_units`
             - `metric_totals`: A dictionary `{name: total}` with the total of each metric of `metrics` along the path. `metric_totals["length"]` is `length`. The total of another metric is in the unit of this metric
-            - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"mode", "length", "metric_totals", "class_lengths", "coordinate_path"}`
-                - `mode` is the edge mode of the edges of the leg (see `classes`). A new leg starts where this edge mode changes. The edges of a geograph without classes make one leg of the mode None
+            - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"edge_mode", "length", "metric_totals", "class_lengths", "coordinate_path"}`
+                - `edge_mode` is the edge mode of the edges of the leg (see `classes`). A new leg starts where this edge mode changes. The edges of a geograph without classes make one leg of the mode None
                 - The first and the last leg are the off-graph legs, of the mode 'off_graph': the straight lines from the origin to the first node of the path, and from its last node to the destination. A path without an edge is one leg of the mode 'off_graph'
                 - `length` and `metric_totals` are the totals of the leg, as those of the path. The length of the path is the sum of the lengths of its legs, and so is each total of `metric_totals`
                 - `class_lengths` is a dictionary `{class name: length}`: the length of the leg on each class of edges, in `output_units`. It is empty for an off-graph leg
@@ -977,7 +977,7 @@ class GeoGraphRouting:
             metric, direct_length, origin_id, destination_id
         )
         if logger.isEnabledFor(logging.DEBUG):
-            graph_object.reset_node_scans()
+            graph_object._reset_node_scans()
         if is_direct:
             output = {"path": [], "length": direct_length * circuity_ratio}
         else:
@@ -1098,11 +1098,7 @@ class GeoGraphRouting:
         cheap_ruler_of_scgraph = types.MethodType(
             GeoGraphDistanceCalculations.cheap_ruler, self
         )
-        if (
-            algorithm_fn == "a_star"
-            and hasattr(graph_object, "a_star_great_circle")
-            and heuristic_fn == haversine_of_scgraph
-        ):
+        if algorithm_fn == "a_star" and heuristic_fn == haversine_of_scgraph:
             # The built-in haversine heuristic is computed natively in the C++ build
             latitudes, longitudes = self._get_node_radians()
             algorithm_kwargs.pop("heuristic_fn")
@@ -1114,7 +1110,7 @@ class GeoGraphRouting:
                 lambda: self._read_edge_arrays()[2]
             )
             return partial(
-                graph_object.a_star_great_circle,
+                graph_object._a_star_great_circle,
                 latitudes=latitudes,
                 longitudes=longitudes,
                 radius=radius,
@@ -1279,7 +1275,7 @@ class GeoGraphRouting:
                 3,
             ),
         }
-        node_scans = graph_object.get_last_node_scans()
+        node_scans = graph_object._get_last_node_scans()
         if node_scans is not None:
             values["node_scans"] = node_scans
         logger.debug(

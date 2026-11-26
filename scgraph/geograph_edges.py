@@ -39,10 +39,10 @@ class GeoGraphEdges:
         rows = getattr(graph, "__graph__", None) if check_edge_count else None
         if (
             graph is not self._edge_arrays_graph
-            or graph.edit_count != self._edge_arrays_edit_count
+            or graph._edit_count != self._edge_arrays_edit_count
         ):
             self._remove_metrics()
-            self._set_edge_arrays(graph.get_edge_arrays())
+            self._set_edge_arrays(graph._get_edge_arrays())
         elif rows is not None and sum(map(len, rows)) != len(
             self._edge_arrays[1]
         ):
@@ -64,7 +64,7 @@ class GeoGraphEdges:
         # None, `_read_edge_class_ids` computes it.
         self._edge_arrays = edge_arrays
         self._edge_arrays_graph = self.graph_object
-        self._edge_arrays_edit_count = self.graph_object.edit_count
+        self._edge_arrays_edit_count = self.graph_object._edit_count
         self._edge_class_ids = edge_class_ids
 
     def _read_edge_class_ids(self) -> array | memoryview | None:

@@ -8,7 +8,7 @@ from array import array
 import pytest
 
 from scgraph import GeoGraph, network_file
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.utils import has_cpp
 
 # The small network has four nodes, listed in Hilbert order. Node 0 has a
@@ -562,7 +562,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     assert (info["nodes"], info["edges"]) == (4, 3)
     assert info["metrics"] == [{"name": "length", "unit": "mi"}]
     assert info["coordinate_dtype"] == "int32"
-    assert info["shapes"] is True
+    assert info["has_intermediate_nodes"] is True
     # The ids of the small network are the positions: the file stores none.
     assert info["external_node_ids"] is False
     assert info["content_sha256"] == digest
@@ -1503,7 +1503,7 @@ def test_hilbert_order_follows_the_curve():
     # One point per quadrant of the globe: north-east, south-west, north-west, south-east;
     # the curve visits them south-west, north-west, north-east, south-east
     nodes = [[45, 90], [-45, -90], [45, -90], [-45, 90]]
-    assert hilbert_order(nodes) == [1, 2, 0, 3]
+    assert get_hilbert_order(nodes) == [1, 2, 0, 3]
 
 
 def test_a_network_file_is_saved_and_loaded_with_a_path_object(tmp_path):

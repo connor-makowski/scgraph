@@ -226,7 +226,7 @@ class GeoGraph(
         # The record of `length`, as `_read_metric("length")` last built it
         self._length_metric = None
         # The arrays of the edges of `graph_object`
-        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
+        # (`Graph._get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
         # `edge_destination_node_ids` and the lengths. The id of an edge is its position in `edge_destination_node_ids`.
         # The graph and its count of edits at that
         # time show whether the graph was edited since.
@@ -292,7 +292,7 @@ class GeoGraph(
         # Create a geograph from what a loader read, with the other arguments of
         # the constructor. `edge_arrays` are the node_first_edge_ids, the edge_destination_node_ids and the
         # lengths of the edges of the graph, in the order of
-        # `Graph.get_edge_arrays`. The geograph keeps them without a copy.
+        # `Graph._get_edge_arrays`. The geograph keeps them without a copy.
         # `edge_class_ids` is the class id of each edge, by edge id, when a
         # network file holds it. `metrics` are the metrics other than `length`.
         geograph = cls(**kwargs)

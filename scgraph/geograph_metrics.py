@@ -320,7 +320,7 @@ class GeoGraphMetrics:
         )
         return weights, off_graph_weight_per_km
 
-    def remove_metric(self, name: str) -> None:
+    def remove_metric(self, metric: str) -> None:
         """
         Function:
 
@@ -329,10 +329,10 @@ class GeoGraphMetrics:
 
         Required Arguments:
 
-        - `name`: The name of a metric of `metrics`, other than `length`; an unknown name raises a ValueError
+        - `metric`: The name of a metric of `metrics`, other than `length`; an unknown name raises a ValueError
         """
-        self._read_metric(name)
-        del self._metrics[name]
+        self._read_metric(metric)
+        del self._metrics[metric]
 
     def get_graph_object(self, metric: str | None = None) -> Graph:
         """

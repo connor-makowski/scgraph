@@ -366,7 +366,7 @@ def build_network_file(
     work_dir: str | os.PathLike | None = None,
     refresh: bool = False,
     local_files_only: bool | None = None,
-    validate: bool = False,
+    run_validation_cases: bool = False,
 ) -> str:
     """Build a network into the local cache and return the path of its file.
 
@@ -390,7 +390,7 @@ def build_network_file(
             `work_dir` that the caller gives.
         local_files_only: Use the cache only, and download nothing. None takes True
             when the environment variable `SCGRAPH_OFFLINE` is `1`.
-        validate: Check the network against its validation cases. A network that is
+        run_validation_cases: Check the network against its validation cases. A network that is
             built is checked before it enters the cache. If it fails, the cache stays
             unchanged. A network that the cache already holds is checked as it is.
             With `local_files_only=True`, the call checks the cached network and
@@ -420,7 +420,7 @@ def build_network_file(
     if not _should_build(
         pipeline, name, folder, cached_file, refresh, local_files_only
     ):
-        if validate:
+        if run_validation_cases:
             _validate_pipeline(pipeline, name, region, cached_file)
         return str(cached_file)
 
@@ -457,7 +457,7 @@ def build_network_file(
             name, region, pipeline.PIPELINE_VERSION, sources, pipeline.__doc__
         )
         digest = _write_network(network, building, metadata, pipeline)
-        if validate:
+        if run_validation_cases:
             _validate_pipeline(pipeline, name, region, building)
         built_file = _move_into_cache(
             building, digest, folder, downloaded, cached_file
@@ -547,7 +547,7 @@ def main(argv: list[str] | None = None) -> None:
                 refresh=args.refresh,
                 # None lets SCGRAPH_OFFLINE decide
                 local_files_only=args.local_files_only or None,
-                validate=args.validate,
+                run_validation_cases=args.validate,
             )
         )
     except KeyboardInterrupt:

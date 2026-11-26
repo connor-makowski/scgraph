@@ -151,7 +151,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "nodes",
         "edges",
         "coordinate_dtype",
-        "shapes",
+        "has_intermediate_nodes",
         "external_node_ids",
         "attribution",
         "data_up_to",
@@ -391,9 +391,10 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
 
     Returns:
         The keys of the metadata of the file, then `content_sha256`,
-        `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
-        `external_node_ids`. `nodes` and `edges` are counts. `shapes` and
-        `external_node_ids` are True when the file holds these arrays.
+        `format_version`, `nodes`, `edges`, `coordinate_dtype`,
+        `has_intermediate_nodes` and `external_node_ids`. `nodes` and `edges`
+        are counts. `has_intermediate_nodes` and `external_node_ids` are True
+        when the file holds these arrays.
 
     Raises:
         ValueError: The header of the file is not valid.
@@ -405,7 +406,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         "nodes": len(arrays["node_points"]) // 2,
         "edges": len(arrays["edge_destination_node_ids"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
-        "shapes": "shape_points" in arrays,
+        "has_intermediate_nodes": "shape_points" in arrays,
         "external_node_ids": "external_node_ids" in arrays,
     }
 

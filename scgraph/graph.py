@@ -1053,7 +1053,7 @@ class GraphAlgorithms:
             "length": best_dist,
         }
 
-    def a_star_great_circle(
+    def _a_star_great_circle(
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
@@ -1639,24 +1639,24 @@ class Graph(
         )
 
     @staticmethod
-    def reset_node_scans() -> None:
+    def _reset_node_scans() -> None:
         """
         Forgets the number of node scans of the last search in this thread.
-        `GeoGraph` calls this method: it is not in the public API and may change.
+        `GeoGraph` calls this method.
         """
         _last_search_in_thread.node_scans = None
 
     @staticmethod
-    def get_last_node_scans() -> int | None:
+    def _get_last_node_scans() -> int | None:
         """
         Returns the number of node scans of the last search in this thread.
 
         - A node scan is one pass over the edges of one node. A bidirectional or bucket
           search can scan a node more than once
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
-          such search ran since `reset_node_scans`
+          such search ran since `_reset_node_scans`
 
-        `GeoGraph` calls this method: it is not in the public API and may change.
+        `GeoGraph` calls this method.
         """
         return getattr(_last_search_in_thread, "node_scans", None)
 

@@ -179,14 +179,14 @@ class ExternalNodeIds(Sequence):
     def __reduce__(self):
         return ExternalNodeIds, (list(self), self._nodes)
 
-    def take(self, positions: Iterable[int]) -> array:
-        """The ids of the nodes at `positions`, as an int64 array."""
+    def take(self, node_ids: Iterable[int]) -> array:
+        """The external ids of the nodes `node_ids`, as an int64 array."""
         ids = self._ids
         if len(ids) < len(self):  # nodes were added since
-            return array("q", (self[i] for i in positions))
+            return array("q", (self[i] for i in node_ids))
         if ids == range(len(ids)):
-            return array("q", positions)
-        return array("q", (ids[i] for i in positions))
+            return array("q", node_ids)
+        return array("q", (ids[i] for i in node_ids))
 
     def array(self, order: Iterable[int] | None = None) -> array | None:
         """The ids (in `order`, `order[new] = old`, if given) as an int64 array, int32
