@@ -168,6 +168,7 @@ def test_an_alias_of_a_node_addition_type_is_deprecated(geograph):
         lambda geograph: geograph.add_edge(0, 2, float("nan")),
         # The south of this bounding box is above its north
         lambda geograph: geograph.get_nodes(bbox=(1, 0, 0, 1)),
+        lambda geograph: geograph.get_nodes(bbox=(float("nan"), 0, 1, 1)),
     ],
 )
 def test_a_wrong_argument_of_a_change_raises_a_value_error(geograph, call):
@@ -181,6 +182,7 @@ def test_a_wrong_argument_of_a_change_raises_a_value_error(geograph, call):
         lambda geograph: geograph.get_path_edges([0, 1.0]),
         # A set has no order: it is not a path
         lambda geograph: geograph.get_path_edges({0, 1}),
+        lambda geograph: geograph.get_path_edges(bytearray([0, 1])),
         lambda geograph: geograph.list_geographs(geograph_url=5),
         lambda geograph: geograph.save_as_scgraph(
             "network.scgraph", metadata=5

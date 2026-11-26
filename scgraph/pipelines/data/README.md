@@ -12,8 +12,9 @@ To build a table again, run `python utils/build_hub_tables.py --opensky-dir DIR 
 The header of a network file records it as the version of the source, so it names the snapshot.
 A build copies each table into its work folder. `read_ports`, `read_airports`,
 `read_rail_terminals` and `read_flights` of `step2_hub_connectors` turn the rows into hubs, and
-`join_networks_at_hubs` joins the networks at them. A hub that no network reaches within its
-distance limit stays out of the network (the pipelines README, Step 5, gives the limits). To add a hub, write
+`join_networks_at_hubs` joins the networks at them. A hub that fewer than two
+networks reach within its distance limit stays out of the network. The flights of an airport count
+as one network (the pipelines README, Step 5, gives the limits). To add a hub, write
 your own table with the same columns, and name it in the `SOURCES` of your pipeline. Its `url`
 starts with http, and `copy_table` then downloads it. A `url` that does not start with http names a
 table of this folder. The script would erase a row that you add by hand to a table of this

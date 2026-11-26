@@ -715,8 +715,9 @@ def assemble_network(
 
     The function runs stages 2 to 5 of the module docstring. It keeps the strongly
     connected components (`keep_components`), contracts the chains, joins the shapes
-    of the contracted edges, and numbers the nodes (`order_nodes`). The first two
-    stages log their counts at DEBUG.
+    of the contracted edges, and numbers the nodes (`order_nodes`). The stage that
+    keeps the components and the stage that contracts the chains log their counts
+    at DEBUG.
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids`
