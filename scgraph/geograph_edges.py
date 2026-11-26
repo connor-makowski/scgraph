@@ -212,7 +212,7 @@ class GeoGraphEdges:
         """
         try:
             # A set or a dict has no order, and a string is not a path
-            if isinstance(path, (str, bytes, set, frozenset, dict)):
+            if isinstance(path, (str, bytes, bytearray, set, frozenset, dict)):
                 raise TypeError
             path = [operator.index(node_id) for node_id in path]
         except TypeError:

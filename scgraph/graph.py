@@ -95,7 +95,7 @@ from math import asin, ceil, cos, isfinite, sin
 from scgraph.array_checks import is_sorted_from_zero
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
-    _as_plain_node_input,
+    convert_node_input,
     _last_search_in_thread,
     GraphUtils,
     GraphModifiers,
@@ -140,7 +140,7 @@ class GraphTrees:
 
         """
         # Input Validation
-        origin_id = _as_plain_node_input(origin_id)
+        origin_id = convert_node_input(origin_id)
         self.__input_check__(origin_id=origin_id, destination_id=0)
         return self._get_shortest_path_tree(self.graph, origin_id)
 
@@ -523,7 +523,7 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). The width is raised when needed, so that the ring (the list of buckets that the search reuses in turn) holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation
@@ -659,7 +659,7 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). The width is raised when needed, so that the ring (the list of buckets that the search reuses in turn) holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation

@@ -55,7 +55,8 @@ through reduced nodes then ends at node 3, so the second pass reduces node 0.
 `run_with_reduced` handles four cases.
 - An origin node and a destination node are in the same chain. The pure-Python build
   runs `dijkstra_on_graph` on the original graph, whatever the algorithm asked. The C++
-  build runs the asked algorithm on the original graph. Both give the same result.
+  build runs the asked algorithm on the original graph. It runs Dijkstra for a
+  hierarchy (`contraction_hierarchy`, `tnr`) and for a cached tree.
 - The origin is reduced. A search in one direction starts at it and reads its row of
   `reduced_graph`. A bidirectional search starts instead from the boundary nodes in this
   row, with their distances as start distances.
@@ -90,7 +91,7 @@ from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
 from scgraph.errors import PathNotFoundError
-from scgraph.graph_utils import _as_plain_node_input, _last_search_in_thread
+from scgraph.graph_utils import convert_node_input, _last_search_in_thread
 
 if TYPE_CHECKING:  # annotations only
     from scgraph.contraction_hierarchies import CHGraph
@@ -120,12 +121,12 @@ def algorithm(
             # algorithms test `isinstance(origin_id, int)`, so a numpy integer
             # becomes an int here.
             args = [
-                _as_plain_node_input(arg) if arg_id < 2 else arg
+                convert_node_input(arg) if arg_id < 2 else arg
                 for arg_id, arg in enumerate(args)
             ]
             for key in ("origin_id", "destination_id"):
                 if key in kwargs:
-                    kwargs[key] = _as_plain_node_input(kwargs[key])
+                    kwargs[key] = convert_node_input(kwargs[key])
             if getattr(self, "reduced_graph", None) is None:
                 return fn(self, *args, **kwargs)
             return GraphReducer.run_with_reduced(

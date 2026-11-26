@@ -353,7 +353,8 @@ class GeoGraph(
         south, west, north, east = (
             (-inf, -inf, inf, inf) if bbox is None else bbox
         )
-        if south > north or west > east:
+        # A NaN in the bbox fails this test too
+        if not (south <= north and west <= east):
             raise ValueError(
                 f"bbox {bbox} has its south above its north, or its west beyond "
                 "its east: a bbox is (south, west, north, east)"

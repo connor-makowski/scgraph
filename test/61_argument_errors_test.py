@@ -252,7 +252,7 @@ def test_a_search_takes_a_node_id_from_a_numpy_array_and_a_frozenset(
 
 
 @pytest.mark.parametrize("algorithm", ["dijkstra", "contraction_hierarchy"])
-@pytest.mark.parametrize("start_distance", [-5, float("nan")])
+@pytest.mark.parametrize("start_distance", [-5, float("nan"), Decimal("NaN")])
 def test_a_search_refuses_a_negative_or_nan_start_distance(
     graph_class, algorithm, start_distance
 ):
@@ -317,7 +317,8 @@ def test_add_edge_refuses_a_value_of_the_wrong_type(
 
 
 def test_add_edge_takes_a_node_id_from_a_numpy_array(graph_class):
-    graph = graph_class(_GRAPH)
+    # A copy: the pure-Python class keeps the rows that it is given
+    graph = graph_class([dict(row) for row in _GRAPH])
 
     graph.add_edge(_NodeId(0), _NodeId(2), 1.0)
 
@@ -325,8 +326,18 @@ def test_add_edge_takes_a_node_id_from_a_numpy_array(graph_class):
 
 
 # A distance is any number with `__float__`, not only an `int` or a `float`.
-def test_add_edge_takes_a_decimal_distance(graph_class):
+def test_a_search_takes_a_decimal_start_distance(graph_class):
     graph = graph_class(_GRAPH)
+
+    result = graph.dijkstra({0: Decimal("1.5")}, 2)
+
+    # 1.5 at node 0, then the edges 0-1 and 1-2 of length 1
+    assert result == {"path": [0, 1, 2], "length": 3.5}
+
+
+def test_add_edge_takes_a_decimal_distance(graph_class):
+    # A copy: the pure-Python class keeps the rows that it is given
+    graph = graph_class([dict(row) for row in _GRAPH])
 
     graph.add_edge(0, 2, Decimal("1.5"))
 

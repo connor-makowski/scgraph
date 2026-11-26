@@ -34,13 +34,15 @@ def normalize_node_input(
     )
 
 
-def _as_plain_node_input(node_input: object) -> object:
-    """Return an origin or a destination whose node ids are of type `int`.
+def convert_node_input(node_input: object) -> object:
+    """Return an origin or a destination with node ids of type `int`, and start
+    distances of type `int` or `float`.
 
     The C++ extension takes any integer with `__index__` as a node id, such as a numpy
-    integer, and a `frozenset` as a set. In pure Python, this function turns such a
-    node id into an `int`, and a `frozenset` into a `set`. It returns another value
-    unchanged, so that `__input_check__` refuses it.
+    integer, and a `frozenset` as a set. It takes any number with `__float__` as a
+    start distance, such as a `Decimal`. In pure Python, this function turns such a
+    node id into an `int`, a `frozenset` into a `set`, and such a distance into a
+    `float`. It returns another value unchanged, so that `__input_check__` refuses it.
     """
 
     def _as_int(node_id):
@@ -49,10 +51,20 @@ def _as_plain_node_input(node_input: object) -> object:
         except TypeError:
             return node_id
 
+    def _as_number(distance):
+        if isinstance(distance, (int, float)) or not hasattr(
+            distance, "__float__"
+        ):
+            return distance
+        return float(distance)
+
     if isinstance(node_input, (set, frozenset)):
         return {_as_int(node_id) for node_id in node_input}
     if isinstance(node_input, dict):
-        return {_as_int(node_id): dist for node_id, dist in node_input.items()}
+        return {
+            _as_int(node_id): _as_number(distance)
+            for node_id, distance in node_input.items()
+        }
     return _as_int(node_input)
 
 
@@ -75,10 +87,9 @@ class GraphUtils:
         self, order: list[int] | None = None
     ) -> tuple[array, array, array]:
         """The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_node_ids, float64
-        weights, in the order in which searches visit the edges (the C++ backend gives
-        views of its own arrays). The id of an edge is its position in these arrays.
-        With `order` (order[new] = old), the rows of the nodes in that order, their
-        edge_destination_node_ids renumbered. `Graph.from_edge_arrays` builds a graph from the three
+        weights, in the order in which searches visit the edges (with the C++ extension, the arrays are views of its own memory, not copies). The id of an edge is its position in these arrays.
+        With `order`, the rows of the nodes come in that order: the node with new id `i`
+        is the node with old id `order[i]`. The edge_destination_node_ids use the new ids. `Graph.from_edge_arrays` builds a graph from the three
         arrays. `GeoGraph` calls this method.
         """
         rows, new_id = self.graph, None
