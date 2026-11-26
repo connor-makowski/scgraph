@@ -100,7 +100,7 @@ void GraphUtils::input_check(const NodeIdVariant& origin_id, const NodeIdVariant
             if (node < 0 || node >= size()) {
                 throw std::invalid_argument(name + " node (" + std::to_string(node) + ") is not in this graph");
             }
-            if (dist < 0.0) {
+            if (!(dist >= 0.0)) {
                 throw std::invalid_argument(name + " distance for node (" + std::to_string(node) + ") must be a non-negative number");
             }
         }
@@ -248,7 +248,8 @@ void GraphUtils::validate(bool check_symmetry, bool check_connected) {
                 throw std::invalid_argument("Destination id " + std::to_string(dest_id) +
                     " at origin " + std::to_string(origin_id) + " is invalid");
             }
-            if (distance < 0) {
+            // A NaN distance fails this test too.
+            if (!(distance >= 0)) {
                 throw std::invalid_argument("Distance must be non-negative at origin " +
                     std::to_string(origin_id));
             }
@@ -342,10 +343,13 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
 
 void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bool symmetric) {
     if (origin_id < 0 || origin_id >= size()) {
-        throw std::out_of_range("Origin node id is not in the graph");
+        throw std::out_of_range("Origin node id (" + std::to_string(origin_id) + ") is not in the graph");
     }
     if (destination_id < 0 || destination_id >= size()) {
-        throw std::out_of_range("Destination node id is not in the graph");
+        throw std::out_of_range("Destination node id (" + std::to_string(destination_id) + ") is not in the graph");
+    }
+    if (std::isnan(distance)) {
+        throw std::invalid_argument("distance must not be NaN");
     }
     if (origin_id == destination_id) {
         return;

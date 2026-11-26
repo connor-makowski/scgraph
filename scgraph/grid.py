@@ -493,6 +493,7 @@ class GridGraph:
             - `path`: A list of graph ids in the order they are visited
             - `coordinate_path`: A list of dicts (x, y) in the order they are visited
             - `length`: The length of the path
+        - Of two paths with the same length, the C++ extension and the pure-Python code can return different paths
 
          Required Arguments:
 

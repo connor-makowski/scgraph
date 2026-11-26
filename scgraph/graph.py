@@ -92,6 +92,7 @@ from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, isfinite, sin
+from scgraph.array_checks import is_sorted_from_zero
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
     _last_search_in_thread,
@@ -1465,6 +1466,7 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         self.create_tnr_hierarchy(num_transit_nodes=50)
         return self.__tnr_graph__.search(
             origin_id, destination_id, length_only=length_only
@@ -1496,6 +1498,7 @@ class GraphAlgorithms:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         self.create_contraction_hierarchy()
         return self.__ch_graph__.search(
             origin_id, destination_id, length_only=length_only
@@ -1613,12 +1616,12 @@ class Graph(
         n = len(node_first_edge_ids) - 1
         if (
             n < 0
-            or node_first_edge_ids[0] != 0
+            or not is_sorted_from_zero(node_first_edge_ids)
             or node_first_edge_ids[-1] != len(edge_destination_node_ids)
             or len(weights) != len(edge_destination_node_ids)
         ):
             raise ValueError(
-                "expected node_first_edge_ids from 0 to the number of edges and one weight per edge"
+                "expected non-decreasing node_first_edge_ids from 0 to the number of edges and one weight per edge"
             )
         if len(edge_destination_node_ids) and (
             min(edge_destination_node_ids) < 0
@@ -1673,9 +1676,9 @@ class Graph(
         if hasattr(self, "__bucket_width__"):
             delattr(self, "__bucket_width__")
         self.reduced_graph = None
-        self.reduced_graph_connections = None
+        self.__reduced_graph_connections__ = None
         self.reduced_inverse_graph = None
-        self.reduced_inverse_graph_connections = None
+        self.__reduced_inverse_graph_connections__ = None
         self.__hidden_next__ = None
         self.__hidden_previous__ = None
         self.is_reduced = None

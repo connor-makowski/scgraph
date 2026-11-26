@@ -454,7 +454,7 @@ def derive_network_release_files(
         output_dir: The folder of the derived files. It must exist.
         names: The names of the derived networks to write, among `DERIVED_NETWORKS`.
             None writes every derived network.
-        validate: Check each derived network with `validate_derived_network_file`. The two
+        run_validation_cases: Check each derived network with `validate_derived_network_file`. The two
             files of a network hold the same network, so the function checks only
             the file with shapes.
 

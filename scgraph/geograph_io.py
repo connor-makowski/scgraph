@@ -11,6 +11,7 @@ from scgraph.step_logs import log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import get_hilbert_order
+from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
 from scgraph.turn_restrictions import has_turn_restrictions
@@ -268,7 +269,15 @@ class GeoGraphIO:
         """
         filename = os.fspath(filename)
         if not filename.endswith(".scgraph"):
-            raise ValueError("Filename must end with .scgraph")
+            raise ValueError(
+                f"Filename must end with .scgraph, not {filename!r}"
+            )
+        if not (
+            metadata is None or metadata == "auto" or isinstance(metadata, dict)
+        ):
+            raise TypeError(
+                f"metadata must be a dict, 'auto' or None, not {metadata!r}"
+            )
         if coordinate_dtype not in ("auto", "float64", "int32"):
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
@@ -529,7 +538,7 @@ class GeoGraphIO:
         filename: str | os.PathLike,
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
-        max_km_between_nodes: float | None = 2,
+        max_km_between_nodes: float | None = MAX_KM_BETWEEN_NODES,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
@@ -577,7 +586,7 @@ class GeoGraphIO:
         - `max_km_between_nodes`
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are. None cuts a way only where it meets another kept way or ends
-            - Default: 2, the value of `scgraph.helpers.osm.MAX_KM_BETWEEN_NODES`
+            - Default: 2 (`scgraph.helpers.osm.MAX_KM_BETWEEN_NODES`)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract

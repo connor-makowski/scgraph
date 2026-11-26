@@ -26,6 +26,40 @@
 namespace nb = nanobind;
 using namespace nb::literals;
 
+// A search takes an origin of three kinds: a node id, a set of node ids, or a dict of
+// node ids and start distances. The caster of std::variant reads the dict {0: 5} as
+// the set {0}, because its first pass refuses the int 5 as a double. The start
+// distance is then lost. This caster chooses the kind from the Python type, as the
+// pure-Python check does.
+namespace nanobind::detail {
+template <> struct type_caster<NodeIdVariant> {
+    NB_TYPE_CASTER(NodeIdVariant, union_name(make_caster<int>::Name,
+                                             make_caster<std::unordered_map<int, double>>::Name,
+                                             make_caster<std::set<int>>::Name))
+
+    template <typename T>
+    bool load_as(handle src, uint32_t flags, cleanup_list* cleanup) {
+        make_caster<T> caster;
+        if (!caster.from_python(src, flags_for_local_caster<T>(flags), cleanup)) return false;
+        value = caster.operator cast_t<T>();
+        return true;
+    }
+
+    bool from_python(handle src, uint32_t flags, cleanup_list* cleanup) noexcept {
+        if (PyLong_Check(src.ptr())) return load_as<int>(src, flags, cleanup);
+        if (PyDict_Check(src.ptr())) return load_as<std::unordered_map<int, double>>(src, flags, cleanup);
+        if (PySet_Check(src.ptr())) return load_as<std::set<int>>(src, flags, cleanup);
+        return false;
+    }
+
+    static handle from_cpp(const NodeIdVariant& node_ids, rv_policy policy, cleanup_list* cleanup) noexcept {
+        return std::visit([&](const auto& v) {
+            return make_caster<std::decay_t<decltype(v)>>::from_cpp(v, policy, cleanup);
+        }, node_ids);
+    }
+};
+}  // namespace nanobind::detail
+
 // Helper function to convert GraphResult to dict
 // Warn that `name`, a dict of extra arguments, is deprecated and has no effect, if the
 // caller gave it. The pure-Python class gives the same warning.

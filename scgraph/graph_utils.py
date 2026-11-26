@@ -133,29 +133,35 @@ class GraphUtils:
         """
         num_nodes = len(self.graph)
 
+        # A node id of the wrong type raises TypeError, as the C++ extension
+        # does. A node id out of range raises ValueError.
+        def _validate_node_id(node_id, name):
+            if not isinstance(node_id, int):
+                raise TypeError(f"{name} node ({node_id!r}) is not an integer")
+            if not (0 <= node_id < num_nodes):
+                raise ValueError(
+                    f"{name} node ({node_id}) is not in this graph"
+                )
+
         def _validate_node_arg(arg, name):
             if isinstance(arg, int):
-                if not (0 <= arg < num_nodes):
-                    raise ValueError(
-                        f"{name} node ({arg}) is not in this graph"
-                    )
+                _validate_node_id(arg, name)
             elif isinstance(arg, set):
                 if len(arg) == 0:
                     raise ValueError(f"{name} set cannot be empty")
                 for oid in arg:
-                    if not (isinstance(oid, int) and 0 <= oid < num_nodes):
-                        raise ValueError(
-                            f"{name} node ({oid}) is not in this graph"
-                        )
+                    _validate_node_id(oid, name)
             elif isinstance(arg, dict):
                 if len(arg) == 0:
                     raise ValueError(f"{name} dictionary cannot be empty")
                 for oid, dist in arg.items():
-                    if not (isinstance(oid, int) and 0 <= oid < num_nodes):
-                        raise ValueError(
-                            f"{name} node ({oid}) is not in this graph"
+                    _validate_node_id(oid, name)
+                    if not isinstance(dist, (int, float)):
+                        raise TypeError(
+                            f"{name} distance for node ({oid}) must be a number, not {dist!r}"
                         )
-                    if not (isinstance(dist, (int, float)) and dist >= 0):
+                    # A NaN distance fails this test too.
+                    if not dist >= 0:
                         raise ValueError(
                             f"{name} distance for node ({oid}) must be a non-negative number"
                         )
@@ -608,12 +614,26 @@ class GraphModifiers:
 
         Raises:
 
+        - `TypeError`: A node id is not an integer, or the distance is not a number
         - `IndexError`: The origin id or the destination id is not in the graph
+        - `ValueError`: The distance is NaN
         """
+        if not (isinstance(origin_id, int) and isinstance(destination_id, int)):
+            raise TypeError(
+                f"Node ids must be integers, not {origin_id!r} and {destination_id!r}"
+            )
+        if not isinstance(distance, (int, float)):
+            raise TypeError(f"distance must be a number, not {distance!r}")
         if origin_id < 0 or origin_id >= len(self.__graph__):
-            raise IndexError("Origin node id is not in the graph")
+            raise IndexError(
+                f"Origin node id ({origin_id}) is not in the graph"
+            )
         if destination_id < 0 or destination_id >= len(self.__graph__):
-            raise IndexError("Destination node id is not in the graph")
+            raise IndexError(
+                f"Destination node id ({destination_id}) is not in the graph"
+            )
+        if math.isnan(distance):
+            raise ValueError("distance must not be NaN")
         if origin_id == destination_id:
             return
         self.__graph__[origin_id][destination_id] = distance

@@ -204,6 +204,13 @@ class GeoGraphEdges:
 
         - A list with one dictionary for each pair of consecutive nodes of the path (see `get_edges`)
         """
+        if not (
+            isinstance(path, (list, tuple))
+            and all(isinstance(node_id, int) for node_id in path)
+        ):
+            raise TypeError(
+                f"path must be a list of int node ids, not {path!r}"
+            )
         return list(
             self._iter_edge_dicts(zip(path, self._find_path_edge_ids(path)))
         )

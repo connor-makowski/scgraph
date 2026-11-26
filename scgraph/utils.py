@@ -415,7 +415,10 @@ def cpp_check() -> None:
     Deprecated. Logs at INFO which build is installed. `has_cpp()` gives the same
     answer as a boolean.
     """
-    warn_deprecated("scgraph.utils.cpp_check")
+    warn_deprecated(
+        "scgraph.utils.cpp_check",
+        instead="scgraph.utils.has_cpp() gives the same answer as a boolean",
+    )
     if has_cpp():
         logger.info("Using C++ & Python implementation of SCGraph.")
     else:

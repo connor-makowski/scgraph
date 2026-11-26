@@ -218,12 +218,6 @@ class GraphReducer:
             )
         return self.__reduced_graph_connections__
 
-    @reduced_graph_connections.setter
-    def reduced_graph_connections(
-        self, value: list[dict[int, list[int]] | None] | None
-    ) -> None:
-        self.__reduced_graph_connections__ = value
-
     @property
     def reduced_inverse_graph_connections(
         self,
@@ -236,12 +230,6 @@ class GraphReducer:
                 build_reduced_graph_connections(pointers, True)
             )
         return self.__reduced_inverse_graph_connections__
-
-    @reduced_inverse_graph_connections.setter
-    def reduced_inverse_graph_connections(
-        self, value: list[dict[int, list[int]] | None] | None
-    ) -> None:
-        self.__reduced_inverse_graph_connections__ = value
 
     @_without_gc
     def reduce(self, iterations: int = -1) -> None:
@@ -267,6 +255,10 @@ class GraphReducer:
 
         - None
         """
+        if not isinstance(iterations, int):
+            raise TypeError(f"iterations must be an int, not {iterations!r}")
+        if iterations < -1:
+            raise ValueError(f"iterations must be -1 or more, not {iterations}")
         self.reset_cache()
         if iterations == 0:
             return
@@ -417,7 +409,7 @@ class GraphReducer:
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
         self.__hidden_previous__ = [None] * len(graph)
-        self.reduced_inverse_graph_connections = None  # rebuilt on first read
+        self.__reduced_inverse_graph_connections__ = None
         reduced_graph = self.reduced_graph
         reduced_inverse_graph = self.reduced_inverse_graph
         previous_nodes = self.__hidden_previous__
@@ -457,7 +449,7 @@ class GraphReducer:
         # reduced_inverse_graph edges a -> b from non-reduced nodes a, and the
         # reduced_graph edges a -> b from reduced nodes a.
         self.__hidden_next__ = [None] * len(graph)
-        self.reduced_graph_connections = None  # rebuilt on first read
+        self.__reduced_graph_connections__ = None  # rebuilt on first read
         next_nodes = self.__hidden_next__
 
         for b in range(len(graph)):

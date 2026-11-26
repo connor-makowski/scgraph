@@ -818,6 +818,8 @@ class GeoGraphNetworks:
                 - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_intermediate_nodes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
         """
+        if not isinstance(geograph_url, str):
+            raise TypeError(f"geograph_url must be a str, not {geograph_url!r}")
         built_in_geographs.warn_deprecated_url(geograph_url)
         return list_networks(cache_dir=cache_dir, geograph_url=geograph_url)
 
