@@ -338,7 +338,7 @@ class GeoGraph(
         Optional Arguments:
 
         - `node_mode`: The name of a node mode of `node_modes`: only the nodes of this node mode are returned; an unknown name raises a ValueError
-        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
+        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned; a bbox with its south above its north, or its west beyond its east, raises a ValueError
 
         Returns:
 
@@ -353,6 +353,11 @@ class GeoGraph(
         south, west, north, east = (
             (-inf, -inf, inf, inf) if bbox is None else bbox
         )
+        if south > north or west > east:
+            raise ValueError(
+                f"bbox {bbox} has its south above its north, or its west beyond "
+                "its east: a bbox is (south, west, north, east)"
+            )
         nodes = []
         for node_id, (point, node_mode_id) in enumerate(
             zip(self.nodes, self._read_node_mode_ids())

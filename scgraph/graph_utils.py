@@ -11,7 +11,6 @@ import threading
 from array import array
 from typing import Literal
 import math
-import numbers
 import operator
 
 from scgraph.errors import NegativeCycleError
@@ -180,7 +179,9 @@ class GraphUtils:
                     raise ValueError(f"{name} dictionary cannot be empty")
                 for oid, dist in arg.items():
                     _validate_node_id(oid, name)
-                    if not isinstance(dist, numbers.Real):
+                    # A number is a value with `__float__`, as the C++ extension
+                    # takes it: an int, a float, a Decimal, a numpy number.
+                    if not hasattr(dist, "__float__"):
                         raise TypeError(
                             f"{name} distance for node ({oid}) must be a number, not {dist!r}"
                         )
@@ -649,8 +650,11 @@ class GraphModifiers:
             raise TypeError(
                 f"Node ids must be integers, not {origin_id!r} and {destination_id!r}"
             ) from None
-        if not isinstance(distance, numbers.Real):
+        if not hasattr(distance, "__float__"):
             raise TypeError(f"distance must be a number, not {distance!r}")
+        if not isinstance(distance, (int, float)):
+            # A Decimal or a numpy number: the searches add floats to it
+            distance = float(distance)
         if origin_id < 0 or origin_id >= len(self.__graph__):
             raise IndexError(
                 f"Origin node id ({origin_id}) is not in the graph"

@@ -3,6 +3,7 @@
 
 import numbers
 from array import array
+from decimal import Decimal
 
 import pytest
 
@@ -165,6 +166,8 @@ def test_an_alias_of_a_node_addition_type_is_deprecated(geograph):
             origin_idx=0, destination_idx=9
         ),
         lambda geograph: geograph.add_edge(0, 2, float("nan")),
+        # The south of this bounding box is above its north
+        lambda geograph: geograph.get_nodes(bbox=(1, 0, 0, 1)),
     ],
 )
 def test_a_wrong_argument_of_a_change_raises_a_value_error(geograph, call):
@@ -176,6 +179,8 @@ def test_a_wrong_argument_of_a_change_raises_a_value_error(geograph, call):
     "call",
     [
         lambda geograph: geograph.get_path_edges([0, 1.0]),
+        # A set has no order: it is not a path
+        lambda geograph: geograph.get_path_edges({0, 1}),
         lambda geograph: geograph.list_geographs(geograph_url=5),
         lambda geograph: geograph.save_as_scgraph(
             "network.scgraph", metadata=5
@@ -317,6 +322,15 @@ def test_add_edge_takes_a_node_id_from_a_numpy_array(graph_class):
     graph.add_edge(_NodeId(0), _NodeId(2), 1.0)
 
     assert graph.dijkstra(0, 2) == {"path": [0, 2], "length": 1.0}
+
+
+# A distance is any number with `__float__`, not only an `int` or a `float`.
+def test_add_edge_takes_a_decimal_distance(graph_class):
+    graph = graph_class(_GRAPH)
+
+    graph.add_edge(0, 2, Decimal("1.5"))
+
+    assert graph.dijkstra(0, 2) == {"path": [0, 2], "length": 1.5}
 
 
 def test_add_edge_refuses_a_nan_distance(graph_class):
