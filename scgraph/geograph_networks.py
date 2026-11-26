@@ -1,21 +1,22 @@
-"""This module loads, builds, lists and clears the networks of scgraph.
+"""The methods of `GeoGraph` that load, build, list and clear the networks of scgraph.
 
 This module is internal. A network of scgraph is a network that scgraph loads or builds
-by name. The module keeps the files of these networks in the cache directory: it finds
-them there and downloads them. It holds five things:
+by name. `GeoGraphNetworks` is the mixin of `GeoGraph` that holds these methods:
+`load_geograph`, `build_geograph`, `list_geographs`, `list_buildable_geographs`,
+`clear_geograph_cache` and `get_cache_info`. `scgraph.geograph` imports it.
+
+The functions of the module do the work of these methods. They keep the files of the
+networks in the cache directory: they find them there and download them. The module
+also holds four other things:
 
 - `RELEASED_GEOGRAPHS`, the names of the released networks. `scgraph.network_release`
   lists them, with what the network release says of each one;
 - `BUILDABLE_NETWORKS`, the names of the networks that scgraph can build;
 - `fetch_released_file`, which downloads the file of a released network into the
   cache directory;
-- `find_cached_file`, which finds the network file of a build in the cache;
-- the code of the methods of `GeoGraph` that load, build, list and clear the networks
-  of scgraph: `load_network`, `build_network`, `list_networks`, `clear_cache`,
-  `get_cache_info` and `list_buildable_networks`.
+- `find_cached_file`, which finds the network file of a build in the cache.
 
-The methods of `GeoGraph` call these functions. `ARCHITECTURE.md`, section 6, gives
-the layout of the cache directory.
+`ARCHITECTURE.md`, section 6, gives the layout of the cache directory.
 """
 
 import gzip
@@ -29,7 +30,7 @@ import shutil
 import types
 import zlib
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import requests
 
@@ -37,10 +38,11 @@ from scgraph import files, network_file
 from scgraph import built_in_geographs
 from scgraph import network_release as pinned_network_release
 from scgraph.files import is_offline
-from scgraph.geograph import GeoGraph, LazyGeoGraph
-from scgraph.geograph_io import renumber_in_hilbert_order
 from scgraph.utils import resolve_cache_dir
 from scgraph.step_logs import log_step
+
+if TYPE_CHECKING:  # Only for annotations.
+    from scgraph.geograph import GeoGraph
 
 logger = logging.getLogger(__name__)
 # The record of the conversion of a built-in network keeps the logger name that it had
@@ -455,12 +457,14 @@ def load_network(
     content_sha256: str | None,
     node_modes: list[str] | str | None,
     load_intermediate_nodes: bool,
-) -> GeoGraph:
+) -> "GeoGraph":
     """Load a network of `GeoGraph.load_geograph`, or a lazy geograph that loads it.
 
     The docstring of `GeoGraph.load_geograph` gives the arguments, the result and the
     errors. That method gives the deprecation warnings before it calls this function.
     """
+    from scgraph.geograph import LazyGeoGraph
+
     options = {
         "name": name,
         "cache_dir": cache_dir,
@@ -487,9 +491,12 @@ def _load_network(
     content_sha256: str | None,
     node_modes: list[str] | str | None,
     load_intermediate_nodes: bool,
-) -> GeoGraph:
+) -> "GeoGraph":
     """Load the network of `load_network` now. The arguments are those of
     `GeoGraph.load_geograph`."""
+    from scgraph.geograph import GeoGraph
+    from scgraph.geograph_io import renumber_in_hilbert_order
+
     if local_files_only is None:
         local_files_only = is_offline()
     cache_path = resolve_cache_dir(cache_dir)
@@ -606,13 +613,15 @@ def build_network(
     local_files_only: bool | None,
     node_modes: list[str] | str | None,
     validate: bool,
-) -> GeoGraph:
+) -> "GeoGraph":
     """Build a network of `GeoGraph.build_geograph` and load it, or return a lazy
     geograph that does.
 
     The docstring of `GeoGraph.build_geograph` gives the arguments, the result and the
     errors.
     """
+    from scgraph.geograph import GeoGraph, LazyGeoGraph
+
     if lazy:
         return LazyGeoGraph(
             lambda: GeoGraph.build_geograph(
@@ -643,3 +652,367 @@ def build_network(
         reduce_iterations=reduce_iterations,
         node_modes=node_modes,
     )
+
+
+class GeoGraphNetworks:
+    @staticmethod
+    def __fetch_geograph_to_cache__(
+        name: str, cached_file: Path, geograph_url: str
+    ) -> None:
+        """
+        Function:
+
+        - Download a built-in GeoGraph file from GitHub into the cache directory.
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the built-in geograph to fetch
+        - `cached_file`
+            - Type: Path
+            - What: The destination path in the cache to write the file to
+        """
+        built_in_geographs.fetch_built_in_geograph(
+            name, cached_file, geograph_url
+        )
+
+    @staticmethod
+    def load_geograph(
+        name: str,
+        cache_dir: str | os.PathLike | None = None,
+        geograph_url: str = built_in_geographs.GEOGRAPH_URL,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+        *,
+        local_files_only: bool | None = None,
+        network_release: str | None = None,
+        content_sha256: str | None = None,
+        node_modes: list[str] | str | None = None,
+        load_intermediate_nodes: bool = True,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a built-in GeoGraph by name, using a local cache.
+        - A network release is a set of networks that the maintainers of scgraph build from open sources and publish together under one tag. A network of a network release is a released network. The name of a released network, such as `europe`, `world_sea` or `world_multimodal`, loads that network. `list_geographs` gives every name, and `guides/networks.md` describes each network (section *Released Networks*).
+        - For such a name, the first call downloads the network file, decompresses it, checks its content, then keeps it in the cache. Later calls read the cache without any network request. The arguments `network_release`, `content_sha256`, `node_modes` and `load_intermediate_nodes` apply to these networks only.
+        - The points below apply to the seven networks of scgraph 3.6.0 (`marnet`, `us_freeway`, ...), which are published as `.graphjson` files.
+        - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
+        - On subsequent calls, loads directly from cache without any network requests.
+        - The first load converts the .graphjson into a network file beside it (`<name>.scgraph`, much faster to load), which later loads read; the .graphjson is kept, and a damaged conversion is made again from it.
+        - The conversion orders the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the .graphjson (lengths do not; of two routes of exactly equal length, another may be returned), and `external_node_ids[i]` is node i's id in the .graphjson (its id in scgraph 3.6.0). `load_from_graphjson` on the cached .graphjson keeps its numbering.
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), never downloads: a geograph that is not in the cache raises a FileNotFoundError.
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the built-in geograph to load
+            - Examples: 'marnet', 'north_america_rail', 'oak_ridge_maritime', 'us_freeway'
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory where geograph files are stored
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `geograph_url`
+            - Type: str
+            - What: The base URL where the built-in geograph .graphjson files are hosted
+            - Note: With another URL than the default, every name loads `<name>.graphjson` from that URL, also the name of a released network
+            - Note: Deprecated. A call that passes another URL than the default gets a `DeprecationWarning`, and scgraph 5.0 removes the parameter. To load your own network, use `load_from_graphjson` or `load_from_scgraph`
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading/fetching the geograph until its first use
+            - Default: False
+        - `local_files_only`
+            - Type: bool | None
+            - What: Whether to use only the cache, without any network request
+            - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
+        - `network_release`
+            - Type: str | None
+            - What: The tag of the network release to load, for example 'networks-2026.11.20'
+            - Default: None: the network release that this version of scgraph loads (`scgraph.network_release.TAG`)
+        - `content_sha256`
+            - Type: str | None
+            - What: The `content_sha256` that the network file must have. It is the SHA-256 digest of the content of the file, and `get_scgraph_info` gives it. A file with another digest raises a ValueError. Pass it with `network_release` to load exactly the network of an earlier computation.
+            - Default: None
+        - `node_modes`
+            - Type: list[str] | str | None
+            - What: The names of the node modes to load, as in `load_from_scgraph`, for example `["road"]`
+            - Default: None (every node mode)
+        - `load_intermediate_nodes`
+            - Type: bool
+            - What: Whether to load the shapes of the edges. The shape of an edge is the list of points that draw it on a map between its two nodes. False downloads a file of about half the size. The route lengths are the same, and a `coordinate_path` then goes in a straight line from node to node.
+            - Default: True
+
+        Raises:
+
+        - `ValueError` if the downloaded file is damaged, or if it is not the file that scgraph records for the network release that it loads by default. The file does not enter the cache.
+        - `ValueError` if the file does not have the digest of `content_sha256`, or if `network_release` is not a tag
+        - `ValueError` if `network_release`, `content_sha256`, `node_modes` or `load_intermediate_nodes` is passed for a network that is not loaded from a network release
+        - `FileNotFoundError` if the network release does not have the file, or with `local_files_only` if the file is not in the cache
+        - `ConnectionError` if the server refuses the download
+        """
+        # The warnings come from this call, also for a lazy load that reads the network
+        # later.
+        built_in_geographs.warn_deprecated_load(name, geograph_url)
+
+        return load_network(
+            name,
+            cache_dir,
+            geograph_url,
+            reduce_iterations,
+            lazy,
+            local_files_only,
+            network_release,
+            content_sha256,
+            node_modes,
+            load_intermediate_nodes,
+        )
+
+    @staticmethod
+    def list_geographs(
+        cache_dir: str | os.PathLike | None = None,
+        geograph_url: str = built_in_geographs.GEOGRAPH_URL,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - List the networks that `load_geograph` takes, indicating which are already cached locally.
+        - The published geographs are a fixed list, listed without any network request; for another `geograph_url`, the names are read from the `contents.txt` file at that URL.
+        - The list holds the seven networks of scgraph 3.6.0 and the networks of the network release that this version of scgraph loads (`scgraph.network_release.TAG`).
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to check for cached files
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `geograph_url`
+            - Type: str
+            - What: The base URL where the geograph files and contents.txt are hosted
+            - Default: https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs
+
+        Returns:
+
+        - A list of dicts, one per available geograph, sorted by name:
+            - `name`: str — the geograph name (without extension)
+            - `cached`: bool — whether the file is already in the local cache (for a released network: its file of that release, with or without shapes)
+            - With the default `geograph_url`, also:
+                - `kind`: str — `"released"` for a network of the network release, `"built-in"` for a network of scgraph 3.6.0
+                - `description`: str — what the network holds
+                - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
+                - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
+        """
+        built_in_geographs.warn_deprecated_url(geograph_url)
+        return list_networks(cache_dir=cache_dir, geograph_url=geograph_url)
+
+    @staticmethod
+    def clear_geograph_cache(
+        cache_dir: str | os.PathLike | None = None,
+        *,
+        name: str | None = None,
+        region: str | None = None,
+    ) -> None:
+        """
+        Function:
+
+        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded (and their `.scgraph` conversions), the network files it downloaded from network releases (under `releases/`) and the networks `build_geograph` built (under `networks/`)
+        - With `name` (and `region`), remove only that network: its built-in geograph, its files of every network release, and its built networks (of every region, or of `region` only)
+        - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
+        - On Windows, the files of a network still loaded in this process can't be removed: they are left in place, with a logging warning that names them, until a later clear
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to clear
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `name`
+            - Type: str | None
+            - What: The network to remove, by the name `load_geograph` or `build_geograph` take (not a pipeline module of one's own)
+            - Default: None: every network
+        - `region`
+            - Type: str | None
+            - What: With `name`, the region of the built network to remove (its sub-regions are kept)
+            - Default: None: every region
+        """
+        return clear_cache(cache_dir=cache_dir, name=name, region=region)
+
+    @staticmethod
+    def get_cache_info(
+        cache_dir: str | os.PathLike | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - List what scgraph keeps in the local cache directory, read from disk only, without any network request
+        - Unlike `list_geographs` and `list_buildable_geographs`, which list what can be loaded or built
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
+
+        Returns:
+
+        - A list of dicts, one per file or folder:
+            - `kind`: str — `"built-in"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
+            - `name`: str | None — the network name
+            - `region`: str | None — the region of a built network, if it has one
+            - `file`: str — the path of the file or folder
+            - `bytes`: int — its size
+            - for `"released"` only: `network_release`, the tag of the network release
+            - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
+        """
+        return get_cache_info(cache_dir=cache_dir)
+
+    @staticmethod
+    def build_geograph(
+        name: (
+            Literal[
+                "eurostat_sea_lanes",
+                "osm_region_multimodal",
+                "osm_world_multimodal",
+            ]
+            | None
+        ) = None,
+        region: str | None = None,
+        cache_dir: str | os.PathLike | None = None,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+        *,
+        pipeline: types.ModuleType | None = None,
+        refresh: bool = False,
+        local_files_only: bool | None = None,
+        node_modes: list[str] | str | None = None,
+        validate: bool = False,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its pipeline is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
+        - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows each download and the credit to cite, and the DEBUG level shows each step of the build with its counts
+        - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
+        - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.get_scgraph_info(file)` reads it
+        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
+
+        Required Arguments: one of `name` and `pipeline`
+
+        - `name`
+            - Type: str | None
+            - What: The name of a network of scgraph (see `GeoGraph.list_buildable_geographs()`)
+        - `pipeline`
+            - Type: module | None
+            - What: A pipeline module of your own, with the contract of `scgraph.pipelines` (for example a copy of one, adapted); it is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a network of scgraph; two modules with the same last name share that cache entry, and `list_buildable_geographs` does not list it
+
+        - The runner behind this function, `scgraph.pipelines.network_builder.build_network_file`, has one more option: keeping the work folder of a long build to resume it.
+
+        Optional Arguments:
+
+        - `region`
+            - Type: str | None
+            - What: The region of a network that needs one (`needs_region` in `list_buildable_geographs()`, or a pipeline with `{region}` in a source URL); for `osm_region_multimodal`, the path of a Geofabrik extract, as in its download URL: 'europe/luxembourg', 'north-america/us/texas' (all of them: https://download.geofabrik.de/index-v1-nogeom.json)
+            - Default: None
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay downloading or loading the geograph until its first use
+            - Default: False
+        - `refresh`
+            - Type: bool
+            - What: Whether to download the sources and build the network again even if the cache holds a current build
+            - Default: False
+        - `local_files_only`
+            - Type: bool | None
+            - What: Whether to use only the cache, without any network request
+            - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
+        - `node_modes`
+            - Type: list[str] | str | None
+            - What: The names of the node modes to load from the built network, as in `load_from_scgraph`, for example `["road"]`
+            - Default: None: every node mode
+        - `validate`
+            - Type: bool
+            - What: Whether to check the built network against the validation cases of its pipeline; a network that fails is not kept in the cache, and a RuntimeError names the failed cases; a network that the cache already holds is checked as it is, and stays
+            - Default: False
+
+        Returns:
+
+        - The GeoGraph of the network (a LazyGeoGraph if `lazy`); `scgraph_file` gives the path of its network file
+
+        Raises:
+
+        - `RuntimeError` with `validate` if the network fails a validation case
+        - `ValueError` if `node_modes` names a node mode that the network does not have
+        - `ValueError` for not one of `name` and `pipeline`, an unknown name, a pipeline module named like a network of scgraph, a missing, refused or invalid region, or a region without a source, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
+        - `FileNotFoundError` with `local_files_only` if the network is not in the cache
+        - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
+        """
+        return build_network(
+            name,
+            region,
+            cache_dir,
+            reduce_iterations,
+            lazy,
+            pipeline=pipeline,
+            refresh=refresh,
+            local_files_only=local_files_only,
+            node_modes=node_modes,
+            validate=validate,
+        )
+
+    @staticmethod
+    def list_buildable_geographs(
+        cache_dir: str | os.PathLike | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - List the networks that `build_geograph` builds from their online sources, without any network request
+        - Unlike `list_geographs`, which lists the published files that `load_geograph` returns
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to check for built networks
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
+
+        Returns:
+
+        - A list of dicts, one per network, sorted by name:
+            - `name`: str — the value to pass as `name`
+            - `description`: str — what the network is and where it comes from
+            - `credit`: str — who to credit with results
+            - `license`: str — the licences of the sources (SPDX identifiers; `NOASSERTION` when not established)
+            - `needs_region`: bool — whether `build_geograph` needs a `region`
+            - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
+            - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
+        """
+        return list_buildable_networks(cache_dir=cache_dir)

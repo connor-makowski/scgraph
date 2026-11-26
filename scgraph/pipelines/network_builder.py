@@ -26,7 +26,7 @@ import requests
 from scgraph import network_file, pipelines
 from scgraph.files import download_file, is_offline
 from scgraph.geograph import GeoGraph
-from scgraph.networks import find_cached_file, join_source_values
+from scgraph.geograph_networks import find_cached_file, join_source_values
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)

@@ -546,7 +546,7 @@ extension. The first load took 2.7 s, download included, and the later load 0.01
 shortest route from Sydney (-33.8688, 151.2093) to Perth (-31.9523, 115.8613) is 3311.7 km,
 with a flight. With `node_modes=["road"]`, the route is 3930.3 km.
 
-Where to read more: the docstring of `fetch_released_file`, in `networks.py`.
+Where to read more: the docstring of `fetch_released_file`, in `geograph_networks.py`.
 
 ## Custom Networks
 

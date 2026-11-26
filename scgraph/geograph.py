@@ -1,8 +1,9 @@
 """Geographic graphs: a `Graph` whose nodes have a latitude and a longitude.
 
 - `GeoGraphIO`, in `scgraph/geograph_io.py`, loads and saves networks (GeoJSON,
-  graphjson, `.scgraph` files, OpenStreetMap, OSMnx), and loads or builds the networks
-  of scgraph.
+  graphjson, `.scgraph` files, OpenStreetMap, OSMnx).
+- `GeoGraphNetworks`, in `scgraph/geograph_networks.py`, loads, builds, lists and
+  clears the networks of scgraph, and downloads the released networks.
 - `GeoGraphModifiers`, in `scgraph/geograph_modifiers.py`, adds and removes nodes and
   edges, by id or by coordinates.
 - `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes, reads the
@@ -16,9 +17,8 @@
 - `GeoGraph` joins these classes.
 - `LazyGeoGraph` stands for a `GeoGraph` and loads it at its first use.
 
-Users reach this module through `scgraph.GeoGraph`. `scgraph/networks.py` downloads
-the released networks, and `scgraph/built_in_geographs.py` holds the seven networks
-of scgraph 3.6.0.
+Users reach this module through `scgraph.GeoGraph`. `scgraph/built_in_geographs.py`
+holds the seven networks of scgraph 3.6.0.
 """
 
 from scgraph.step_logs import log_step
@@ -26,11 +26,12 @@ from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
 from scgraph import array_views
-from scgraph import geograph_io
+from scgraph import geograph_io, geograph_networks
 from scgraph.geograph_io import GeoGraphIO
 from scgraph.geograph_modifiers import GeoGraphModifiers
 from scgraph.geograph_edges import GeoGraphEdges
 from scgraph.geograph_metrics import GeoGraphMetrics
+from scgraph.geograph_networks import GeoGraphNetworks
 from scgraph.geograph_routing import (
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -56,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 class GeoGraph(
     GeoGraphIO,
+    GeoGraphNetworks,
     GeoGraphModifiers,
     GeoGraphEdges,
     GeoGraphMetrics,
@@ -593,6 +595,8 @@ class LazyGeoGraph(GeoGraph):
         return super().__dir__()
 
 
-# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_io` cannot
-# import the class at the top, so `typing.get_type_hints` finds it through this name.
+# The methods of `GeoGraphIO` and `GeoGraphNetworks` annotate their result as "GeoGraph".
+# Their modules cannot import the class at the top, so `typing.get_type_hints` finds it
+# through this name.
 geograph_io.GeoGraph = GeoGraph
+geograph_networks.GeoGraph = GeoGraph
