@@ -910,13 +910,6 @@ class GeoGraphIO:
             ),
             geograph_units=metadata["metrics"][0]["unit"],
             external_node_ids=arrays.get("external_node_ids"),
-            node_mode_ids=(
-                network_file.build_node_mode_ids(
-                    metadata["node_modes"], node_modes
-                )
-                if "node_modes" in metadata
-                else None
-            ),
             # A count of nodes would be wrong after an edit: the save counts them
             node_modes=[
                 {
@@ -929,6 +922,13 @@ class GeoGraphIO:
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
             classes=metadata["classes"] if "edge_class_ids" in arrays else None,
         )
+        # The read checked that the node counts of the node modes add up to the
+        # nodes, so these ids are valid. The constructor would check each id again
+        # in a Python loop, which takes 6 ms for 570,000 nodes.
+        if "node_modes" in metadata:
+            geograph.node_mode_ids = network_file.build_node_mode_ids(
+                metadata["node_modes"], node_modes
+            )
         geograph.metadata = {
             key: value
             for key, value in metadata.items()
