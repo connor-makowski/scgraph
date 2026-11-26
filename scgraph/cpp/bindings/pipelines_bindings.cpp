@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 #include "ndarray_types.hpp"
-#include "../src/pipelines/assembly.hpp"
-#include "../src/pipelines/landmask.hpp"
+#include "../src/network_assembly.hpp"
+#include "../src/pipelines/land_mask.hpp"
 
 namespace nb = nanobind;
 

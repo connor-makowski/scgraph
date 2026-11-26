@@ -7,7 +7,7 @@ edges. `GeoGraph.load_from_osm` and the pipelines call these functions through
 `build_csr_from_adjacency_list` takes a graph in the layout of a GeoGraph.
 
 `find_strongly_connected_components` has a C++ version
-(`cpp/src/pipelines/assembly.hpp`). The function calls the C++ version when the
+(`cpp/src/network_assembly.hpp`). The function calls the C++ version when the
 extension is built and the inputs are `array` or `memoryview` buffers.
 """
 

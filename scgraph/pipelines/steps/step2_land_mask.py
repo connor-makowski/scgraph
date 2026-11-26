@@ -46,7 +46,7 @@ Its length is the length on this grid, not the exact shortest length over water.
 THE C++ VERSION
 
 `find_water_path_cells` is the C++ function of
-`scgraph/cpp/src/pipelines/landmask.hpp` when the extension is built. The pure-Python
+`scgraph/cpp/src/pipelines/land_mask.hpp` when the extension is built. The pure-Python
 version gives the same answers. It stays reachable as `python.find_water_path_cells`.
 """
 

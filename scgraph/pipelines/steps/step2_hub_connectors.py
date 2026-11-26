@@ -47,8 +47,8 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.pipelines import CLASS_IDS
 from scgraph.helpers.near_nodes import NearNodes
+from scgraph.helpers.polylines import PieceArrays
 from scgraph.network_assembly import (
-    PieceArrays,
     build_graph_from_pieces,
     find_strongly_connected_components,
 )

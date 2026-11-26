@@ -22,12 +22,12 @@ rail terminals: `osm_region_multimodal` for the OpenStreetMap planet.
 import os
 
 from scgraph.pipelines import osm_region_multimodal as regional
-from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_sources
 
 PIPELINE_VERSION = 7
 
 # The sources of the regional pipeline, with the planet in place of the extract
-SOURCES = {**regional.SOURCES, "osm": step1_osm_ways.PLANET}
+SOURCES = {**regional.SOURCES, "osm": step1_osm_sources.PLANET}
 # The length in km at which a way is cut, and at which a chain is cut. A larger
 # value gives fewer nodes: with 10, the world network has about 3.3 million nodes.
 MAX_KM_BETWEEN_NODES = 10

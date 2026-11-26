@@ -178,7 +178,7 @@ The public names of scgraph are the names of the table below. They keep working 
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |
 | Network files | `scgraph.network_file`: `read`, `write`, `get_scgraph_info`, `check_content` |
-| Building a network | `scgraph.pipelines` and its three pipeline modules, `pipelines.network_builder.build_network_file`, `pipelines.derived_networks.derive_network_file`, `pipelines.steps.step1_osm_ways`, `pipelines.steps.step4_validation_cases` |
+| Building a network | `scgraph.pipelines` and its three pipeline modules, `pipelines.network_builder.build_network_file`, `pipelines.derived_networks.derive_network_file`, `pipelines.steps.step1_osm_sources`, `pipelines.steps.step4_validation_cases`, `scgraph.helpers.osm` (`get_way_direction`, `select_main_roads`, `select_main_roads_with_class`) |
 | Snapping and node order | `scgraph.helpers.snap_index`: `SnapIndex`, `NodeOrderError`; `scgraph.helpers.hilbert.hilbert_order` |
 
 In these modules, `__all__` lists the public names. Every other module and name is internal: it can change in any release.

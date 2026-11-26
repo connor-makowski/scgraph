@@ -31,9 +31,7 @@ import requests
 from scgraph.helpers.osm import (
     MAIN_ROADS as MAIN_ROADS,
     MAX_KM_BETWEEN_NODES as MAX_KM_BETWEEN_NODES,
-    get_way_direction as get_way_direction,
     require_osmium,
-    select_main_roads as select_main_roads,
 )
 from scgraph.pipelines import download_file
 from scgraph.utils import has_cpp
@@ -46,9 +44,6 @@ __all__ = [
     "PLANET",
     "download",
     "download_streamed",
-    "get_way_direction",
-    "select_main_roads",
-    "select_vehicle_ferries",
 ]
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
@@ -81,19 +76,6 @@ def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
     finally:
         reader.close()
     return {"version": version} if version else {}
-
-
-def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
-    """Return 0 (both ways) for a vehicle ferry, and None for any other way. A vehicle
-    ferry is a ferry, or a shuttle train that carries cars and lorries (as in the Channel
-    Tunnel), that is not closed to motor vehicles.
-    """
-    if tags.get("route") in ("ferry", "shuttle_train") and "no" not in (
-        tags.get("motor_vehicle"),
-        tags.get("motorcar"),
-    ):
-        return 0
-    return None
 
 
 class StreamedPbf:

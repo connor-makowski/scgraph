@@ -29,7 +29,7 @@ from scgraph.helpers import osm
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
-from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_sources
 from scgraph.utils import has_cpp
 
 
@@ -1065,10 +1065,13 @@ def _main_roads_pipeline(server):
     select functions give no class."""
     module = types.ModuleType("my_pipelines.main_roads")
     module.SOURCES = {
-        "roads": {**step1_osm_ways.GEOFABRIK, "url": f"{server}/{{region}}.osm"}
+        "roads": {
+            **step1_osm_sources.GEOFABRIK,
+            "url": f"{server}/{{region}}.osm",
+        }
     }
     module.PIPELINE_VERSION, module.build = 1, build_main_roads
-    module.download = step1_osm_ways.download
+    module.download = step1_osm_sources.download
     return module
 
 

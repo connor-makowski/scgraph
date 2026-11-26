@@ -123,6 +123,7 @@ from scgraph.errors import PathNotFoundError
 if TYPE_CHECKING:  # annotations only
     from scgraph.geograph import GeoGraph
     from scgraph.graph import Graph
+    from scgraph.helpers.osm import TurnRestriction
 
 
 def add_junction_nodes(
@@ -369,3 +370,146 @@ def find_route_end_at_junction(
         if length < closest_length:
             closest_id, closest_length = candidate_id, length
     return closest_id
+
+
+def list_forbidden_turns(
+    graph: dict, restrictions: Sequence["TurnRestriction"]
+) -> list[list[int]]:
+    """Give turn restrictions as the forbidden turns of a graph (the docstring of
+    `scgraph.helpers.osm`, *How a turn restriction is read*).
+
+    Args:
+        graph: The graph, as a dict of arrays with `edge_way_ids` and
+            `external_node_ids`. A graph without `edge_way_ids` gives no forbidden
+            turn.
+        restrictions: The turn restrictions, as `read_turn_restrictions` returns
+            them.
+
+    Returns:
+        The forbidden turns, each as a list of node ids of the graph.
+    """
+    if "edge_way_ids" not in graph or not restrictions:
+        return []
+    node_first_edge_ids = graph["node_first_edge_ids"]
+    edge_destination_node_ids = graph["edge_destination_node_ids"]
+    named_way_ids, via_node_ids = set(), set()
+    for restriction in restrictions:
+        named_way_ids.update(
+            (
+                restriction.from_way_id,
+                *restriction.via_way_ids,
+                restriction.to_way_id,
+            )
+        )
+        via_node_ids.add(restriction.via_node_id)
+    # The edges of each named way, as (origin id, destination id)
+    edges_of_way = {way_id: [] for way_id in named_way_ids}
+    edge_way_ids = graph["edge_way_ids"]
+    for origin_id in range(len(node_first_edge_ids) - 1):
+        for edge_id in range(
+            node_first_edge_ids[origin_id], node_first_edge_ids[origin_id + 1]
+        ):
+            if edge_way_ids[edge_id] in edges_of_way:
+                edges_of_way[edge_way_ids[edge_id]].append(
+                    (origin_id, edge_destination_node_ids[edge_id])
+                )
+    node_id_of_via = {
+        external_id: node_id
+        for node_id, external_id in enumerate(graph["external_node_ids"])
+        if external_id in via_node_ids
+    }
+
+    forbidden_turns = []
+    for restriction in restrictions:
+        from_edges = edges_of_way[restriction.from_way_id]
+        if (
+            restriction.via_node_id is not None
+            and restriction.from_way_id == restriction.to_way_id
+        ):
+            # A U-turn at the `via` node: the node after the turn is the node
+            # before the turn. The steps below would take the next node of the
+            # way as the node after the turn, and forbid to go straight on.
+            via_id = node_id_of_via.get(restriction.via_node_id)
+            if not restriction.is_only:
+                forbidden_turns.extend(
+                    [before_id, via_id, before_id]
+                    for before_id, destination_id in from_edges
+                    if destination_id == via_id
+                )
+            continue
+        # 1. The turn nodes
+        if restriction.via_node_id is not None:
+            turn_node_ids = [node_id_of_via.get(restriction.via_node_id)]
+        else:
+            turn_node_ids = _follow_via_ways(
+                from_edges,
+                [edges_of_way[way_id] for way_id in restriction.via_way_ids],
+            )
+        if turn_node_ids is None or turn_node_ids[0] is None:
+            continue
+        # 2. The node before the turn. 3. The node after the turn. The driver
+        # does not come back along the first `via` way, nor go on along the last
+        # one.
+        before_node_ids = [
+            origin_id
+            for origin_id, destination_id in from_edges
+            if destination_id == turn_node_ids[0]
+            and origin_id not in turn_node_ids[1:2]
+        ]
+        after_node_ids = [
+            destination_id
+            for origin_id, destination_id in edges_of_way[restriction.to_way_id]
+            if origin_id == turn_node_ids[-1]
+            and destination_id not in turn_node_ids[-2:-1]
+        ]
+        if len(before_node_ids) != 1 or len(after_node_ids) != 1:
+            continue
+        # 4. The forbidden turn, or one for each other edge of the last turn node
+        first_node_ids = before_node_ids + turn_node_ids
+        if not restriction.is_only:
+            forbidden_turns.append(first_node_ids + after_node_ids)
+            continue
+        last = turn_node_ids[-1]
+        forbidden_turns.extend(
+            first_node_ids + [destination_id]
+            for destination_id in edge_destination_node_ids[
+                node_first_edge_ids[last] : node_first_edge_ids[last + 1]
+            ]
+            if destination_id != after_node_ids[0]
+        )
+    return forbidden_turns
+
+
+def _follow_via_ways(from_edges, edges_of_via_ways):
+    """Return the turn nodes of a restriction with `via` ways, or None when the ways
+    do not follow each other in one way only.
+
+    `from_edges` are the edges of the `from` way, and `edges_of_via_ways` are the
+    edges of each `via` way, in the order of travel. An edge is
+    `(origin id, destination id)`.
+    """
+    # The node where the `from` way meets the first `via` way
+    meeting_node_ids = {destination_id for _, destination_id in from_edges} & {
+        origin_id for origin_id, _ in edges_of_via_ways[0]
+    }
+    if len(meeting_node_ids) != 1:
+        return None
+    turn_node_ids = [meeting_node_ids.pop()]
+    for via_edges in edges_of_via_ways:
+        # Follow the way from the last turn node to its other end, edge after
+        # edge, without turning back
+        previous_id = None
+        while True:
+            next_ids = [
+                destination_id
+                for origin_id, destination_id in via_edges
+                if origin_id == turn_node_ids[-1]
+                and destination_id != previous_id
+            ]
+            if len(next_ids) != 1 or next_ids[0] in turn_node_ids:
+                break
+            previous_id = turn_node_ids[-1]
+            turn_node_ids.append(next_ids[0])
+        if previous_id is None:  # the way does not leave the last turn node
+            return None
+    return turn_node_ids

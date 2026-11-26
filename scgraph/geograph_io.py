@@ -629,10 +629,8 @@ class GeoGraphIO:
             build_way_pieces,
             select_main_roads_with_class,
         )
-        from scgraph.helpers.osm import (
-            list_forbidden_turns,
-            read_turn_restrictions,
-        )
+        from scgraph.helpers.osm import read_turn_restrictions
+        from scgraph.turn_restrictions import list_forbidden_turns
 
         # The functions that the OpenStreetMap pipelines build their graph with,
         # without the hubs and without the contraction of the chains. The shapes

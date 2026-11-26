@@ -383,7 +383,7 @@ for download.
 ### Before the Tag
 
 The date of the data is in the code, not in the tag. The constant `PLANET` of
-`steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
+`steps/step1_osm_sources.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
 `networks-2026.11.25-dev.1` holds the planet of 2026-11-02.
 

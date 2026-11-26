@@ -14,6 +14,7 @@ WHAT IT ANSWERS
     of the junctions.
     `cut_polylines` gives the "pieces" of the polylines. A piece is the part of a polyline
     between two consecutive nodes. Each piece becomes an edge.
+    `PieceArrays` stores the pieces of a large network as arrays.
 
 HOW A POLYLINE IS CUT
     A walk along a polyline cuts it at a vertex in three cases:
@@ -57,9 +58,22 @@ HOW THE PIECES BECOME A GRAPH
     one way).
 """
 
-from collections.abc import Container, Hashable, Iterable, Iterator
+import mmap
+import os
+from array import array
+from collections.abc import Container, Hashable, Iterable, Iterator, Sequence
 
+# The C++ kernel takes typed buffers only, so each call chooses its kernel.
+try:
+    from scgraph.cpp import simplify_shapes as _cpp_simplify_shapes
+except ImportError:
+    _cpp_simplify_shapes = None
+
+from scgraph.helpers.douglas_peucker import (
+    simplify_shapes as simplify_shapes_python,
+)
 from scgraph.helpers.hilbert import hilbert_key
+from scgraph.network_file import encode_coordinates
 from scgraph.utils import haversine
 
 
@@ -183,3 +197,171 @@ def build_graph_from_polylines(
 def _keep_shortest(edges, key, km, shape, class_name):
     if key not in edges or km < edges[key][0]:
         edges[key] = (km, shape, class_name)
+
+
+def simplify_shapes(
+    shape_points: array | memoryview,
+    edge_first_shape_point_ids: array | memoryview,
+    endpoint_coords: array | memoryview,
+    tolerance_meters: float,
+) -> tuple[array | memoryview, array | memoryview]:
+    """Simplify the shape of each edge with the Douglas-Peucker algorithm.
+
+    A shape point is dropped when it is within `tolerance_meters` of the line between the
+    two kept points around it. Distances are measured on a flat map around each edge.
+
+    Args:
+        shape_points: The shape points of all the edges (int32 pairs, 1e-7 degree).
+        edge_first_shape_point_ids: Where the points of each edge start.
+        endpoint_coords: The latitude and the longitude of the two ends of each edge
+            (int32, four values per edge).
+        tolerance_meters: The tolerance, in meters.
+
+    Returns:
+        `(shape_points, edge_first_shape_point_ids)` of the simplified shapes.
+    """
+    if _cpp_simplify_shapes is not None and isinstance(
+        shape_points, (array, memoryview)
+    ):
+        return _cpp_simplify_shapes(
+            shape_points,
+            edge_first_shape_point_ids,
+            endpoint_coords,
+            tolerance_meters,
+        )
+    return simplify_shapes_python(
+        shape_points,
+        edge_first_shape_point_ids,
+        endpoint_coords,
+        tolerance_meters,
+    )
+
+
+class PieceArrays:
+    """The pieces of the cut ways, stored as arrays that grow.
+
+    A piece is the part of a way between two consecutive nodes (`cut_polylines`). Entry
+    `i` of each array describes piece `i`:
+
+    - `origins`, `destinations` (int64): the ids of its two ends in the source;
+    - `ends` (int32, four values per piece): the latitude and the longitude of its two
+      ends, in units of 1e-7 degree;
+    - `km` (float64): its length;
+    - `directions` (int8): its direction, as in a polyline (1, -1 or 0);
+    - `points` (int32 pairs) and `piece_first_shape_point_ids`: its shape points. The points of piece `i` are
+      `points[2 * piece_first_shape_point_ids[i]:2 * piece_first_shape_point_ids[i + 1]]`;
+    - `class_ids` (uint8): the id of its class in `scgraph.pipelines.CLASSES`. The
+      array is empty when the pieces have no class;
+    - `way_ids` (int64): the id of its way in the OpenStreetMap file, or 0 for a
+      piece of no way. The array is empty when the pieces do not come from ways. A
+      turn restriction names its ways by these ids.
+
+    `flush` simplifies the shapes of the new pieces to within `tolerance_meters`
+    (`simplify_shapes`) and stores them. `append` calls it every BATCH pieces.
+    `tolerance_meters=None` stores the shapes as they are.
+
+    Without `work_dir`, the arrays are `array`s in memory. With `work_dir`, each array
+    is a file of that folder, read through a memory map. The arrays hold the pieces up to
+    the last `flush`.
+    """
+
+    BATCH = 10_000
+    COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
+    COLUMNS.update(
+        directions="b",
+        points="i",
+        piece_first_shape_point_ids="q",
+        class_ids="B",
+        way_ids="q",
+    )
+
+    def __init__(self, tolerance_meters=50, work_dir=None, truncate=True):
+        self.tolerance_meters, self.work_dir = tolerance_meters, work_dir
+        if work_dir is not None:
+            os.makedirs(work_dir, exist_ok=True)
+        for name, code in self.COLUMNS.items():
+            path = (
+                os.path.join(work_dir, name) if work_dir is not None else None
+            )
+            if (
+                not truncate
+                and path is not None
+                and os.path.isfile(path)
+                and os.path.getsize(path) > 0
+            ):
+                with open(path, "rb") as file:
+                    view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                setattr(self, name, memoryview(view).cast(code))
+            else:
+                setattr(self, name, array(code))
+                if work_dir is not None and truncate:
+                    open(path, "wb").close()
+        self._new = {name: array(code) for name, code in self.COLUMNS.items()}
+        self._new["piece_first_shape_point_ids"].append(0)
+        self._starts = [0]
+
+    def append(
+        self,
+        origin_id: int,
+        destination_id: int,
+        length_km: float,
+        direction: int,
+        endpoint_coords: Iterable[Sequence[float]],
+        shape_points: Iterable[Sequence[float]],
+        class_id: int | None = None,
+        way_id: int | None = None,
+    ) -> None:
+        """Add one piece. `endpoint_coords` and `shape_points` are `[latitude, longitude]`
+        points in degrees. `class_id` is the id of the class of the piece in
+        `scgraph.pipelines.CLASSES`. It is None for pieces without a class. `way_id`
+        is the id of the way of the piece in the OpenStreetMap file. It is None for
+        pieces that do not come from ways.
+        """
+        new = self._new
+        new["origins"].append(origin_id)
+        new["destinations"].append(destination_id)
+        new["km"].append(length_km)
+        new["directions"].append(direction)
+        flat = [
+            [x for point in points for x in point]
+            for points in (endpoint_coords, shape_points)
+        ]
+        ends, points = encode_coordinates(flat, "int32")
+        new["ends"].extend(ends)
+        new["points"].extend(points)
+        if class_id is not None:
+            new["class_ids"].append(class_id)
+        if way_id is not None:
+            new["way_ids"].append(way_id)
+        self._starts.append(len(new["points"]) // 2)
+        if len(self._starts) > self.BATCH:
+            self.flush()
+
+    def flush(self) -> None:
+        """Simplify and store the shapes of the pieces added since the last call."""
+        new, starts = self._new, self._starts
+        if self.tolerance_meters is not None:
+            new["points"], starts = simplify_shapes(
+                new["points"],
+                array("i", starts),
+                new["ends"],
+                self.tolerance_meters,
+            )
+        stored = len(self.points) // 2
+        new["piece_first_shape_point_ids"].extend(
+            stored + start for start in starts[1:]
+        )
+        for name, column in new.items():
+            if self.work_dir is None:
+                getattr(self, name).extend(column)
+                continue
+            with open(os.path.join(self.work_dir, name), "ab+") as file:
+                file.write(column)
+                file.flush()
+                if file.tell():
+                    view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                    setattr(
+                        self, name, memoryview(view).cast(self.COLUMNS[name])
+                    )
+        self._new = {name: array(code) for name, code in self.COLUMNS.items()}
+        self._starts = [0]

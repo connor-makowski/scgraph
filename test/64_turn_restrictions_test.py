@@ -6,11 +6,13 @@ from helpers import great_circle_km
 
 from scgraph import GeoGraph, network_file
 from scgraph.helpers.osm import (
-    list_forbidden_turns,
     read_turn_restrictions,
     select_main_roads,
 )
-from scgraph.turn_restrictions import add_junction_nodes
+from scgraph.turn_restrictions import (
+    add_junction_nodes,
+    list_forbidden_turns,
+)
 from scgraph import network_assembly
 from scgraph.helpers import osm
 
