@@ -1,6 +1,7 @@
 """A call with a wrong argument raises a `ValueError` that names the argument, or a
 `TypeError` for a value of the wrong type. Both builds raise the same type."""
 
+import numbers
 from array import array
 
 import pytest
@@ -10,6 +11,18 @@ from scgraph import GeoGraph
 # Three nodes on a line, linked both ways.
 _GRAPH = [{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}]
 _NODES = [[0, 0], [0, 1], [0, 2]]
+
+
+# An integer that is not an `int`, as a numpy integer is. The tests do not import numpy.
+class _NodeId:
+    def __init__(self, value):
+        self.value = value
+
+    def __index__(self):
+        return self.value
+
+
+numbers.Integral.register(_NodeId)
 
 
 @pytest.fixture
@@ -165,13 +178,26 @@ def test_a_wrong_argument_of_a_change_raises_a_value_error(geograph, call):
         lambda geograph: geograph.get_path_edges([0, 1.0]),
         lambda geograph: geograph.list_geographs(geograph_url=5),
         lambda geograph: geograph.save_as_scgraph(
-            "network.scgraph", metadata="bad"
+            "network.scgraph", metadata=5
         ),
     ],
 )
 def test_a_value_of_the_wrong_type_raises_a_type_error(geograph, call):
     with pytest.raises(TypeError):
         call(geograph)
+
+
+def test_save_as_scgraph_refuses_a_metadata_string_other_than_auto(geograph):
+    with pytest.raises(ValueError, match="metadata"):
+        geograph.save_as_scgraph("network.scgraph", metadata="bad")
+
+
+# A path may be any sequence of integer node ids, such as a range or a numpy array.
+@pytest.mark.parametrize(
+    "path", [range(3), (0, 1, 2), [_NodeId(0), _NodeId(1), _NodeId(2)]]
+)
+def test_get_path_edges_takes_a_sequence_of_integers(geograph, path):
+    assert geograph.get_path_edges(path) == geograph.get_path_edges([0, 1, 2])
 
 
 # A search checks its origin and its destination before it reads the graph.
@@ -201,6 +227,23 @@ def test_a_search_refuses_an_origin_of_the_wrong_type(
 
     with pytest.raises(TypeError):
         getattr(graph, algorithm)(origin_id, 2)
+
+
+# A node id may be an integer that is not an `int`, such as a numpy integer, and a
+# set of node ids may be a frozenset, as in release 3.6 with the C++ extension.
+@pytest.mark.parametrize(
+    "origin_id",
+    [_NodeId(0), {_NodeId(0)}, frozenset({0}), {_NodeId(0): 0.0}],
+)
+def test_a_search_takes_a_node_id_from_a_numpy_array_and_a_frozenset(
+    graph_class, origin_id
+):
+    graph = graph_class(_GRAPH)
+
+    assert graph.dijkstra(origin_id, _NodeId(2)) == {
+        "path": [0, 1, 2],
+        "length": 2.0,
+    }
 
 
 @pytest.mark.parametrize("algorithm", ["dijkstra", "contraction_hierarchy"])
@@ -266,6 +309,14 @@ def test_add_edge_refuses_a_value_of_the_wrong_type(
 
     with pytest.raises(TypeError):
         graph.add_edge(origin_id, 2, distance)
+
+
+def test_add_edge_takes_a_node_id_from_a_numpy_array(graph_class):
+    graph = graph_class(_GRAPH)
+
+    graph.add_edge(_NodeId(0), _NodeId(2), 1.0)
+
+    assert graph.dijkstra(0, 2) == {"path": [0, 2], "length": 1.0}
 
 
 def test_add_edge_refuses_a_nan_distance(graph_class):

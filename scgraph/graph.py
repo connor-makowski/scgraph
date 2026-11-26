@@ -95,6 +95,7 @@ from math import asin, ceil, cos, isfinite, sin
 from scgraph.array_checks import is_sorted_from_zero
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
+    _as_plain_node_input,
     _last_search_in_thread,
     GraphUtils,
     GraphModifiers,
@@ -139,6 +140,7 @@ class GraphTrees:
 
         """
         # Input Validation
+        origin_id = _as_plain_node_input(origin_id)
         self.__input_check__(origin_id=origin_id, destination_id=0)
         return self._get_shortest_path_tree(self.graph, origin_id)
 

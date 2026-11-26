@@ -817,6 +817,10 @@ class GeoGraphNetworks:
                 - `description`: str — what the network holds
                 - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_intermediate_nodes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
+
+        Raises:
+
+        - `TypeError`: `geograph_url` is not a string
         """
         if not isinstance(geograph_url, str):
             raise TypeError(f"geograph_url must be a str, not {geograph_url!r}")

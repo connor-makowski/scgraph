@@ -11,6 +11,8 @@ import threading
 from array import array
 from typing import Literal
 import math
+import numbers
+import operator
 
 from scgraph.errors import NegativeCycleError
 
@@ -31,6 +33,28 @@ def normalize_node_input(
     raise ValueError(
         "node_input must be an int, set of ints, or dict mapping int to float"
     )
+
+
+def _as_plain_node_input(node_input: object) -> object:
+    """Return an origin or a destination whose node ids are of type `int`.
+
+    The C++ extension takes any integer with `__index__` as a node id, such as a numpy
+    integer, and a `frozenset` as a set. In pure Python, this function turns such a
+    node id into an `int`, and a `frozenset` into a `set`. It returns another value
+    unchanged, so that `__input_check__` refuses it.
+    """
+
+    def _as_int(node_id):
+        try:
+            return operator.index(node_id)
+        except TypeError:
+            return node_id
+
+    if isinstance(node_input, (set, frozenset)):
+        return {_as_int(node_id) for node_id in node_input}
+    if isinstance(node_input, dict):
+        return {_as_int(node_id): dist for node_id, dist in node_input.items()}
+    return _as_int(node_input)
 
 
 class GraphUtils:
@@ -156,7 +180,7 @@ class GraphUtils:
                     raise ValueError(f"{name} dictionary cannot be empty")
                 for oid, dist in arg.items():
                     _validate_node_id(oid, name)
-                    if not isinstance(dist, (int, float)):
+                    if not isinstance(dist, numbers.Real):
                         raise TypeError(
                             f"{name} distance for node ({oid}) must be a number, not {dist!r}"
                         )
@@ -618,11 +642,14 @@ class GraphModifiers:
         - `IndexError`: The origin id or the destination id is not in the graph
         - `ValueError`: The distance is NaN
         """
-        if not (isinstance(origin_id, int) and isinstance(destination_id, int)):
+        try:
+            origin_id = operator.index(origin_id)
+            destination_id = operator.index(destination_id)
+        except TypeError:
             raise TypeError(
                 f"Node ids must be integers, not {origin_id!r} and {destination_id!r}"
-            )
-        if not isinstance(distance, (int, float)):
+            ) from None
+        if not isinstance(distance, numbers.Real):
             raise TypeError(f"distance must be a number, not {distance!r}")
         if origin_id < 0 or origin_id >= len(self.__graph__):
             raise IndexError(

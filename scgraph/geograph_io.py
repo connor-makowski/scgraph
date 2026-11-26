@@ -258,6 +258,7 @@ class GeoGraphIO:
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
             - Note: A key scgraph writes itself (`crs`, `metrics`, `node_modes`, `node_order`, ...), or a node mode whose `source` names no entry of `sources` (also with None), raises a ValueError
+            - Note: A string other than 'auto' raises a ValueError, and a value that is not a dict, a string or None raises a TypeError
         - `coordinate_dtype`
             - Type: str
             - What: How coordinates are stored: 'float64' exactly, 'int32' rounded to 1e-7 degree (OSM's encoding, about 1 cm; 8 bytes less per node), 'auto' as the geograph's `coordinate_dtype`
@@ -272,9 +273,11 @@ class GeoGraphIO:
             raise ValueError(
                 f"Filename must end with .scgraph, not {filename!r}"
             )
-        if not (
-            metadata is None or metadata == "auto" or isinstance(metadata, dict)
-        ):
+        if isinstance(metadata, str) and metadata != "auto":
+            raise ValueError(
+                f"metadata must be a dict, 'auto' or None, not {metadata!r}"
+            )
+        if not (metadata is None or isinstance(metadata, (str, dict))):
             raise TypeError(
                 f"metadata must be a dict, 'auto' or None, not {metadata!r}"
             )

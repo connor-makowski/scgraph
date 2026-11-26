@@ -30,7 +30,8 @@ using namespace nb::literals;
 // node ids and start distances. The caster of std::variant reads the dict {0: 5} as
 // the set {0}, because its first pass refuses the int 5 as a double. The start
 // distance is then lost. This caster chooses the kind from the Python type, as the
-// pure-Python check does.
+// pure-Python check does. A node id is any integer with __index__, such as a numpy
+// integer, and a set may be a frozenset.
 namespace nanobind::detail {
 template <> struct type_caster<NodeIdVariant> {
     NB_TYPE_CASTER(NodeIdVariant, union_name(make_caster<int>::Name,
@@ -46,9 +47,9 @@ template <> struct type_caster<NodeIdVariant> {
     }
 
     bool from_python(handle src, uint32_t flags, cleanup_list* cleanup) noexcept {
-        if (PyLong_Check(src.ptr())) return load_as<int>(src, flags, cleanup);
+        if (PyIndex_Check(src.ptr())) return load_as<int>(src, flags, cleanup);
         if (PyDict_Check(src.ptr())) return load_as<std::unordered_map<int, double>>(src, flags, cleanup);
-        if (PySet_Check(src.ptr())) return load_as<std::set<int>>(src, flags, cleanup);
+        if (PyAnySet_Check(src.ptr())) return load_as<std::set<int>>(src, flags, cleanup);
         return false;
     }
 

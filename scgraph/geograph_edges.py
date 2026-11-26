@@ -4,6 +4,7 @@ This module is internal. `GeoGraphEdges` is the mixin of `GeoGraph` that holds t
 reads the arrays of the edges, and lists the edges of the network or of a path.
 """
 
+import operator
 from scgraph.edge_classes import find_edge_id
 from array import array
 from collections.abc import Iterable, Iterator
@@ -198,19 +199,23 @@ class GeoGraphEdges:
 
         Required Arguments:
 
-        - `path`: The node ids of a path, as the `path` of `get_shortest_path` with `output_path=True`; two consecutive nodes without an edge raise a ValueError
+        - `path`: The node ids of a path, as the `path` of `get_shortest_path` with `output_path=True`
 
         Returns:
 
         - A list with one dictionary for each pair of consecutive nodes of the path (see `get_edges`)
+
+        Raises:
+
+        - `TypeError`: `path` is not a sequence of integer node ids
+        - `ValueError`: The geograph has no edge between two consecutive nodes of the path
         """
-        if not (
-            isinstance(path, (list, tuple))
-            and all(isinstance(node_id, int) for node_id in path)
-        ):
+        try:
+            path = [operator.index(node_id) for node_id in path]
+        except TypeError:
             raise TypeError(
-                f"path must be a list of int node ids, not {path!r}"
-            )
+                f"path must be a sequence of integer node ids, not {path!r}"
+            ) from None
         return list(
             self._iter_edge_dicts(zip(path, self._find_path_edge_ids(path)))
         )

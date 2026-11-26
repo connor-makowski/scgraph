@@ -43,6 +43,12 @@ class GeoGraphModifiers:
 
         - `symmetric`: Whether to add the edge in both directions
         - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from weights per km gives it the weight of an off-graph leg (see `create_metric`)
+
+        Raises:
+
+        - `TypeError`: A node id is not an integer, or the distance is not a number
+        - `IndexError`: The origin id or the destination id is not in the geograph
+        - `ValueError`: The distance is NaN, or `edge_class` is not a name of `classes`
         """
         self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
