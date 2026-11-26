@@ -313,7 +313,7 @@ def adjacency_dict_to_list_tuples(
     - What: The converted graph in adjacency list representation
     """
     warnings.warn(
-        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. scgraph 5.0 removes it.",
+        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -344,7 +344,7 @@ def adjacency_list_tuples_to_dict(
     - What: The converted graph in adjacency dictionary representation
     """
     warnings.warn(
-        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. scgraph 5.0 removes it.",
+        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
         DeprecationWarning,
         stacklevel=2,
     )
