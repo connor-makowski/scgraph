@@ -8,6 +8,8 @@ import pytest
 from scgraph import GeoGraph, PathNotFoundError
 from scgraph.graph import Graph as PythonGraph
 
+from helpers import great_circle_km
+
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
 #
@@ -674,6 +676,57 @@ def test_a_geograph_without_classes_takes_one_weight_per_km_for_every_edge(
             "metric_weights": {"minutes": 5.0},
         }
     ]
+
+
+# The query starts 0.09 degree east of the east node, so its route has an
+# off-graph leg. The weight of that leg depends on the units of the geograph.
+def test_a_route_after_a_change_of_units_has_the_length_of_a_geograph_made_in_them():
+    def make_geograph(geograph_units):
+        return GeoGraph(
+            graph=[{1: 1.0}, {0: 1.0}],
+            nodes=[[0.0, 0.0], [0.0, 0.01]],
+            geograph_units=geograph_units,
+        )
+
+    query = {
+        "origin_node": {"latitude": 0, "longitude": 0.1},
+        "destination_node": {"latitude": 0, "longitude": 0.01},
+    }
+    changed = make_geograph("km")
+    changed.get_shortest_path(**query)
+    changed.geograph_units = "mi"
+
+    expected = make_geograph("mi").get_shortest_path(**query)["length"]
+
+    assert changed.get_shortest_path(**query)["length"] == expected
+
+
+# Nodes 0, 1 and 2 lie on the equator at the longitudes 0, 1 and 2 degrees. The
+# road from 0 to 2 is 300 km long. The way through node 1 is shorter: two
+# edges that each have the distance of their ends. An A* search that
+# overestimates the remaining length takes the road of 300 km.
+@pytest.mark.parametrize("heuristic_name", ["haversine", "cheap_ruler"])
+def test_an_a_star_search_by_length_finds_the_shortest_path(heuristic_name):
+    one_degree_km = great_circle_km([0, 0], [0, 1])
+    geograph = GeoGraph(
+        graph=[
+            {1: one_degree_km, 2: 300},
+            {0: one_degree_km, 2: one_degree_km},
+            {},
+        ],
+        nodes=[[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]],
+    )
+
+    route = geograph.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 2},
+        node_addition_type="closest",
+        destination_node_addition_type="closest",
+        algorithm_fn="a_star",
+        algorithm_kwargs={"heuristic_fn": getattr(geograph, heuristic_name)},
+    )
+
+    assert route["length"] == pytest.approx(2 * one_degree_km)
 
 
 def test_metrics_lists_the_row_of_each_metric_after_the_length(network):

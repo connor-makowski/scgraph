@@ -1142,6 +1142,22 @@ def test_a_file_holds_the_sha256_of_its_bytes_from_byte_40(tmp_path):
     assert GeoGraph.get_scgraph_info(str(path))["content_sha256"] == digest
 
 
+def test_check_content_returns_the_digest_of_a_file_that_is_whole(tmp_path):
+    path = tmp_path / "small.scgraph"
+    digest = _small().save_as_scgraph(str(path))
+
+    assert network_file.check_content(path) == digest
+
+
+def test_check_content_refuses_a_file_that_was_cut(tmp_path):
+    path = tmp_path / "small.scgraph"
+    _small().save_as_scgraph(str(path))
+    path.write_bytes(path.read_bytes()[:-8])
+
+    with pytest.raises(ValueError, match="content_sha256"):
+        network_file.check_content(path)
+
+
 def test_the_order_of_the_keys_of_the_metadata_does_not_change_the_file(
     tmp_path,
 ):
@@ -1372,7 +1388,11 @@ def _replace_int32(data, array_name, index, value):
     array `array_name`."""
     array_offset = _read_header(data)["arrays"][array_name]["offset"]
     position = _find_start_of_arrays(data) + array_offset + 4 * index
-    return data[:position] + value.to_bytes(4, "little") + data[position + 4 :]
+    return (
+        data[:position]
+        + value.to_bytes(4, "little", signed=True)
+        + data[position + 4 :]
+    )
 
 
 # Each function below takes the bytes of a file and returns them damaged.
@@ -1432,6 +1452,28 @@ def _set_a_first_edge_id_past_the_edges(data):
     return _replace_int32(data, "node_first_edge_ids", 1, 2**30)
 
 
+# A damage sets the int32 at `index` of an array, or the `node_count` of the one
+# node mode of the header, when the file has 4 nodes.
+def _set_int32(array_name, index, value):
+    def damage(data):
+        return _replace_int32(data, array_name, index, value)
+
+    damage.__name__ = f"set_{array_name}_{index}_to_{value}"
+    return damage
+
+
+def _set_node_count_of_the_node_modes(node_count):
+    def damage(data):
+        header = _read_header(data)
+        header["metadata"]["node_modes"] = [
+            {"name": "road", "node_count": node_count}
+        ]
+        return _replace_header(data, header)
+
+    damage.__name__ = f"set_node_count_to_{node_count}"
+    return damage
+
+
 # A damaged file must be refused with a message that names the damage. It
 # must not be read as a wrong network. The last two damages are in the arrays
 # of the edges: the C++ graph, which reads the file in place, finds them with
@@ -1460,6 +1502,21 @@ def _set_a_first_edge_id_past_the_edges(data):
             _set_a_first_edge_id_past_the_edges,
             "invalid node_first_edge_ids|non-decreasing",
         ),
+        # The small network has 4 nodes, 3 edges and 1 shape point.
+        (
+            _set_int32("node_first_edge_ids", 0, 1),
+            "invalid node_first_edge_ids",
+        ),
+        (
+            _set_int32("node_first_edge_ids", 4, 4),
+            "invalid node_first_edge_ids",
+        ),
+        (
+            _set_int32("edge_first_shape_point_ids", 3, 2),
+            "invalid edge_first_shape_point_ids",
+        ),
+        (_set_node_count_of_the_node_modes(3), "node_count of the node modes"),
+        (_set_node_count_of_the_node_modes(5), "node_count of the node modes"),
     ],
 )
 def test_a_damaged_file_is_refused(file_to_damage, damage, message):

@@ -195,6 +195,29 @@ def test_each_network_of_3_6_0_names_the_released_network_that_supersedes_it(
     )
 
 
+# A lazy load makes no request, so this test needs no network. The warning
+# must point at the file that calls `load_geograph`.
+@pytest.mark.parametrize(
+    "name, replacement",
+    [
+        ("marnet", "world_sea"),
+        ("north_america_rail", "north_america"),
+        ("oak_ridge_maritime", "world_sea"),
+        ("us_freeway", "north_america"),
+        ("world_highways_and_marnet", "world_multimodal"),
+        ("world_highways", "world_multimodal"),
+        ("world_railways", "world_rail"),
+    ],
+)
+def test_loading_a_network_of_3_6_0_warns_with_the_network_that_replaces_it(
+    name, replacement
+):
+    with pytest.warns(DeprecationWarning, match=f"Use '{replacement}'") as seen:
+        GeoGraph.load_geograph(name, lazy=True)
+
+    assert seen[0].filename == __file__
+
+
 # Three tests below load the network lazily: the file is fetched at the first
 # use of the network, with the same arguments.
 def test_a_load_without_intermediate_nodes_has_no_edge_shapes(
@@ -384,7 +407,9 @@ def test_a_network_of_release_3_6_0_names_the_released_network_to_use(marnet):
 
 def test_another_geograph_url_is_deprecated():
     # A lazy load makes no request before the first use of the network.
-    with pytest.warns(DeprecationWarning, match="geograph_url"):
+    with pytest.warns(DeprecationWarning, match="geograph_url") as seen:
         GeoGraph.load_geograph(
             "marnet", geograph_url="https://example.invalid", lazy=True
         )
+
+    assert seen[0].filename == __file__

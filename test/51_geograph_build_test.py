@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import importlib.metadata
 import importlib.util
 import json
 import logging
@@ -267,6 +268,7 @@ def test_a_network_file_records_what_built_it_and_from_which_sources(
     software = network_file_info["software"]
     assert software["backend"] == ("cpp" if has_cpp() else "python")
     assert software["platform"].startswith(sysconfig.get_platform())
+    assert software["scgraph"] == importlib.metadata.version("scgraph")
     # The record has no version: this file does not date its data.
     assert network_file_info["sources"] == [
         {

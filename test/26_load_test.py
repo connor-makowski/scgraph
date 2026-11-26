@@ -161,6 +161,20 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_download_that_answers_an_error_status_leaves_nothing_in_the_cache(
+    tmp_path, monkeypatch
+):
+    class ServerError:
+        status_code, ok, content = 500, False, b"<html>Server error</html>"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: ServerError())
+
+    with pytest.raises(ConnectionError, match="HTTP status: 500"):
+        GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+
+    assert list(tmp_path.iterdir()) == []
+
+
 @pytest.fixture
 def cache_with_marnet(tmp_path):
     """A cache that holds marnet.graphjson, as a download leaves it.
