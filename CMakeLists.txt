@@ -37,6 +37,7 @@ nanobind_add_module(
     STABLE_ABI
     NOMINSIZE
     scgraph/cpp/bindings/graph_bindings.cpp
+    scgraph/cpp/bindings/geograph_bindings.cpp
     scgraph/cpp/bindings/pipelines_bindings.cpp
     scgraph/cpp/src/graph.cpp
     scgraph/cpp/src/graph_utils.cpp
