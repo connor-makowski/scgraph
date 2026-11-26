@@ -361,6 +361,10 @@ def load_validation_cases(
     `region`, and no case when the region has none. Without `region`, return the
     cases of every region.
 
+    Args:
+        validation: The `VALIDATION` dict of a pipeline.
+        region: The region of the build, for a regional pipeline. None for every region.
+
     Raises:
         ValueError: An entry is neither the id of a case nor the name of a kind.
     """

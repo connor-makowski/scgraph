@@ -166,6 +166,7 @@ class GeoGraphIO:
         - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
         - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
         - A geograph that follows turn restrictions is also saved with its `external_node_ids`, `node_mode_ids` and `node_modes`. A geograph loaded from the file then follows the turn restrictions too
+        - Another geograph loses its node modes. A geograph loaded from the file snaps to every node by default, so its routes can change
 
         Required Arguments:
 
@@ -444,7 +445,7 @@ class GeoGraphIO:
         - `precision`
             - Type: int
             - What: Decimal places to round coordinates when loading and simplifying the lines
-            - Default: 4
+            - Default: 5
         - `pct_to_keep`
             - Type: int|float
             - What: Percentage of the interior line points to keep (note the ends are always kept)
@@ -1196,7 +1197,7 @@ class GeoGraphIO:
             - Deprecated and without effect. The progress is logged at INFO, once for each tenth of the routes.
         - `get_intermediate_nodes`: bool
             - Whether to include intermediate nodes in the shortest path calculation
-            - Default: False
+            - Default: True
 
         Returns
 

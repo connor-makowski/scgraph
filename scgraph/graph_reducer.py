@@ -53,8 +53,9 @@ with edges both ways. The first pass reduces nodes 1, 2 and 4. Every route from 
 through reduced nodes then ends at node 3, so the second pass reduces node 0.
 
 `run_with_reduced` handles four cases.
-- An origin node and a destination node are in the same chain. `dijkstra_on_graph`
-  then searches the original graph, whatever the algorithm asked.
+- An origin node and a destination node are in the same chain. The pure-Python build
+  runs `dijkstra_on_graph` on the original graph, whatever the algorithm asked. The C++
+  build runs the asked algorithm on the original graph. Both give the same result.
 - The origin is reduced. A search in one direction starts at it and reads its row of
   `reduced_graph`. A bidirectional search starts instead from the boundary nodes in this
   row, with their distances as start distances.
@@ -109,6 +110,7 @@ def algorithm(
     - A decorated algorithm reads `self.search_graph` (and `self.search_inverse_graph` if bidirectional): the reduced graph after `reduce()`, else the original graph.
     - Can be used as a method decorator `@Graph.algorithm` or `@Graph.algorithm(bidirectional=True)`.
     - Can register external algorithms onto Graph via `@Graph.algorithm(name="custom_algo")`.
+    - Reads the origin and the destination from the parameters `origin_id` and `destination_id`, or from the first two positions. Other names skip the handling of the reduced graph.
     """
 
     def decorator(fn):

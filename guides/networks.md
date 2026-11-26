@@ -115,7 +115,7 @@ GeoGraph.list_geographs()
 # [..., {"name": "europe", "cached": True, "kind": "released", "description": "...", "nodes": ..., ...},
 #  {"name": "marnet", "cached": False, "kind": "built-in", "description": "...", "superseded_by": "world_sea"}, ...]
 
-# What the cache holds: one dict per file, with its kind, name, region, path and size
+# What the cache holds: one dict per file, with its kind, name, region, file and bytes
 GeoGraph.list_geograph_cache()
 ```
 
@@ -159,7 +159,7 @@ Each pipeline of scgraph is a module of `scgraph.pipelines`. Its docstring descr
 
 **The command line.** `python -m scgraph.pipelines.network_builder NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
 
-A build keeps its downloaded sources in a **work folder** of the cache.
+A build keeps its downloaded sources in a **work folder** of the cache. The file `scgraph_work.json` of this folder records the pipeline, its version, the region and the version of scgraph. When a build finds other values, it empties its own folder. It refuses a `work_dir` that you give, unless you pass `refresh=True`. The docstring of `build_network_file` gives the rule.
 
 | Case | What `build_geograph` does |
 |---|---|

@@ -1,6 +1,7 @@
-// Bindings of the kernels that read the arrays of a GeoGraph: the points of the nodes and
-// the shapes of the edges (NodePoints, EdgeShapes), the snapping index, the selection of
-// node modes and the weights of a metric. NB_MODULE in graph_bindings.cpp calls bind_geograph.
+// Bindings of the kernels that read the arrays of a GeoGraph.
+// They read the points of the nodes and the shapes of the edges (NodePoints, EdgeShapes).
+// They also give the snapping index, the selection of node modes and the weights of a metric.
+// NB_MODULE in graph_bindings.cpp calls bind_geograph.
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/optional.h>

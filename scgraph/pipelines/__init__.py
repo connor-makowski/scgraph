@@ -149,7 +149,7 @@ step 1. `GeoGraph.load_from_osm` calls the other functions too, so they are in
 3. Assemble the graph. `scgraph.network_assembly.build_graph_from_pieces` stores the
    pieces as a graph. `scgraph.helpers.osm.read_turn_restrictions` reads the turn
    restrictions of the file, and `scgraph.turn_restrictions.list_forbidden_turns` gives them as forbidden turns
-   of the road graph. After step 2, `forbid_turns` adds the nodes that make the graph
+   of the road graph. After the join of step 2, `forbid_turns` adds the nodes that make the graph
    follow them (`scgraph/turn_restrictions.py`). A hub is then joined to a junction
    that still has one node, and each added node gets the connectors of its junction.
    `assemble_network` keeps the strongly connected components, contracts the chains

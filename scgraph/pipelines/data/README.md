@@ -7,6 +7,15 @@ like any change of code. The change that brings a new snapshot also updates the 
 of the table in `step2_hub_connectors.HUB_TABLES` and the counts below. It raises the `PIPELINE_VERSION` of
 the pipelines that read the table, so that a cached network is built again.
 
+To build a table again, run `python utils/build_hub_tables.py --opensky-dir DIR [--wpi FILE]`
+(the docstring of the script explains `DIR` and `FILE`). The `version` of a table is a text.
+The header of a network file records it as the version of the source, so it names the snapshot.
+A build copies each table into its work folder. `read_ports`, `read_airports`,
+`read_rail_terminals` and `read_flights` of `step2_hub_connectors` turn the rows into hubs, and
+`join_networks_at_hubs` joins the networks at them. To add a hub, give a pipeline its own copy
+of the table in its `SOURCES`, with a `url` that starts with http. The script would erase a row
+that you add by hand.
+
 | Table | Rows | Columns | Source | Licence |
 |---|---|---|---|---|
 | `ports.csv` | 3,807 | World Port Index number, name, position, harbour type, `rail` (1 when the `Railway` field gives a size) | NGA World Port Index (Pub. 150), file `UpdatedPub150.csv`, SHA-256 `315644f1e7796629…` | a work of the US government (`LicenseRef-US-Government-Work`) |

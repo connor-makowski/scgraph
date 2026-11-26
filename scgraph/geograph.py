@@ -374,6 +374,7 @@ class GeoGraph(
 
     @property
     def graph(self) -> list[dict[int, int | float]]:
+        """The original graph, as a list of adjacency dictionaries, whether or not it is reduced."""
         if self._graph is None:
             # The original graph, whether or not it has been reduced
             self._graph = self.graph_object.unreduced_graph

@@ -3,8 +3,7 @@
 The module holds the distance functions (`haversine`, `cheap_ruler`,
 `distance_converter`), helpers on coordinates (`get_line_path`,
 `get_lat_lon_bound_between_pts`), the check of the C++ extension (`has_cpp`), the
-cache directory (`resolve_cache_dir`), and the helpers for logging (`log_step`) and
-deprecation warnings. `GeoGraph`, the helpers and the pipelines import it.
+cache directory (`resolve_cache_dir`). `GeoGraph`, the helpers and the pipelines import it.
 """
 
 import json

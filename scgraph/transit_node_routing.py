@@ -559,6 +559,7 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
         Optional Arguments:
         - `graph`: Original graph adjacency list
         - `num_transit_nodes`: Number of top-ranked nodes to use as transit nodes
+        - `heuristic_fn`: A function that takes (graph, node_id) and returns a heuristic value for node ordering. Default: None (uses `default_heuristic`)
         - `kwargs`: Used when loading from saved state
         """
         if "transit_nodes" in kwargs:

@@ -1087,7 +1087,8 @@ class GraphAlgorithms:
             - What: The longitude of each node, in radians (at least one entry per graph node)
         - `radius`
             - Type: float
-            - What: The earth radius in the units of the graph weights
+            - What: The bound of one radian of great circle, in the units of the graph weights
+            - Note: For the metric `length` it is the earth radius. For another metric, `get_shortest_path` passes the earth radius times `min_weight_per_length_unit`
 
         Optional Arguments:
 
@@ -1225,6 +1226,7 @@ class GraphAlgorithms:
         - `use_constant_degree_graph`
             - Type: bool
             - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
+            - Note: The C++ build ignores this parameter
             - Default: True
 
         Optional Arguments:
@@ -1361,6 +1363,10 @@ class GraphAlgorithms:
             - What: A heuristic function for CH preprocessing
             - Default: None (uses default heuristic)
 
+        - `ch_graph_kwargs`:
+            - Type: dict or None
+            - What: Deprecated, with no effect. Pass `settled_limit` and `heuristic_fn`
+
         - `settled_limit`:
             - Type: int
             - What: The settled count limit for witness search
@@ -1403,6 +1409,10 @@ class GraphAlgorithms:
             - What: The number of transit nodes to use
                 - On a reduced graph, at most the number of nodes left
             - Default: 100
+
+        - `tnr_graph_kwargs`:
+            - Type: dict or None
+            - What: Deprecated, with no effect. Pass `settled_limit` and `heuristic_fn`
 
         - `settled_limit`:
             - Type: int

@@ -511,7 +511,7 @@ class GridGraph:
         - `output_coordinate_path`
             - Type: str
             - What: The format of the output coordinate path
-            - Default: 'list_of_lists'
+            - Default: 'list_of_dicts'
             - Options:
                 - `list_of_tuples`: A list of tuples with the first value being x and the second being y
                 - 'list_of_dicts': A list of dictionaries with keys 'x' and 'y'

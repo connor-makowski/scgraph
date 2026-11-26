@@ -220,7 +220,7 @@ orders the nodes.
   them all, and no chain is contracted through it. The table above comes from the extract of
   2026-11-18, built without the turn restrictions. The numbers of this item come from another
   build, on the extract of 2026-11-16. There, the turn restrictions forbid 1,091 turns and
-  add 1,028 nodes to the 66,145 nodes of the joined graph. The network file has 876
+  add 1,028 nodes to the joined graph. The network file has 876
   junctions with more than one node.
 - **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve. Nodes
   that are near on the map are then near in the file, so a search reads nearby memory.

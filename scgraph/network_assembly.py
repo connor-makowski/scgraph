@@ -13,7 +13,7 @@ A graph is a dict of arrays, with the names of the network file. Node `u` has th
 `metric_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
 `shape_points[2 * edge_first_shape_point_ids[a]:2 * edge_first_shape_point_ids[a + 1]]`. `external_node_ids` holds
-the id of each node in its source. A node that step 1 adds has an id below zero.
+the id of each node in its source. A node that stage 1 adds has an id below zero.
 The node mode of a node is the kind of place where the node is, such as `port`.
 `node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
 A network file does not hold it: its header gives the count of the nodes of each node mode.
@@ -35,7 +35,7 @@ HOW A RUN GOES
    each parallel edge in two halves, with a new node between them (*How a piece is
    split*). It then stores the edges again. So one edge at most goes from a node to
    another, and the shortest edge of each class stays in the graph. A caller that
-   applies turn restrictions then calls `forbid_turns`, before step 2. This function
+   applies turn restrictions then calls `forbid_turns`, before stage 2. This function
    gives some junctions several nodes. `scgraph.turn_restrictions` gives the reason.
 2. `keep_strongly_connected_components` keeps the largest strongly connected
    component, or each component of at least a given number of nodes. In such a
@@ -61,19 +61,19 @@ HOW A RUN GOES
    network file has this order. The nodes of a junction have the same node mode and
    the same point. So `order_nodes` keeps them together, in the same order.
 
-Example of step 1: a motorway of 3 km and a primary road of 4 km join the junctions 10
+Example of stage 1: a motorway of 3 km and a primary road of 4 km join the junctions 10
 and 20, both ways. The motorway is shorter, so its two edges are kept. The two edges of
 the primary road are parallel edges. The primary road is split at its middle, where the
 new node -1 is. The graph has the nodes -1, 10 and 20. It has two motorway edges of 3 km
 between 10 and 20. It has four primary edges of 2 km: from 10 to -1, from -1 to 20, and
 their reverses. Without the split, the graph would lose the primary road.
 
-Example of step 3: the road 0-4-3-2-1-5 has edges of 1 km, both ways, and
+Example of stage 3: the road 0-4-3-2-1-5 has edges of 1 km, both ways, and
 `max_km_between_nodes` is 2. The walk starts at node 0 and cuts at node 3, then at
 node 1. The nodes 0, 1, 3 and 5 are kept. The edges 0-3 and 3-1 are 2 km long, and the
 edge 1-5 is 1 km long.
 
-Example of the classes in step 3: the road 0-1-2-3-4 has edges of 1 km, both ways. It
+Example of the classes in stage 3: the road 0-1-2-3-4 has edges of 1 km, both ways. It
 is a motorway from node 0 to node 2, and a primary road from node 2 to node 4. Node 2
 has two motorway edges and two primary edges, so it is kept. The nodes 1 and 3 are
 removed. The contracted edges between 0 and 2 are motorway edges of 2 km, and the
@@ -99,14 +99,14 @@ have the same length, so each half is 2 km long.
 
 WHY THE RESULT IS RIGHT
 
-The two halves of a split piece have its length together, so step 1 does not change the
+The two halves of a split piece have its length together, so stage 1 does not change the
 length of a route. Each half has the new node at one end, and no other piece has this
 node. So the second run of `build_csr_from_edges` drops no half.
 
-A pass-through node offers no choice, so step 3 does not change the length of a route
-between two kept nodes. Step 3 never makes an edge from a node to itself, nor a second
+A pass-through node offers no choice, so stage 3 does not change the length of a route
+between two kept nodes. Stage 3 never makes an edge from a node to itself, nor a second
 edge between two nodes. When a chain would give one, the function keeps the middle
-node of the chain. So step 3 keeps the new node of a split piece: the kept edge already
+node of the chain. So stage 3 keeps the new node of a split piece: the kept edge already
 joins the two ends of its chain.
 
 Example: the chains 0-1-3 and 0-2-3 would give two edges from 0 to 3. The first chain
@@ -114,9 +114,8 @@ loses node 1. The second chain keeps node 2.
 
 THE C++ VERSION
 
-`build_csr_from_edges`, `find_strongly_connected_components`, `contract_chains` and
-`simplify_shapes` (called by `PieceArrays`) have a C++ version
-(`cpp/src/network_assembly.hpp`), which a network of the planet needs. The functions of this module call it when the extension
+`build_csr_from_edges`, `find_strongly_connected_components` and `contract_chains` have a C++ version
+(`cpp/src/network_assembly.hpp`), which a network of the planet needs. `simplify_shapes` has one too, but it is in `scgraph.helpers.polylines`. The functions of this module call them when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
 give the same results. The namespace `python` of this module gives them, for example
 `network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
@@ -455,7 +454,7 @@ def contract_chains(
 ) -> ContractedGraph:
     """Contract the chains of pass-through nodes of a graph.
 
-    The module docstring (*How a run goes*, step 3) gives the rule and an example. The
+    The module docstring (*How a run goes*, stage 3) gives the rule and an example. The
     function walks a chain from its canonical end: the start of a one-way chain, or the
     end with the lower index. A part of a chain that would give an edge from a node to
     itself, or a second edge between two nodes, is split at its middle node. A cycle of
@@ -610,7 +609,7 @@ def build_graph_from_pieces(
     direction. Of several edges between the same two nodes, the shortest is kept. In a
     graph with classes, the piece of the shortest edge of each other class is split in
     two halves, with a new node between them. The module docstring gives the rule
-    (*How a run goes*, step 1, and *How a piece is split*).
+    (*How a run goes*, stage 1, and *How a piece is split*).
 
     Args:
         pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
@@ -714,7 +713,7 @@ def assemble_network(
 ) -> dict[str, array]:
     """Turn a graph into the arrays of a network file.
 
-    The function runs steps 2 to 5 of the module docstring. It keeps the strongly
+    The function runs stages 2 to 5 of the module docstring. It keeps the strongly
     connected components (`keep_components`), contracts the chains, joins the shapes
     of the contracted edges, and numbers the nodes (`order_nodes`). The first two
     steps log their counts at DEBUG.
@@ -898,7 +897,7 @@ def keep_junctions_whole(
 def keep_components(
     graph: dict[str, array | memoryview], min_component_nodes: int | None
 ) -> dict[str, array]:
-    """Keep the strongly connected components of a graph (step 2 of the module
+    """Keep the strongly connected components of a graph (stage 2 of the module
     docstring). The function logs its counts at DEBUG.
 
     Args:
@@ -932,7 +931,7 @@ def keep_components(
 
 
 def order_nodes(graph: dict[str, array | memoryview]) -> dict[str, array]:
-    """Number the nodes of a graph by node mode, then along the Hilbert curve (step 5
+    """Number the nodes of a graph by node mode, then along the Hilbert curve (stage 5
     of the module docstring). A network file has this order, and
     `GeoGraph.save_as_scgraph` uses the same one.
 

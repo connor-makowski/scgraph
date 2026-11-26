@@ -1,7 +1,7 @@
 """The seven networks of scgraph 3.6.0, the built-in geographs. They are deprecated.
 
-This module is internal. It holds all that scgraph knows of these networks, and
-nothing else:
+This module is internal. It holds what scgraph knows of these networks, except the
+conversion of a `.graphjson` file to a `.scgraph` file, which `geograph_networks` makes:
 
 - `BUILT_IN_GEOGRAPHS`, their names. Each one has its description and the released
   network that covers the same need with newer data;

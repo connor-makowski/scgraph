@@ -734,7 +734,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid edge_first_shape_point_ids",
         )
-        # Mapped, each shape's node_first_edge_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
+        # Mapped, each shape's edge_first_shape_point_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(
             not should_check_values or is_sorted(shapes),
             "invalid edge_first_shape_point_ids",

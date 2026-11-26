@@ -57,6 +57,10 @@ GEOFABRIK = {
 def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
     """Download an OSM file to `filename`.
 
+    Args:
+        url: The URL of the OSM file.
+        filename: The path where the function writes the file.
+
     Returns:
         `{"version": time}` when the header of the file gives the time that its data is
         up to (`osmosis_replication_timestamp`, as Geofabrik writes it), and `{}`
@@ -108,6 +112,10 @@ class StreamedPbf:
         """Find the layout of the PBF file at `url` and write it to `filename`, with the
         `size` of the file, its `tag`, its `md5` and its `version`. The `md5` is the one
         that the server publishes: the function does not compute it.
+
+        Args:
+            url: The URL of the PBF file. The server must answer byte ranges.
+            filename: The path where the function writes the layout file.
 
         Returns:
             `{version, bytes, md5}`, without the values that the server does not give.
@@ -280,6 +288,13 @@ def write_pbf_layout_file(
 ) -> dict[str, str | int]:
     """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
     byte ranges (`StreamedPbf.download`).
+
+    Args:
+        url: The URL of the PBF file.
+        filename: The path where the function writes the layout file.
+
+    Returns:
+        The dict that `StreamedPbf.download` returns.
     """
     return StreamedPbf.download(url, filename)
 
