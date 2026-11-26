@@ -640,6 +640,42 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
     assert _Source.served == ["/lines.gpkg"] * 2
 
 
+# After an upgrade, the files of a failed build may follow the old rules. The
+# next build starts from an empty work folder and downloads the sources again.
+def test_a_build_of_the_next_pipeline_version_does_not_resume_a_failed_build(
+    tmp_path, source
+):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    with pytest.raises(RuntimeError, match="build failed"):
+        GeoGraph.build_geograph(pipeline=broken, cache_dir=tmp_path)
+
+    next_version = _lines_pipeline(source)
+    next_version.PIPELINE_VERSION = 2
+    GeoGraph.build_geograph(pipeline=next_version, cache_dir=tmp_path)
+
+    assert _Source.served == ["/lines.gpkg"] * 2
+
+
+def test_a_build_refuses_a_work_folder_of_the_caller_that_another_version_left(
+    tmp_path, source
+):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    work_dir = tmp_path / "work"
+    with pytest.raises(RuntimeError, match="build failed"):
+        network_builder.build_network_file(
+            pipeline=broken, cache_dir=tmp_path / "cache", work_dir=work_dir
+        )
+
+    next_version = _lines_pipeline(source)
+    next_version.PIPELINE_VERSION = 2
+    with pytest.raises(RuntimeError, match="refresh=True"):
+        network_builder.build_network_file(
+            pipeline=next_version,
+            cache_dir=tmp_path / "cache",
+            work_dir=work_dir,
+        )
+
+
 def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
     tmp_path, source
 ):

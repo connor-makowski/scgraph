@@ -384,7 +384,10 @@ def build_network_file(
             the files of its steps. None takes a folder in the cache directory, which
             the function removes after a build that succeeds. The function does not
             remove a folder that the caller gives. A build that fails keeps its work
-            folder, and the next call resumes from it.
+            folder, and the next call resumes from it. An earlier build of another
+            `PIPELINE_VERSION`, region or version of scgraph may have left the folder:
+            the function then empties its own folder first, and refuses a folder
+            that the caller gives.
         refresh: Download the sources and build again, even if the cache holds a
             current network. The function empties the work folder first, also a
             `work_dir` that the caller gives.
@@ -406,7 +409,8 @@ def build_network_file(
             source. With `local_files_only`: `refresh` is true, or scgraph cannot read
             the cached file.
         FileNotFoundError: The network is not in the cache, with `local_files_only`.
-        RuntimeError: The network fails its validation.
+        RuntimeError: The network fails its validation. Or `work_dir` holds the files
+            of a build of another version, and `refresh` is false.
         requests.HTTPError: A source cannot be downloaded.
     """
     if local_files_only is None:
@@ -436,9 +440,31 @@ def build_network_file(
         if work_dir
         else cache.joinpath(".work", name, region or "")
     )
-    if refresh:
+    # A work folder serves one pipeline, version, region and scgraph version. After
+    # an upgrade, its files may follow old rules, so the build does not resume from
+    # them. It empties its own folder. A folder of the caller may hold other files:
+    # the caller empties it with `refresh`.
+    stamp = work.joinpath("scgraph_work.json")
+    built_by = pipelines.build_metadata(
+        name, region, pipeline.PIPELINE_VERSION, []
+    )
+    built_by = {
+        **built_by["pipeline"],
+        "scgraph": built_by["software"]["scgraph"],
+    }
+    try:
+        is_stale = json.loads(stamp.read_text()) != built_by
+    except (OSError, ValueError):
+        is_stale = False
+    if is_stale and work_dir and not refresh:
+        raise RuntimeError(
+            f"{work} holds the files of another build (see {stamp.name}). Pass "
+            "refresh=True to empty this folder, or give another work_dir"
+        )
+    if refresh or is_stale:
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(json.dumps(built_by))
     building = work.joinpath(f"{name}.scgraph")
     try:
         files, sources = _download_sources(
@@ -470,7 +496,7 @@ def build_network_file(
         )
     except (Exception, KeyboardInterrupt) as error:
         if work_dir is None and not any(
-            path.is_file() for path in work.rglob("*")
+            path.is_file() and path != stamp for path in work.rglob("*")
         ):
             # The build stopped before it wrote a file, for example on an
             # unknown region. There is nothing to resume from.

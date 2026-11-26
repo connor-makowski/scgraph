@@ -437,6 +437,7 @@ scgraph keeps the networks that it builds or downloads in a cache directory (def
 * **Atomic Writes**: A build writes into its work folder: `.work/<name>/<region>` of the cache directory, or the `work_dir` of the caller. It then moves the finished `.scgraph` file into the cache.
   * The file arrives beside its final place and takes its name in one step. `cache.json` is written the same way, after the file. `cache.json` therefore always names a whole file.
   * A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it, and `refresh=True` empties it first.
+  * The work folder holds `scgraph_work.json`: the pipeline, its `PIPELINE_VERSION`, the region and the version of scgraph. When `scgraph_work.json` gives other values, a build does not reuse the files, which may follow old rules. It empties its own folder first, and it refuses a folder that the caller gave until the caller passes `refresh=True`. The other files of the folder are the downloaded sources (`sources/`) and the files of the steps, such as `ways.inputs.json` and `ways.done` of the OpenStreetMap pipelines.
 * **Offline Operation**: With `SCGRAPH_OFFLINE=1` or `local_files_only=True`, scgraph makes no network request. It loads only what the cache holds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` removes the cached networks. It leaves every other file of the directory in place.
 

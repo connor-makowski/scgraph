@@ -23,6 +23,7 @@ import os
 
 from scgraph.pipelines import osm_region_multimodal as regional
 from scgraph.pipelines.steps import step1_osm_sources
+from scgraph.utils import has_cpp
 
 PIPELINE_VERSION = 7
 
@@ -45,8 +46,14 @@ def build(
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
     """Build the multimodal network of the world: `osm_region_multimodal.build`, with
-    the cut length and the component size of this module.
+    the cut length and the component size of this module. Raise a RuntimeError
+    without the C++ extension.
     """
+    if not has_cpp():
+        raise RuntimeError(
+            "The build of the world network needs the C++ extension of scgraph: "
+            "the pure-Python code is too slow for the planet"
+        )
     return regional.build(
         files,
         max_km_between_nodes=MAX_KM_BETWEEN_NODES,

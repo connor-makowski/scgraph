@@ -686,9 +686,9 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     assert loaded.node_modes == ROAD_AND_PORT
 
 
-# A file may come from another tool, or be damaged. `load_from_scgraph` must
-# refuse arrays that do not fit together, and name what is wrong. Each case
-# below replaces or adds arrays of the valid network above.
+# `network_file.write` must refuse arrays that do not fit together, and name
+# what is wrong. Each case below replaces or adds arrays of the valid network
+# above.
 @pytest.mark.parametrize(
     "invalid_arrays, message",
     [
@@ -712,15 +712,14 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
         ),
     ],
 )
-def test_a_file_whose_arrays_do_not_fit_together_is_refused(
+def test_writing_arrays_that_do_not_fit_together_is_refused(
     tmp_path, invalid_arrays, message
 ):
     path = str(tmp_path / "arrays.scgraph")
     arrays = {**_two_road_nodes_and_a_port(), **invalid_arrays}
-    network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
 
     with pytest.raises(ValueError, match=message):
-        GeoGraph.load_from_scgraph(path)
+        network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
 
 
 # A row of the list `classes` gives a class and the edge mode of its edges.
@@ -747,18 +746,17 @@ MOTORWAY = {"name": "motorway", "edge_mode": "road"}
         ),
     ],
 )
-def test_a_file_with_class_ids_or_classes_alone_is_refused(
+def test_writing_class_ids_or_classes_alone_is_refused(
     tmp_path, class_id_arrays, header, message
 ):
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | class_id_arrays
-    network_file.write(path, arrays, header)
 
     with pytest.raises(ValueError, match=message):
-        GeoGraph.load_from_scgraph(path)
+        network_file.write(path, arrays, header)
 
 
-# The header must describe the arrays of the file, and `load_from_scgraph`
+# The header must describe the arrays of the file, and `network_file.write`
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
 # header.
@@ -824,7 +822,7 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
         ),
     ],
 )
-def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
+def test_writing_a_header_that_does_not_describe_the_arrays_is_refused(
     tmp_path, invalid_header, message
 ):
     path = str(tmp_path / "arrays.scgraph")
@@ -832,10 +830,9 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
         "edge_class_ids": array("B", [0, 0]),
         "metric_toll": array("d", [2.0, 2.0]),
     }
-    network_file.write(path, arrays, invalid_header)
 
     with pytest.raises(ValueError, match=message):
-        GeoGraph.load_from_scgraph(path)
+        network_file.write(path, arrays, invalid_header)
 
 
 # `load_from_scgraph(node_modes=...)` loads the nodes of some modes only. It finds
@@ -843,35 +840,48 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
 # mode. It checks the arrays that it reads on the way. The file names one
 # class, so the only row of an edge class is 0. The case of an edge class beyond
 # the list is here, because a mapped read of the whole file does not check the
-# values of an array.
+# values of an array. `network_file.write` refuses these values, so each case
+# writes a valid file and then replaces the bytes of one array.
+def _replace_array(data, array_name, values):
+    """The bytes of the file with `values` in place of the array `array_name`.
+    `values` has the dtype and the length of the array."""
+    array_offset = _read_header(data)["arrays"][array_name]["offset"]
+    position = _find_start_of_arrays(data) + array_offset
+    end = position + len(values) * values.itemsize
+    return data[:position] + values.tobytes() + data[end:]
+
+
 @pytest.mark.parametrize(
-    "invalid_arrays, message",
+    "valid_arrays, array_name, invalid_values, message",
     [
         pytest.param(
-            {"external_node_ids": array("q", [1, 2, 3, 4])},
-            "per node",
-            id="more node ids than nodes",
-        ),
-        pytest.param(
-            {"node_first_edge_ids": array("i", [0, 2, 1, 2])},
+            {},
+            "node_first_edge_ids",
+            array("i", [0, 2, 1, 2]),
             "invalid node_first_edge_ids",
             id="node_first_edge_ids that decrease",
         ),
         pytest.param(
-            {"edge_destination_node_ids": array("i", [-1, 0])},
+            {},
+            "edge_destination_node_ids",
+            array("i", [-1, 0]),
             "edge to a missing node",
             id="an edge to a node that does not exist",
         ),
         pytest.param(
-            {"edge_destination_node_ids": array("i", [1, 3])},
+            {},
+            "edge_destination_node_ids",
+            array("i", [1, 3]),
             "edge to a missing node",
             id="an edge to a node after the last node",
         ),
         pytest.param(
             {
-                "edge_first_shape_point_ids": array("i", [0, 1, 0]),
+                "edge_first_shape_point_ids": array("i", [0, 0, 0]),
                 "shape_points": array("d"),
             },
+            "edge_first_shape_point_ids",
+            array("i", [0, 1, 0]),
             "invalid edge_first_shape_point_ids",
             id="edge_first_shape_point_ids that decrease",
         ),
@@ -880,33 +890,40 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
                 # The second edge now goes to the port: a load of the road
                 # reads `edge_first_shape_point_ids` for the first edge only.
                 "edge_destination_node_ids": array("i", [1, 2]),
-                "edge_first_shape_point_ids": array("i", [0, 2, 1]),
+                "edge_first_shape_point_ids": array("i", [0, 1, 1]),
                 "shape_points": array("d", [0.0, 0.0]),
             },
+            "edge_first_shape_point_ids",
+            array("i", [0, 2, 1]),
             "invalid edge_first_shape_point_ids",
             id="a shape that ends after the last shape point",
         ),
         pytest.param(
-            {"edge_class_ids": array("B", [0, 1])},
+            {},
+            "edge_class_ids",
+            array("B", [0, 1]),
             "invalid edge classes",
             id="an edge class beyond the list of classes",
         ),
     ],
 )
 def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
-    tmp_path, invalid_arrays, message
+    tmp_path, valid_arrays, array_name, invalid_values, message
 ):
-    path = str(tmp_path / "arrays.scgraph")
+    path = tmp_path / "arrays.scgraph"
     arrays = {
         **_two_road_nodes_and_a_port(),
         "edge_class_ids": array("B", [0, 0]),
-        **invalid_arrays,
+        **valid_arrays,
     }
     metadata = ROAD_AND_PORT_HEADER | {"classes": [MOTORWAY]}
     network_file.write(path, arrays, metadata)
+    path.write_bytes(
+        _replace_array(path.read_bytes(), array_name, invalid_values)
+    )
 
     with pytest.raises(ValueError, match=message):
-        GeoGraph.load_from_scgraph(path, node_modes=["road"])
+        GeoGraph.load_from_scgraph(str(path), node_modes=["road"])
 
 
 def test_loading_a_node_mode_that_the_file_does_not_have_is_refused(tmp_path):
@@ -1157,7 +1174,7 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     }
 
     with pytest.raises(TypeError):
-        network_file.write(str(path), arrays, {})
+        network_file.write(str(path), arrays, {"metrics": [LENGTH_IN_KM]})
 
     assert path.read_bytes() == previous_bytes
     assert [file.name for file in tmp_path.iterdir()] == ["small.scgraph"]

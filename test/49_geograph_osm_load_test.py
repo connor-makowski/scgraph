@@ -6,7 +6,7 @@ import pytest
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import osm_region_multimodal
+from scgraph.pipelines import osm_region_multimodal, osm_world_multimodal
 from scgraph.helpers import osm
 from scgraph.pipelines.steps import step1_osm_sources
 from scgraph.helpers.hilbert import get_hilbert_order
@@ -549,7 +549,7 @@ def planet_url(planet_folder):
 def test_streamed_pbf_download_records_the_version_size_and_md5_of_the_file(
     planet_url, planet_folder, tmp_path
 ):
-    record = step1_osm_sources.StreamedPbf.download(
+    record = step1_osm_sources.write_pbf_layout_file(
         planet_url, tmp_path / "layout.json"
     )
 
@@ -605,11 +605,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
 
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")
-def test_the_planet_is_not_streamed_without_the_cpp_extension(tmp_path):
-    download_planet = step1_osm_sources.PLANET["download"]
-
-    # The refusal comes before any request: nothing listens at this address.
+def test_the_world_network_is_not_built_without_the_cpp_extension(tmp_path):
+    # The refusal comes before the build reads a file: no file is given.
     with pytest.raises(RuntimeError, match="C\\+\\+ extension"):
-        download_planet(
-            "http://127.0.0.1:9/planet.osm.pbf", str(tmp_path / "layout.json")
-        )
+        osm_world_multimodal.build({}, work_dir=tmp_path)

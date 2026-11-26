@@ -420,6 +420,10 @@ def validate_network(
     Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of node modes, one at a time, to limit the memory used.
+            A route in a GeoGraph may take the edges of every node mode: only the two
+            ends of a case snap to the node modes of its kind. In a GeoGraph with
+            roads and flights, a flight can then replace a road. Give the path of the
+            file to search each kind on its node modes only.
             The coverage rule resets the cache of trees of a loaded GeoGraph.
         cases: The cases, as `load_validation_cases` returns them.
 

@@ -274,6 +274,8 @@ def write(
 
     Raises:
         TypeError: The values of an array do not have a dtype that the array may have.
+        ValueError: `read` would refuse the file: the arrays do not fit together,
+            or the metadata does not describe them.
         PermissionError: On Windows, a process has mapped the file at `filename`, so
             the file cannot be replaced.
     """
@@ -301,6 +303,11 @@ def write(
             "offset": position,
         }
         position = _align(position + len(values) * values.itemsize)
+    # The checks of `read`, so that `read` accepts every file that `write` writes
+    try:
+        _check(filename, arrays, header["metadata"])
+    except (AttributeError, KeyError, OverflowError, TypeError) as error:
+        raise ValueError(f"{filename}: invalid metadata ({error!r})") from error
     # Sorted, so that in one build the same network and metadata give the same file
     text = json.dumps(header, sort_keys=True).encode()
     start = _align(_PREAMBLE + len(text))

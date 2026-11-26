@@ -34,7 +34,6 @@ from scgraph.helpers.osm import (
     require_osmium,
 )
 from scgraph.pipelines import download_file
-from scgraph.utils import has_cpp
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -280,13 +279,8 @@ def write_pbf_layout_file(
     url: str, filename: str | os.PathLike
 ) -> dict[str, str | int]:
     """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
-    byte ranges (`StreamedPbf.download`). Raise a RuntimeError without the C++ extension.
+    byte ranges (`StreamedPbf.download`).
     """
-    # The reader exists in C++ only: it has no pure-Python twin to choose.
-    if not has_cpp():
-        raise RuntimeError(
-            "Reading an OSM file by byte ranges needs the C++ extension of scgraph"
-        )
     return StreamedPbf.download(url, filename)
 
 

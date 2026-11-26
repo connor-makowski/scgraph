@@ -5,8 +5,9 @@ A case describes one known route. It gives the two ends of the route and a
 reference value from a published source. Each case is one row of a CSV file in
 `cases/`.
 
-There is one CSV file for each kind of case. Each kind has its own rule, and its routes
-are searched on the node modes of that kind only. The node mode of a node is the kind of
+There is one CSV file for each kind of case. Each kind has its own rule. In a network
+file, its routes are searched on the node modes of that kind only (`validate_network`
+gives the rule for a GeoGraph). The node mode of a node is the kind of
 place where the node is, such as `road` or `port`. For example, a road distance is
 measured on roads only, so a sea route cannot replace it. The two ends of a case snap to
 the nodes of these node modes, and the default rule of a query does not count.
