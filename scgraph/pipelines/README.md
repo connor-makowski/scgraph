@@ -304,7 +304,7 @@ network `world_multimodal`. The pipeline differs from `osm_region_multimodal` in
 
 - It reads the **planet file**, the OpenStreetMap file of the whole world, by HTTP byte ranges.
   It never stores this file.
-- It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.4 million nodes.
+- It cuts a road or a railway every 10 km, not every 2 km. This gives about 4.1 million nodes.
 - It keeps each strongly connected component of at least 1,000 nodes, not only the largest.
   The roads of an island then stay in the file.
 
@@ -337,15 +337,15 @@ output folder must exist. The command writes two files and prints their paths:
 Without a name, the command writes the files of the ten derived networks, and the world file
 without shapes. The workflow of Part 3 runs the command in this way.
 
-The numbers below come from one derivation of `oceania` on 2026-11-22, on Linux, with the C++
-extension. The parent file is the `world_multimodal` of a development network release of
-that day (335.4 MB).
+The numbers below come from one derivation of `oceania` on 2026-11-26, on Linux, with the C++
+extension. The parent file is the `world_multimodal` of the network release
+`networks-2026.11.25-dev.1` (361.7 MB).
 
 | Step | Nodes | Edges |
 |---|---|---|
-| the parent file | 3,376,285 | 6,313,226 |
-| select the nodes and remove the other edges | 125,953 | 339,046 |
-| keep the components of at least 10 nodes | 125,904 | 339,010 |
+| the parent file | 4,143,454 | 7,403,938 |
+| select the nodes and remove the other edges | 147,843 | 367,582 |
+| keep the components of at least 10 nodes | 147,794 | 367,546 |
 
 - **Select the nodes.** The bbox of `oceania` is `(-50, 110, 0, 180)`. It selects the roads,
   the railways and the rail terminals inside it. The sea lanes, the ports and the airports of
@@ -354,7 +354,7 @@ that day (335.4 MB).
   connected components of fewer than 10 nodes. `derive_network_file` removes them. It does not
   contract the chains again: a junction that lost a road stays as a node.
 
-The derivation took 1.5 s. The derived file is 19.7 MB, and 7.1 MB without the shapes. Its
+The derivation took 1.5 s. The derived file is 20.4 MB, and 7.7 MB without the shapes. Its
 header records the node modes, the bbox and the `content_sha256` of the parent file.
 
 The **`content_sha256`** of a network file is the SHA-256 digest of its bytes from byte 40 to
@@ -385,7 +385,7 @@ for download.
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
-`networks-2026.11.23-dev.2` holds the planet of 2026-11-02.
+`networks-2026.11.25-dev.1` holds the planet of 2026-11-02.
 
 ### Run Triggers
 
@@ -449,11 +449,11 @@ changes the network.
 
 ### Contents of a Network Release
 
-The network release `networks-2026.11.23-dev.2` holds 23 files.
+The network release `networks-2026.11.25-dev.1` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges.
-  - For example `oceania.scgraph.gz` (9.2 MB) and `oceania.no_shapes.scgraph.gz` (3.5 MB).
+  - For example `oceania.scgraph.gz` (9.4 MB) and `oceania.no_shapes.scgraph.gz` (3.8 MB).
   - The shapes are half of a file or more. With `load_intermediate_nodes=False`,
     `load_geograph` loads the file without shapes, for a user who needs only the route lengths.
 - `networks.json`, the index of the network release. It gives for each file its size, its
@@ -521,8 +521,8 @@ This part follows one load of `oceania` without its edge shapes. The **cache** i
 where scgraph keeps network files on the machine of a user.
 
 1. **Download.** The first call downloads
-   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.23-dev.2/oceania.no_shapes.scgraph.gz`
-   (3.5 MB), and decompresses it (7.1 MB).
+   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.25-dev.1/oceania.no_shapes.scgraph.gz`
+   (3.8 MB), and decompresses it (7.7 MB).
 2. **Check the content.** `network_file.check_content` computes the `content_sha256` of the
    decompressed file, and compares it with the one in the header of the file. Two files with
    the same `content_sha256` hold the same network. This check finds a download that was cut
@@ -531,11 +531,11 @@ where scgraph keeps network files on the machine of a user.
    that `scgraph/network_release.py` records. This check finds a file that was replaced on the
    server. A file of another network release has the first check only.
 4. **Keep.** The cache keeps the decompressed file as
-   `releases/networks-2026.11.23-dev.2/oceania.no_shapes.scgraph`. A later load makes no
+   `releases/networks-2026.11.25-dev.1/oceania.no_shapes.scgraph`. A later load makes no
    request, and does not check the file again.
    - The cache is not compressed. With the C++ extension, and without `node_modes`, scgraph
      maps the file and does not copy it into memory.
-5. **Read.** The load reads 125,904 nodes and 339,010 edges. When the caller passes a
+5. **Read.** The load reads 147,794 nodes and 367,546 edges. When the caller passes a
    `content_sha256`, the load fails if the file of the cache has another one.
 
 scgraph deletes a file that fails a check. The file does not enter the cache, and the load
