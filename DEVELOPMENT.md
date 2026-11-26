@@ -30,7 +30,7 @@ scgraph/
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
   geograph_io.py, geograph_networks.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save of files; load, build, list and clear of the networks of scgraph, and the files of the released networks in the cache; edits; edges and their classes; metrics; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
-  node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
+  node_snapping.py               # The snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with. Public: SnapIndex and NodeOrderError of the build
   contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)

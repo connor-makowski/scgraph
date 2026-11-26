@@ -176,7 +176,7 @@ def describe_derived_network(name: str) -> str:
 def derive_network_file(
     parent_file: str | os.PathLike,
     derived_file: str | os.PathLike,
-    node_modes: list[str] | None = None,
+    node_modes: str | list[str] | None = None,
     bbox: Sequence[float] | None = None,
     *,
     save_intermediate_nodes: bool = True,
@@ -189,7 +189,8 @@ def derive_network_file(
         parent_file: The network file to derive from. It holds several node modes, the
             shapes of its edges, and int32 coordinates.
         derived_file: The path of the network file to write.
-        node_modes: The names of the node modes to keep. None keeps every node mode.
+        node_modes: The name of the node mode to keep, or a list of names. None
+            keeps every node mode.
         bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
             outside the bbox is removed. None removes no node.
         save_intermediate_nodes: False writes the same network without the
@@ -207,6 +208,8 @@ def derive_network_file(
             float64 coordinates. Or `node_modes` names a node mode that the parent file
             does not have. Or the derived file would hold no node.
     """
+    if isinstance(node_modes, str):
+        node_modes = [node_modes]
     # The bbox takes the unit of the node points: 1e-7 degree
     south, west, north, east = (
         round(degrees * 1e7) for degrees in bbox or _WHOLE_GLOBE
@@ -399,7 +402,7 @@ def validate_derived_network_file(
         raise ValueError(
             f"{parent_file} was built by the pipeline "
             f"'{parent_pipeline['name']}', which this version of scgraph does not "
-            "have: its derived files cannot be validated (`validate=False`, or "
+            "have: its derived files cannot be validated (`run_validation_cases=False`, or "
             "`--no-validate` on the command line)"
         ) from None
     cases = [
@@ -436,7 +439,7 @@ def derive_network_release_files(
     output_dir: str | os.PathLike,
     names: Sequence[str] | None = None,
     *,
-    validate: bool = True,
+    run_validation_cases: bool = True,
 ) -> list[str]:
     """Write the derived files of a network release into `output_dir`.
 
@@ -460,7 +463,7 @@ def derive_network_release_files(
 
     Raises:
         ValueError: A name is not in `DERIVED_NETWORKS`, or a derived network is
-            empty. Or `validate` is on and this version of scgraph does not have
+            empty. Or `run_validation_cases` is on and this version of scgraph does not have
             the pipeline that built the world file.
         RuntimeError: A derived network fails a validation case that the world
             file passes.
@@ -476,7 +479,7 @@ def derive_network_release_files(
     for name in selected:
         with_shapes = os.path.join(output_dir, f"{name}.scgraph")
         derive_network_file(world_file, with_shapes, **DERIVED_NETWORKS[name])
-        if validate:
+        if run_validation_cases:
             validate_derived_network_file(with_shapes, world_file)
         without_shapes = os.path.join(output_dir, f"{name}.no_shapes.scgraph")
         derive_network_file(
@@ -527,7 +530,7 @@ def main(argv: list[str] | None = None) -> None:
             args.world_file,
             args.output_dir,
             args.names or None,
-            validate=not args.no_validate,
+            run_validation_cases=not args.no_validate,
         )
     except (
         ValueError,

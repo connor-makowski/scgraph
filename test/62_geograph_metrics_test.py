@@ -921,7 +921,7 @@ def test_a_metric_with_a_name_that_is_not_allowed_is_refused(network, name):
 
 
 def test_a_route_has_no_total_of_a_removed_metric(network_with_minutes):
-    network_with_minutes.remove_metric("minutes")
+    network_with_minutes.remove_metric(metric="minutes")
 
     route = network_with_minutes.get_shortest_path(WEST_POINT, EAST_POINT)
     assert route["metric_totals"] == {"length": route["length"]}

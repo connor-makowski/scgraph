@@ -20,9 +20,8 @@ import os
 import warnings
 from array import array
 from collections import Counter
-from math import isfinite
+from math import inf, isfinite
 from operator import eq
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Callable
@@ -530,7 +529,7 @@ class GeoGraphIO:
         filename: str | os.PathLike,
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
-        max_km_between_nodes: float | None = None,
+        max_km_between_nodes: float | None = 2,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
@@ -577,8 +576,8 @@ class GeoGraphIO:
             - Note: Give the tag keys that `select` keeps ways by, for example `("railway",)` for railway lines
         - `max_km_between_nodes`
             - Type: float | int | None
-            - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: None: `scgraph.helpers.osm.MAX_KM_BETWEEN_NODES` (2)
+            - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are. None cuts a way only where it meets another kept way or ends
+            - Default: 2, the value of `scgraph.helpers.osm.MAX_KM_BETWEEN_NODES`
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -626,7 +625,6 @@ class GeoGraphIO:
             )
         from scgraph import network_assembly
         from scgraph.helpers.osm import (
-            MAX_KM_BETWEEN_NODES,
             build_way_pieces,
             select_main_roads_with_class,
         )
@@ -640,11 +638,7 @@ class GeoGraphIO:
             filename,
             {"ways": {"ways": select or select_main_roads_with_class}},
             tag_keys,
-            (
-                MAX_KM_BETWEEN_NODES
-                if max_km_between_nodes is None
-                else max_km_between_nodes
-            ),
+            inf if max_km_between_nodes is None else max_km_between_nodes,
             optional_modes=("ways",),
             shape_tolerance_meters=None,
         )["ways"]
@@ -787,25 +781,9 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and `has_intermediate_nodes` and `external_node_ids`, which tell whether the file holds these arrays
-        - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
+        - The dict of `scgraph.network_file.get_scgraph_info`: its docstring gives the keys, such as `attribution`, the credit line to cite with results
         """
-        info = network_file.get_scgraph_info(filename)
-        if "sources" in info:
-            sources = info["sources"]
-            credits = dict.fromkeys(
-                f"{s['credit']} ({s.get('license', 'NOASSERTION')})"
-                for s in sources
-                if "credit" in s
-            )
-            if credits:
-                info["attribution"] = "; ".join(credits)
-            # ISO 8601 times in UTC (as Geofabrik gives them) sort as text
-            dates = [
-                s["version"] for s in sources if _is_date(s.get("version"))
-            ]
-            info["data_up_to"] = max(dates, default=None)
-        return info
+        return network_file.get_scgraph_info(filename)
 
     @staticmethod
     def load_from_scgraph(
@@ -1479,11 +1457,3 @@ def renumber_in_hilbert_order(geograph):
     )
     renumbered.metadata = geograph.metadata
     return renumbered
-
-
-def _is_date(text):
-    try:
-        datetime.fromisoformat(text)
-        return True
-    except (TypeError, ValueError):
-        return False

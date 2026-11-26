@@ -1,7 +1,9 @@
 """The snapping of a query point to its closest node in a GeoGraph.
 
-This module is internal. Each `GeoGraph` has one `SnapIndexes`, in
-`GeoGraph._snap_indexes`.
+Each `GeoGraph` has one `SnapIndexes`, in `GeoGraph._snap_indexes`. The public
+names of this module are `SnapIndex` and `NodeOrderError`. They are the C++ classes
+when the extension is installed, and the pure-Python classes otherwise. The other
+names of this module are internal.
 
 WORDS
 
@@ -90,6 +92,8 @@ except ImportError:
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.geograph import GeoGraph
+
+__all__ = ["NodeOrderError", "SnapIndex"]
 
 # The README gives the records of the snapping indexes under this name.
 logger = logging.getLogger("scgraph.geograph")

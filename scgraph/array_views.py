@@ -2,9 +2,9 @@
 
 This module is internal. A network file stores the points of the nodes, the shapes of
 the edges and the source ids of the nodes as flat arrays, which `network_file.read`
-can map into memory. A `GeoGraph` loaded from a file holds the three classes below in
-place of Python lists: `NodePoints` is its `nodes`, `EdgeShapes` its
-`intermediate_nodes`, and `ExternalNodeIds` its `external_node_ids`. Each class reads a
+can map into memory. A `GeoGraph` loaded from a file holds `NodePoints` as its `nodes`
+and `EdgeShapes` as its `intermediate_nodes`, in place of Python lists. Every
+`GeoGraph` holds `ExternalNodeIds` as its `external_node_ids`. Each class reads a
 value from the arrays when it is asked for, and behaves as the list that it replaces.
 Example: `NodePoints(node_points)[3]` builds the list `[latitude, longitude]` of the
 node 3 from its two values in `node_points`, and keeps no list of it.
@@ -26,8 +26,6 @@ try:
     from scgraph.cpp import shape_path as _shape_path
 except ImportError:
     _coordinate_lists = _shape_path = None
-
-__all__ = ["EdgeShapes", "NodePoints", "ExternalNodeIds"]
 
 
 class EdgeShapes(Sequence):

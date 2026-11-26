@@ -292,8 +292,9 @@ def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
     )
     derived_file = str(tmp_path / "derived.scgraph")
 
+    # `node_modes` takes one name, as `GeoGraph.load_from_scgraph` does
     derived_networks.derive_network_file(
-        parent_file, derived_file, node_modes=["road"], min_component_nodes=2
+        parent_file, derived_file, node_modes="road", min_component_nodes=2
     )
 
     # A route that starts at J takes the street to B
@@ -481,7 +482,7 @@ def test_a_network_release_gets_two_files_for_each_derived_network(
     small_world_file, tmp_path
 ):
     written = derived_networks.derive_network_release_files(
-        small_world_file, tmp_path, validate=False
+        small_world_file, tmp_path, run_validation_cases=False
     )
 
     assert [Path(path).name for path in written] == [
@@ -502,7 +503,7 @@ def test_the_index_of_a_network_release_describes_every_file(
     previous.mkdir()
     shutil.copy(small_world_file, files)
     derived_networks.derive_network_release_files(
-        small_world_file, files, validate=False
+        small_world_file, files, run_validation_cases=False
     )
 
     subprocess.run(
@@ -536,7 +537,10 @@ def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     small_world_file, tmp_path
 ):
     written = derived_networks.derive_network_release_files(
-        small_world_file, tmp_path, ["europe", "world_sea"], validate=False
+        small_world_file,
+        tmp_path,
+        ["europe", "world_sea"],
+        run_validation_cases=False,
     )
 
     europe, europe_without_shapes, world_sea, _ = map(

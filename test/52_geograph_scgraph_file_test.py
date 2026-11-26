@@ -564,7 +564,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     assert info["coordinate_dtype"] == "int32"
     assert info["has_intermediate_nodes"] is True
     # The ids of the small network are the positions: the file stores none.
-    assert info["external_node_ids"] is False
+    assert info["has_external_node_ids"] is False
     assert info["content_sha256"] == digest
     assert info["sources"] == DATED_SOURCES
     # The credit line gives each credit once, with its license.
@@ -573,6 +573,8 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     )
     # The data goes up to the latest of the times that the sources give.
     assert info["data_up_to"] == "2026-11-06T20:21:43Z"
+    # The function of `network_file` gives the same dict.
+    assert network_file.get_scgraph_info(path) == info
 
 
 def test_a_node_mode_must_name_a_source_of_the_metadata(tmp_path):

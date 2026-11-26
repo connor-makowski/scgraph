@@ -160,6 +160,20 @@ def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(edges):
     }
 
 
+def test_a_way_is_not_cut_by_length_without_max_km_between_nodes(osm_file):
+    # Way 6 runs 10, 11, 12, 13 and meets no other way: one edge in each
+    # direction joins its two ends.
+    network = GeoGraph.load_from_osm(
+        osm_file, max_km_between_nodes=None, largest_component=False
+    )
+
+    edges = _edges(network)
+    assert {edge for edge in edges if 10 in edge or 13 in edge} == {
+        (10, 13),
+        (13, 10),
+    }
+
+
 def test_default_select_follows_one_way_streets_in_their_legal_direction(edges):
     # Way 5 (4-7) has oneway=yes. Way 8 (30-31) has oneway=-1: traffic runs
     # against its drawing. Way 9 (40-41) is a piece of a roundabout and way

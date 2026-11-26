@@ -1,6 +1,7 @@
 """
 Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is
-described in `scgraph/cpp/src/snap_index.hpp`.
+described in `scgraph/cpp/src/snap_index.hpp`. This module is internal:
+`scgraph.node_snapping` gives the `SnapIndex` of the build.
 
 Same as in C++: the leaves, the tree, the boxes of unit vectors, the quadrant rules, and
 the leaves-per-query limit that refuses scattered nodes (NodeOrderError). The boxes are
@@ -19,8 +20,6 @@ from array import array
 from collections.abc import Sequence
 from math import cos, inf, isfinite, radians, sin
 from operator import mul
-
-__all__ = ["NodeOrderError", "SnapIndex"]
 
 # Same values as the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32

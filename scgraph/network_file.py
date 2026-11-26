@@ -27,7 +27,8 @@ the file in `metadata["metrics"]`, and `length` is the first one. The file holds
 array `metric_<name>` for each metric. Example: a file with the metrics `length` and
 `travel_time` holds `metric_length` and `metric_travel_time`.
 
-The public functions are `read`, `write`, `get_scgraph_info` and `check_content`.
+The public functions are `read`, `write`, `get_scgraph_info`, `check_content`,
+`build_header_metadata` and `build_node_mode_ids`.
 """
 
 import hashlib
@@ -38,6 +39,7 @@ import os
 import sys
 from array import array
 from collections.abc import Sequence
+from datetime import datetime
 from itertools import chain, starmap
 
 from scgraph import files
@@ -49,7 +51,14 @@ try:
 except ImportError:
     from scgraph.helpers.edge_selection import select_edges
 
-__all__ = ["check_content", "get_scgraph_info", "read", "write"]
+__all__ = [
+    "build_header_metadata",
+    "build_node_mode_ids",
+    "check_content",
+    "get_scgraph_info",
+    "read",
+    "write",
+]
 
 MAGIC = b"SCGRAPH1"
 FORMAT_VERSION = 1
@@ -152,7 +161,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "edges",
         "coordinate_dtype",
         "has_intermediate_nodes",
-        "external_node_ids",
+        "has_external_node_ids",
         "attribution",
         "data_up_to",
     }
@@ -352,7 +361,9 @@ def read(
         (`node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`, ...), with the array `metric_<name>`
         of each other metric. `metadata` holds the metadata of the header, and the
         `content_sha256` of the file. `build_node_mode_ids` gives the node mode of
-        each node from the rows of `metadata["node_modes"]`.
+        each node from the rows of `metadata["node_modes"]`. A read of some node
+        modes returns `external_node_ids` even when the file holds none. The id of
+        a node is then its position in the file.
 
     Raises:
         ValueError: The header or the layout of the arrays is not valid. `read`
@@ -390,25 +401,50 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         filename: The path of the `.scgraph` file.
 
     Returns:
-        The keys of the metadata of the file, then `content_sha256`,
-        `format_version`, `nodes`, `edges`, `coordinate_dtype`,
-        `has_intermediate_nodes` and `external_node_ids`. `nodes` and `edges`
-        are counts. `has_intermediate_nodes` and `external_node_ids` are True
-        when the file holds these arrays.
+        The keys of the metadata of the file (`metrics`, `sources`, `node_modes`
+        with the `node_count` of each node mode, `classes`, `pipeline`, ...), then
+        `content_sha256`, `format_version`, `nodes`, `edges`, `coordinate_dtype`,
+        `has_intermediate_nodes` and `has_external_node_ids`. `nodes` and `edges`
+        are counts. `has_intermediate_nodes` and `has_external_node_ids` are True
+        when the file holds these arrays. With `sources`, the dict also has
+        `attribution`, the credit line to cite with results ("credit (license);
+        ..."). It also has `data_up_to`, the newest `version` of a source that is
+        a date, or None if no source has one.
 
     Raises:
         ValueError: The header of the file is not valid.
     """
     arrays, metadata = read(filename, mapped=True)
-    return {
+    info = {
         **metadata,
         "format_version": FORMAT_VERSION,
         "nodes": len(arrays["node_points"]) // 2,
         "edges": len(arrays["edge_destination_node_ids"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "has_intermediate_nodes": "shape_points" in arrays,
-        "external_node_ids": "external_node_ids" in arrays,
+        "has_external_node_ids": "external_node_ids" in arrays,
     }
+    if "sources" in info:
+        sources = info["sources"]
+        credits = dict.fromkeys(
+            f"{s['credit']} ({s.get('license', 'NOASSERTION')})"
+            for s in sources
+            if "credit" in s
+        )
+        if credits:
+            info["attribution"] = "; ".join(credits)
+        # ISO 8601 times in UTC (as Geofabrik gives them) sort as text
+        dates = [s["version"] for s in sources if _is_date(s.get("version"))]
+        info["data_up_to"] = max(dates, default=None)
+    return info
+
+
+def _is_date(text):
+    try:
+        datetime.fromisoformat(text)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def check_content(filename: str | os.PathLike) -> str:
