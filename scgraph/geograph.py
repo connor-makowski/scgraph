@@ -413,9 +413,9 @@ class GeoGraph(
         # index of a node mode: they are rebuilt with the index.
         self._snap_indexes = SnapIndexes(snap_index)
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
-        self.__node_radians__ = None
+        self._node_radians = None
         if snap_index is None:
-            self.__geokdtree__ = None
+            self._geokdtree = None
 
     @property
     def geokdtree(self) -> "GeoKDTree":
@@ -424,15 +424,15 @@ class GeoGraph(
         Interchangeable with `snap_index`, sharing the same `closest_idx` and
         `closest_idx_per_quadrant` methods.
         """
-        if self.__geokdtree__ is None:
+        if self._geokdtree is None:
             from geokdtree import GeoKDTree
 
-            self.__geokdtree__ = GeoKDTree(points=self.nodes)
-        return self.__geokdtree__
+            self._geokdtree = GeoKDTree(points=self.nodes)
+        return self._geokdtree
 
     @geokdtree.setter
     def geokdtree(self, geokdtree: "GeoKDTree | None") -> None:
-        self.__geokdtree__ = geokdtree
+        self._geokdtree = geokdtree
         self.snap_index = geokdtree
 
     def reduce(self, iterations: int = -1) -> None:

@@ -1685,13 +1685,13 @@ class Graph(
             delattr(self, "__bmssp_graph__")
         if hasattr(self, "__max_edge_weight__"):
             delattr(self, "__max_edge_weight__")
-        if hasattr(self, "__bucket_width__"):
-            delattr(self, "__bucket_width__")
+        if hasattr(self, "_bucket_width"):
+            delattr(self, "_bucket_width")
         self.reduced_graph = None
-        self.__reduced_graph_connections__ = None
+        self._reduced_graph_connections = None
         self.reduced_inverse_graph = None
-        self.__reduced_inverse_graph_connections__ = None
-        self.__hidden_next__ = None
-        self.__hidden_previous__ = None
+        self._reduced_inverse_graph_connections = None
+        self._hidden_next = None
+        self._hidden_previous = None
         self.is_reduced = None
         self.reduced_node_chain_ids = None

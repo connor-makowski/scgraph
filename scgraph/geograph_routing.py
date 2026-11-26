@@ -499,10 +499,10 @@ class GeoGraphRouting:
     def _get_node_radians(self) -> tuple[array, array]:
         # Also rebuilt when nodes were appended or removed directly; in-place edits of
         # existing nodes are not detected (as for the snapping index)
-        if self.__node_radians__ is None or len(
-            self.__node_radians__[0]
-        ) != len(self.nodes):
-            self.__node_radians__ = (
+        if self._node_radians is None or len(self._node_radians[0]) != len(
+            self.nodes
+        ):
+            self._node_radians = (
                 array(
                     "d", (radians_per_degree * node[0] for node in self.nodes)
                 ),
@@ -510,7 +510,7 @@ class GeoGraphRouting:
                     "d", (radians_per_degree * node[1] for node in self.nodes)
                 ),
             )
-        return self.__node_radians__
+        return self._node_radians
 
     def _get_path_total(self, path: list[int], metric: str) -> float:
         # The total of a metric along the edges of a path. The metric may be

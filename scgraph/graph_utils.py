@@ -412,7 +412,7 @@ class GraphUtils:
                 )
             width = float(bucket_width)
         else:
-            width = getattr(self, "__bucket_width__", None)
+            width = getattr(self, "_bucket_width", None)
             if width is None:
                 weights = sorted(
                     w
@@ -423,7 +423,7 @@ class GraphUtils:
                 )
                 median = weights[len(weights) // 2] if weights else 0
                 width = 8.0 * median if median > 0 else 1.0
-                self.__bucket_width__ = width
+                self._bucket_width = width
         return max(width, max_edge_weight / 65536)
 
     def validate(

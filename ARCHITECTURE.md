@@ -430,7 +430,7 @@ An edit drops `inverse_graph`, and the next read builds it again.
 | The ratio `min_weight_per_length_unit` of a metric: the smallest weight of one unit of length | At the first A* search by this metric | With the record of the metric |
 | The record of `length` | At the first read of `length` | When `graph_object` or `geograph_units` changes |
 | `graph`, the original graph (`_graph`) | At the first read of `graph` | By an assignment to `graph`. An edit of `graph_object` does not drop it |
-| `geokdtree` (`__geokdtree__`) | At the first read of `geokdtree` | With `snap_index`, when its setter gets `None` |
+| `geokdtree` (`_geokdtree`) | At the first read of `geokdtree` | With `snap_index`, when its setter gets `None` |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
 
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)
