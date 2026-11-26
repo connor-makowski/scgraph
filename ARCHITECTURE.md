@@ -151,11 +151,11 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 A `GeoGraph` adds these attributes to its `Graph`:
 
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
-* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. In a network that follows turn restrictions, they name a junction, which may have several nodes.
+* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. A junction is one crossing of roads. In a network that follows turn restrictions, the node mode and the id name a junction, and a junction may have several nodes.
 * **Turn restrictions**: A network that follows the turn restrictions of its source gives some junctions more than one node. [`turn_restrictions.py`](scgraph/turn_restrictions.py) explains the method, with diagrams. The nodes of a junction follow each other. They have the same point, the same external id and the same node mode. The row of this node mode in `node_modes` has `has_turn_restrictions`.
 * **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0.
 * **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
-* **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
+* **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. This curve is one line that visits every cell of a square grid, so that cells close on the line are close on the grid. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
 
 ### Classes and Metrics
 
@@ -281,13 +281,13 @@ If the straight line from origin to destination is not longer than the shortest 
 The selected algorithm (default: `bidirectional_buckets`) runs from the origin candidates to the destination candidates:
 * The search runs on the graph of the metric of the query: `get_graph_object(metric)`. It reads the `search_graph` of this graph: the reduced graph if `reduce()` was called, the original graph otherwise.
 * No search takes a closed edge. When every route needs one, the search raises `PathNotFoundError`.
-* `a_star` uses a distance to the destination as a lower bound:
+* `a_star` uses a distance to the destination as a lower bound. The argument `heuristic_fn` is the function that gives this distance:
   * With `heuristic_fn=geograph.haversine`, the bound is the great-circle distance. The search computes it from the coordinates in radians, which the `GeoGraph` keeps.
   * With `heuristic_fn=geograph.cheap_ruler`, the bound is the distance that `cheap_ruler` returns.
   * For a metric other than `length`, the `GeoGraph` multiplies each of these two bounds by the smallest weight that the metric gives to 1 km of an open edge (`min_weight_per_length_unit`). The total of a route of `d` km is at least `d` times this value, so the bound stays below the real total.
   * Another heuristic function is used as it is.
-  * The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and scans the nodes as Dijkstra does.
-* A search that counts its node scans (`guides/routing.md`, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
+  * The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and works as Dijkstra does.
+* A search counts its node scans: the number of nodes that it takes from the queue. When it ends, it stores the count for its thread (`guides/routing.md`, *Logging*; `_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
 ### 4. Path Expansion
 If the search ran on a reduced graph, `run_with_reduced` replaces each contracted edge of the path by the nodes of its chain.
@@ -470,7 +470,7 @@ Five links join them, each as two edges, one each way. A `motorway` joins Rouen 
 ### Design Principles
 
 1. **Mapped files**: In the C++ build, the algorithms read the edge arrays in the file mapped into memory (`mmap`), without a copy.
-2. **A digest of the content**: Two builds from the same sources, with the same software on the same platform, give the same file, byte for byte. The software includes the build of scgraph: a file written with the C++ extension and a file written in pure Python list the edges of a node in another order.
+2. **A digest of the content**: Two builds from the same sources, with the same software on the same platform, give the same file, byte for byte. The software includes the C++ extension: a file written with the extension and a file written by the pure-Python code list the edges of a node in another order.
 
 ### Binary File Layout
 

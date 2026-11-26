@@ -15,6 +15,8 @@ SCGraph finds the shortest route between two points of the globe, by road, by ra
 
 ## Installation
 
+scgraph needs Python 3.11 or newer.
+
 ```bash
 pip install scgraph
 ```
@@ -47,10 +49,10 @@ print(route["length"])  # the km of the route
 | Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
-| Routes by road only | a released network, with `node_modes`. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
+| Routes by road only | a released network, which the maintainers build and publish in a **network release** (a set of networks under one tag), with `node_modes`. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
 | Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
 | Routes by time, by cost or by CO2 | a released network, with a **metric**: a weight for each edge other than its length | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
-| The same result later, on any machine | a released network, with its network release and its `content_sha256` | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
+| The same result later, on any machine | a released network, with the tag of its network release and the checksum `content_sha256` of its file (see the guide Networks) | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | Current data for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)` |
 | A result of scgraph 3.6.0, unchanged | a deprecated network of 3.6.0 | `GeoGraph.load_geograph("marnet")`, with a `DeprecationWarning` |
@@ -157,14 +159,14 @@ These notebooks open in Google Colab:
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb): load a released network, compute a route, draw it on a map, choose a network.
 - [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route by sea, by road or by rail with a metric, compare three routes.
-- [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb): compute a distance matrix, solve the travelling salesman problem with PuLP.
-- [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb): load OSM data, solve for time and distance on bike networks.
+- [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb): compute a distance matrix, solve the travelling salesman problem (the shortest tour through all cities) with PuLP, a library for linear programs.
+- [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb): load OSM data with OSMNx, a library that downloads OpenStreetMap data, then solve for time and distance on bike networks.
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb): export several routes as GeoJSON.
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb): close the Suez Canal with a metric, fix a sea lane, remove and add nodes and edges.
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb): read the legs of a route, route by road only and by hours, draw the routes on a map.
 - [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): try several coefficients of a weighted sum of two metrics, find several of the best trade-offs, draw them.
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb): build Denmark from the newest OpenStreetMap extract, read its sources, check it.
-- [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve, compare `SnapIndex` with `GeoKDTree`.
+- [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve (a line that visits every cell of a square grid), compare `SnapIndex` (the snapping index of scgraph) with `GeoKDTree` (the k-d tree of the library `geokdtree`).
 
 ## Public API
 

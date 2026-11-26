@@ -279,8 +279,9 @@ def build(
             pieces["rail"]
         )
     del pieces  # the graphs hold their own arrays
-    # 2. The forbidden turns of the roads. Stage 6 numbers the nodes again, so each
-    # forbidden turn is kept as the external ids of its nodes until stage 7.
+    # 2. The forbidden turns of the roads. The join at the hubs (6) numbers the nodes
+    # again, so each forbidden turn is kept as the external ids of its nodes until
+    # the turns are forbidden (7).
     with log_step(logger, "read the turn restrictions", {}) as counts:
         restrictions = read_turn_restrictions(
             step1_osm_sources.get_source(files["osm"])
@@ -336,7 +337,7 @@ def build(
             work_dir=folder("hubs"),
         )
         counts.update(joined)
-    # 7. Forbid the turns. This stage comes after the hubs: a hub is then joined to
+    # 7. Forbid the turns. It comes after the hubs: a hub is then joined to
     # a junction that still has one node, and each added node gets the connectors
     # of its junction. A rail node or a hub may have the external id of a road node,
     # so only the road nodes are looked up.

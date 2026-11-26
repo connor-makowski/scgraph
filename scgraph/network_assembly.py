@@ -115,7 +115,7 @@ loses node 1. The second chain keeps node 2.
 THE C++ VERSION
 
 `build_csr_from_edges`, `find_strongly_connected_components` and `contract_chains` have a C++ version
-(`cpp/src/network_assembly.hpp`), which a network of the planet needs. `simplify_shapes` has one too, but it is in `scgraph.helpers.polylines`. The functions of this module call them when the extension
+(`cpp/src/network_assembly.hpp`), which a network of the planet needs. The functions of this module call them when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
 give the same results. The namespace `python` of this module gives them, for example
 `network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
@@ -716,7 +716,7 @@ def assemble_network(
     The function runs stages 2 to 5 of the module docstring. It keeps the strongly
     connected components (`keep_components`), contracts the chains, joins the shapes
     of the contracted edges, and numbers the nodes (`order_nodes`). The first two
-    steps log their counts at DEBUG.
+    stages log their counts at DEBUG.
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids`

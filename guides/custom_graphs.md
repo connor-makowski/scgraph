@@ -26,7 +26,7 @@ print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10.0}
 graph.reduce(iterations=1)
 ```
 
-Nodes are numbered from zero. An edge has one direction: a two-way link is two edges. Each algorithm of [Choosing an Algorithm](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#choosing-an-algorithm) is a method of `Graph`.
+Nodes are numbered from zero. An edge has one direction: a two-way link is two edges. Each algorithm of [Choosing an Algorithm](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#choosing-an-algorithm) is a method of `Graph`. Call `reduce()` once on a sparse network, before many queries: [Making Many Queries Fast](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#making-many-queries-fast) says when it pays.
 
 The decorator `@Graph.algorithm` adds an algorithm of your own, which also runs on a reduced graph:
 
