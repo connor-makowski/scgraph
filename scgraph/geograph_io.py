@@ -13,7 +13,7 @@ from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
-from scgraph.metrics import Metric
+from scgraph.metrics import Metric, check_weights
 from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, network_file
 import json
@@ -875,6 +875,12 @@ class GeoGraphIO:
         )
         try:
             graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
+            for row in metadata["metrics"][1:]:
+                check_weights(
+                    row["name"],
+                    arrays[f"metric_{row['name']}"],
+                    *edge_arrays[:2],
+                )
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
         # The arrays of the file are the edges of the new graph, in the same order
@@ -1144,6 +1150,12 @@ class GeoGraphIO:
                     if off_graph_travel_speed is None
                     else 3600 / off_graph_travel_speed
                 ),
+            )
+            check_weights(
+                "travel_time",
+                travel_time.weights,
+                node_first_edge_ids,
+                edge_destination_node_ids,
             )
             kwargs["metrics"] = {"travel_time": travel_time}
         geograph = GeoGraph._build_from_edge_arrays(

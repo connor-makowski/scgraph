@@ -64,9 +64,12 @@ from scgraph.edge_classes import find_edge_id
 from scgraph.network_file import NO_CLASS_ID
 
 try:
-    from scgraph.cpp import compute_weighted_sum
+    from scgraph.cpp import check_edge_weights, compute_weighted_sum
 except ImportError:
-    from scgraph.helpers.metric_weights import compute_weighted_sum
+    from scgraph.helpers.metric_weights import (
+        check_edge_weights,
+        compute_weighted_sum,
+    )
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.graph import Graph
@@ -155,7 +158,7 @@ def resolve_weights_per_km(
 
     Raises:
         ValueError: A dict has a key that it may not have, a weight per km is
-            missing, or a hub weight is not a number.
+            missing, or a hub weight is below zero or not a number.
     """
     class_id_count = NO_CLASS_ID + 1
     class_weight_per_km = class_weight_per_km or {}
@@ -226,11 +229,12 @@ def resolve_weights_per_km(
             if edge_mode not in weights_of_hub:
                 continue
             weight = weights_of_hub[edge_mode]
-            if not isinstance(weight, (int, float)):
+            # `not >=` also refuses a value that is not a number.
+            if not isinstance(weight, (int, float)) or not weight >= 0:
                 raise ValueError(
                     f"weight_at_hub[{hub_mode!r}][{edge_mode!r}] must be a "
-                    "number, added to an edge that enters the hub or leaves "
-                    f"it: got {weight!r}"
+                    "number of zero or more, added to an edge that enters the "
+                    f"hub or leaves it: got {weight!r}"
                 )
             # Two node modes may have the same name, after a merge
             for node_mode_id, mode_name in enumerate(node_mode_names):
@@ -292,18 +296,10 @@ def compute_weights_from_function(
             to close the edge.
         edges: The dict of each edge, in the order of the edge ids (see
             `GeoGraph.get_edges`).
-
-    Raises:
-        ValueError: A weight is below zero or not a number.
     """
     return array(
         "d",
-        (
-            parse_weight(
-                edge_weight_fn(edge), edge["origin_id"], edge["destination_id"]
-            )
-            for edge in edges
-        ),
+        (parse_weight(edge_weight_fn(edge)) for edge in edges),
     )
 
 
@@ -320,24 +316,42 @@ def _refuse_unknown_edge_modes(
             )
 
 
-def parse_weight(
-    weight: float | None, origin_id: int, destination_id: int
-) -> float:
+def parse_weight(weight: float | None) -> float:
     """Return the weight that a caller gives to an edge, as a float. None gives
-    infinity, which closes the edge.
+    infinity, which closes the edge. `check_weights` checks the value later."""
+    return inf if weight is None else float(weight)
+
+
+def check_weights(
+    name: str,
+    weights: array | memoryview,
+    node_first_edge_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
+) -> None:
+    """Raise a ValueError when a weight of a metric is below zero or not a
+    number. A search needs weights of zero or more. Infinity closes an edge.
+
+    The kernel `check_edge_weights` holds the rule
+    (`scgraph/cpp/src/metric_weights.hpp`). The loader of a network file calls this
+    function. `create_metric` calls it for the weights that no kernel checked:
+    those of a function and of `edge_weights`.
+
+    Args:
+        name: The name of the metric, for the message.
+        weights: The weight of each edge, by edge id.
+        node_first_edge_ids: The id of the first edge of each node (module docstring).
+        edge_destination_node_ids: The destination of each edge.
 
     Raises:
-        ValueError: The weight is below zero or not a number. The message names the
-            two nodes of the edge.
+        ValueError: A weight is below zero or not a number. The message names the
+            metric and the two nodes of the first such edge.
     """
-    weight = inf if weight is None else float(weight)
-    # `not >=` also refuses a value that is not a number: it compares as false.
-    if not weight >= 0.0:
-        raise ValueError(
-            f"The weight of the edge from node {origin_id} to node "
-            f"{destination_id} is below zero or not a number"
+    try:
+        check_edge_weights(
+            node_first_edge_ids, edge_destination_node_ids, weights
         )
-    return weight
+    except ValueError as error:
+        raise ValueError(f"{error}, in the metric {name!r}") from None
 
 
 def copy_with_edge_weights(
@@ -355,8 +369,7 @@ def copy_with_edge_weights(
         edge_destination_node_ids: The destination of each edge.
 
     Raises:
-        ValueError: A pair of nodes is not an edge, or a weight is below zero or
-            not a number.
+        ValueError: A pair of nodes is not an edge.
     """
     weights_with_edge_weights = array("d")
     weights_with_edge_weights.frombytes(memoryview(weights).cast("B"))
@@ -372,9 +385,7 @@ def copy_with_edge_weights(
                 f"edge_weights names an edge from node {origin_id} to node "
                 f"{destination_id}: the geograph has no such edge"
             )
-        weights_with_edge_weights[edge_id] = parse_weight(
-            weight, origin_id, destination_id
-        )
+        weights_with_edge_weights[edge_id] = parse_weight(weight)
     return weights_with_edge_weights
 
 

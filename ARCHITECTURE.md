@@ -636,7 +636,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 
 A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads.
 
-`read` does not check the weights: `create_metric` refuses a weight below zero or not a number. Nor does it check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
+`read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
 ### Node Mode Counts and Edge Class Ids
 

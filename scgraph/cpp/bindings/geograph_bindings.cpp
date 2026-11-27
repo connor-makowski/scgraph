@@ -212,6 +212,15 @@ void bind_geograph(nb::module_& m) {
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weights_from_km");
 
+    m.def("check_edge_weights", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray weights) {
+        check_edge_weights({node_first_edge_ids.data(), node_first_edge_ids.shape(0)},
+                           {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)},
+                           {weights.data(), weights.shape(0)});
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"),
+       "Raise ValueError when a weight is below zero or not a number; explained in "
+       "scgraph/cpp/src/metric_weights.hpp, same result as "
+       "scgraph.helpers.metric_weights.check_edge_weights");
+
     m.def("compute_weighted_sum", [](std::vector<DoubleArray> weights_of_metrics, DoubleArray coefficients) {
         std::vector<std::span<const double>> weights;
         for (const auto& metric : weights_of_metrics) weights.emplace_back(metric.data(), metric.shape(0));

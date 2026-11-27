@@ -686,6 +686,23 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     assert loaded.node_modes == ROAD_AND_PORT
 
 
+# A search needs weights of zero or more. `network_file.write` does not check
+# the weights, so a file may hold a toll below zero.
+def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):
+    path = str(tmp_path / "arrays.scgraph")
+    arrays = _two_road_nodes_and_a_port() | {
+        "metric_toll": array("d", [2.5, -2.5])
+    }
+    network_file.write(
+        path, arrays, ROAD_AND_PORT_HEADER | {"metrics": [LENGTH_IN_KM, TOLL]}
+    )
+
+    with pytest.raises(
+        ValueError, match="node 1 to node 0 .*, in the metric 'toll'"
+    ):
+        GeoGraph.load_from_scgraph(path)
+
+
 # `network_file.write` must refuse arrays that do not fit together, and name
 # what is wrong. Each case below replaces or adds arrays of the valid network
 # above.

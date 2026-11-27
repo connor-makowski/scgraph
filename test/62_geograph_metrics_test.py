@@ -869,6 +869,12 @@ REFUSED_METRICS = {
         },
         "must be a number",
     ),
+    # The sea connector of 5 km keeps a weight above zero: only the hub
+    # weight breaks the rule.
+    "a hub weight below zero": (
+        {"weight_per_km": 2.0, "weight_at_hub": {"port": {"sea": -0.5}}},
+        "zero or more",
+    ),
     "a weight for an edge that the network does not have": (
         {"weight_per_km": 2.0, "edge_weights": {(1, 7): 5.0}},
         "node 1 to node 7",

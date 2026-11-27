@@ -16,6 +16,7 @@ from scgraph.metrics import (
     build_default_description,
     resolve_weights_per_km,
     copy_with_edge_weights,
+    check_weights,
 )
 from scgraph import network_file
 import warnings
@@ -136,7 +137,7 @@ class GeoGraphMetrics:
             - A dict is `{mode of a leg: weight of 1 km}`. Its keys are the edge modes (see `classes`) and `"off_graph"`, for the off-graph legs. The dict must have `"off_graph"`, and the edge mode of each class that has an edge and that `class_weight_per_km` does not name. None closes an edge mode
             - With a dict, an edge without a class has the weight of an off-graph leg: its km times the weight of `"off_graph"`. `weight_at_hub` adds nothing to it
         - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
-        - `weight_at_hub`: With `weight_per_km`, `{node mode of a hub: {edge mode: weight}}`. A hub is a port, an airport or a rail terminal. This is the weight that is added to an edge of this edge mode when it leaves a node of this node mode, and when it enters one. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
+        - `weight_at_hub`: With `weight_per_km`, `{node mode of a hub: {edge mode: weight}}`. A hub is a port, an airport or a rail terminal. This is the weight that is added to an edge of this edge mode when it leaves a node of this node mode, and when it enters one. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port. A hub weight is a number of zero or more: it cannot be None
         - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of these metrics is closed in the sum. The sum keeps its weights when one of these metrics is created again
         - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
         - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
@@ -187,6 +188,12 @@ class GeoGraphMetrics:
                 edge_weights,
                 node_first_edge_ids,
                 edge_destination_node_ids,
+            )
+        if edge_weight_fn is not None or edge_weights:
+            # The kernel of the weights per km checked its weights. A sum of
+            # checked weights with coefficients above zero needs no check.
+            check_weights(
+                name, weights, node_first_edge_ids, edge_destination_node_ids
             )
         # The metric is kept when every check has passed
         self._metrics[name] = Metric(

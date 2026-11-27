@@ -268,6 +268,15 @@ def test_an_osmnx_edge_has_the_class_of_its_highway_value():
     }
 
 
+# A search needs weights of zero or more.
+def test_an_osmnx_graph_with_a_travel_time_below_zero_is_refused():
+    street_with_a_wrong_time = STREET | {"travel_time": -200.0}
+    town = _OSMnxGraph(PLACES, [(WEST, EAST, street_with_a_wrong_time)])
+
+    with pytest.raises(ValueError, match="in the metric 'travel_time'"):
+        GeoGraph.load_from_osmnx_graph(town)
+
+
 # With `weight_key="travel_time"`, a query without `metric` minimises the
 # travel time. From WEST to EAST, the loader then keeps the bypass, which is
 # the fastest of the three edges: 3 km in 100 s.
