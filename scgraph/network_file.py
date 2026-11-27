@@ -52,10 +52,10 @@ from scgraph.node_modes import (
 from scgraph.array_checks import is_sorted
 
 try:
-    from scgraph.cpp import remove_second_edge_shapes, select_edges
+    from scgraph.cpp import remove_reversed_shapes, select_edges
 except ImportError:
     from scgraph.helpers.edge_selection import select_edges
-    from scgraph.helpers.second_edges import remove_second_edge_shapes
+    from scgraph.helpers.reversed_shapes import remove_reversed_shapes
 
 __all__ = [
     "build_header_metadata",
@@ -83,8 +83,8 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `scgraph.coordinates`).
 # external_node_ids (optional): the id of each node in its source.
-# edge_has_reversed_shape (with the shapes): 1 for a second edge, which reads the shape
-# of its pair edge backwards (`scgraph/cpp/src/second_edges.hpp`), and 0 for any other edge.
+# edge_has_reversed_shape (with the shapes): 1 for an edge with a reversed shape, which reads
+# the shape of its reverse edge backwards (`scgraph/cpp/src/reversed_shapes.hpp`), and 0 for any other edge.
 ARRAYS = {
     "node_first_edge_ids": ("int32",),
     "edge_destination_node_ids": ("int32",),
@@ -238,8 +238,8 @@ def write(
             `metric_length`, `node_points`, ...). `ARRAYS` gives the names and the
             dtypes that a file may hold. The file may also hold one array
             `metric_<name>` for each other metric. Without `edge_has_reversed_shape`,
-            each edge holds its own shape, and `write` stores the shape of a second
-            edge once, in its pair edge. With it, the shapes are stored as `read`
+            each edge holds its own shape, and `write` stores the shape of an edge
+            with a reversed shape once, in its reverse edge. With it, the shapes are stored as `read`
             returns them.
         metadata: The metadata of the network (metrics, node modes, sources, ...), as
             `build_header_metadata` returns it. It must be serializable as JSON.
@@ -260,7 +260,7 @@ def write(
         "arrays": {},
         "metadata": dict(metadata),
     }
-    # Shapes without flags are a file without second edges
+    # Shapes without flags are a file without edges with a reversed shape
     has_full_shapes = (
         "edge_first_shape_point_ids" in arrays
         and "edge_has_reversed_shape" not in arrays
@@ -294,7 +294,7 @@ def write(
         arrays.update(
             zip(
                 SHAPE_ARRAYS,
-                remove_second_edge_shapes(
+                remove_reversed_shapes(
                     arrays["node_first_edge_ids"],
                     arrays["edge_destination_node_ids"],
                     arrays["edge_first_shape_point_ids"],
