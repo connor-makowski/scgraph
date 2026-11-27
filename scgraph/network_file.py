@@ -42,7 +42,7 @@ from datetime import datetime
 from itertools import chain, starmap
 
 from scgraph import files
-from scgraph.coordinates import get_units_per_degree
+from scgraph.coordinates import COORDINATE_DTYPES, get_units_per_degree
 from scgraph.helpers.hilbert import NODE_ORDER
 from scgraph.node_modes import (
     build_node_mode_ids,
@@ -85,10 +85,10 @@ ARRAYS = {
     "edge_destination_node_ids": ("int32",),
     "metric_length": ("float64",),
     "edge_class_ids": ("uint8",),
-    "node_points": ("int32", "float64"),
+    "node_points": COORDINATE_DTYPES,
     "external_node_ids": ("int32", "int64"),
     "edge_first_shape_point_ids": ("int32",),
-    "shape_points": ("int32", "float64"),
+    "shape_points": COORDINATE_DTYPES,
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 # The value of `edge_class_ids` for an edge without a class. The id of a class is

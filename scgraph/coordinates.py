@@ -19,6 +19,8 @@ from collections.abc import Sequence
 
 # The units of one degree in the integer form
 UNITS_PER_DEGREE = 1e7
+# The types of a stored coordinate: int32 units of 1e-7 degree, or float64 degrees
+COORDINATE_DTYPES = ("int32", "float64")
 
 
 def encode_coordinates(
@@ -39,7 +41,7 @@ def encode_coordinates(
         ValueError: `dtype` is not one of the two names, a value is not a finite
             number, or an int32 value is beyond ±214.7483647 degrees.
     """
-    if dtype not in ("int32", "float64"):
+    if dtype not in COORDINATE_DTYPES:
         raise ValueError(
             f"coordinate_dtype must be 'float64' or 'int32', not {dtype!r}"
         )
@@ -58,6 +60,13 @@ def encode_coordinates(
     if not all(all(map(math.isfinite, values)) for values in point_arrays):
         raise ValueError("Coordinates must be finite numbers")
     return list(point_arrays)
+
+
+def get_coordinate_dtype_for_precision(precision: int) -> str:
+    """Return the type that stores a coordinate rounded to `precision` decimals
+    without a loss: "int32" up to 7 decimals, because one unit is 1e-7 degree, and
+    "float64" above."""
+    return "int32" if precision <= 7 else "float64"
 
 
 def encode_coordinate(degrees: float) -> int:

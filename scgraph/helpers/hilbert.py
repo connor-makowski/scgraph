@@ -15,8 +15,17 @@ CURVE_ORDER = 16
 NODE_ORDER = "hilbert"
 
 
-def hilbert_key(latitude: float, longitude: float) -> int:
-    """Return the position of a point on the Hilbert curve, from 0 to 4^16 - 1."""
+def hilbert_key(
+    latitude: float, longitude: float, node_mode_id: int = 0
+) -> int:
+    """Return the key that orders the nodes of a network file: the node mode id,
+    then the position of the point on the Hilbert curve.
+
+    The position is from 0 to 4^16 - 1, so the node mode id goes above it in the
+    same integer. Example: the node mode id 1 and the position 5 give
+    `1 << 32 | 5`, which is 4294967301. With the default node mode id 0, the key is
+    the position.
+    """
     side = 1 << CURVE_ORDER
     x = min(side - 1, max(0, int((longitude + 180.0) / 360.0 * side)))
     y = min(side - 1, max(0, int((latitude + 90.0) / 180.0 * side)))
@@ -30,7 +39,7 @@ def hilbert_key(latitude: float, longitude: float) -> int:
                 x, y = s - 1 - x, s - 1 - y
             x, y = y, x
         s >>= 1
-    return key
+    return node_mode_id << 2 * CURVE_ORDER | key
 
 
 def get_hilbert_order(
@@ -50,11 +59,10 @@ def get_hilbert_order(
         node of the junction first
         (`scgraph.turn_restrictions.find_nodes_of_junction`).
     """
-    if node_mode_ids is None:
+    # When every node has the node mode id 0, the key needs no node mode id
+    if node_mode_ids is None or not any(node_mode_ids):
         return sorted(range(len(points)), key=lambda i: hilbert_key(*points[i]))
-    # One integer per node, the node mode above the key (keys are below 4^CURVE_ORDER)
     return sorted(
         range(len(points)),
-        key=lambda i: node_mode_ids[i] << 2 * CURVE_ORDER
-        | hilbert_key(*points[i]),
+        key=lambda i: hilbert_key(*points[i], node_mode_ids[i]),
     )

@@ -25,6 +25,7 @@ from scgraph.step_logs import log_step
 from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
+from scgraph.coordinates import COORDINATE_DTYPES
 from scgraph.node_modes import get_default_node_modes, list_node_mode_names
 from scgraph import array_views
 from scgraph import geograph_io, geograph_networks
@@ -211,7 +212,7 @@ class GeoGraph(
             ),
             nodes,
         )
-        if coordinate_dtype not in ("float64", "int32"):
+        if coordinate_dtype not in COORDINATE_DTYPES:
             raise ValueError("coordinate_dtype must be 'float64' or 'int32'")
         self.coordinate_dtype = coordinate_dtype
         # How the network was built, as read from a network file (see save_as_scgraph)

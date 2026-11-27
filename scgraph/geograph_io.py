@@ -14,7 +14,11 @@ from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric, check_weights
-from scgraph.coordinates import encode_coordinates
+from scgraph.coordinates import (
+    COORDINATE_DTYPES,
+    encode_coordinates,
+    get_coordinate_dtype_for_precision,
+)
 from scgraph.geograph_cache import check_save_path
 from scgraph.node_modes import build_node_mode_ids, get_default_node_modes
 from scgraph.turn_restrictions import has_turn_restrictions
@@ -279,7 +283,7 @@ class GeoGraphIO:
             raise TypeError(
                 f"metadata must be a dict, 'auto' or None, not {metadata!r}"
             )
-        if coordinate_dtype not in ("auto", "float64", "int32"):
+        if coordinate_dtype not in ("auto", *COORDINATE_DTYPES):
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
@@ -310,12 +314,8 @@ class GeoGraphIO:
         # close ids, and the nodes of a node mode stay together); the geograph is not
         # renumbered
         nodes, node_mode_ids = self.nodes, self._read_node_mode_ids()
-        # (by node mode only if there are several: the key is cheaper without)
-        multimodal = len(self.node_modes) > 1
         try:
-            order = get_hilbert_order(
-                nodes, node_mode_ids if multimodal else None
-            )
+            order = get_hilbert_order(nodes, node_mode_ids)
         except (OverflowError, ValueError):
             node = next(
                 (
@@ -355,7 +355,8 @@ class GeoGraphIO:
         external_node_ids = self.external_node_ids.array(order)
         if external_node_ids is not None:
             arrays["external_node_ids"] = external_node_ids
-        if multimodal:
+        # With one node mode, every node keeps the node mode id 0
+        if len(self.node_modes) > 1:
             node_mode_ids = array("B", (node_mode_ids[i] for i in old))
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
@@ -507,7 +508,7 @@ class GeoGraphIO:
                 graph=graph,
                 nodes=nodes,
                 intermediate_nodes=shapes if load_intermediate_nodes else None,
-                coordinate_dtype="int32" if precision <= 7 else "float64",
+                coordinate_dtype=get_coordinate_dtype_for_precision(precision),
             )
             geograph.reduce(reduce_iterations)
             return geograph
@@ -523,7 +524,7 @@ class GeoGraphIO:
             GeoGraph(
                 graph=data["graph"],
                 nodes=data["nodes"],
-                coordinate_dtype="int32" if precision <= 7 else "float64",
+                coordinate_dtype=get_coordinate_dtype_for_precision(precision),
             )
         )
         geograph.reduce(reduce_iterations)
@@ -1153,7 +1154,9 @@ class GeoGraphIO:
             edge_arrays,
             graph=graph_object,
             nodes=nodes,
-            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
+            coordinate_dtype=get_coordinate_dtype_for_precision(
+                coord_precision
+            ),
             **kwargs,
         )
         # The list of dicts itself, as for a geograph built from a list
@@ -1414,10 +1417,7 @@ def renumber_in_hilbert_order(geograph):
             "The Hilbert order of the nodes drops the classes and the "
             "metrics: it takes a geograph without them"
         )
-    multimodal = len(geograph.node_modes) > 1
-    order = get_hilbert_order(
-        geograph.nodes, geograph.node_mode_ids if multimodal else None
-    )
+    order = get_hilbert_order(geograph.nodes, geograph.node_mode_ids)
     # Each node keeps its id (its position before ordering, if it had none)
     external_node_ids = geograph.external_node_ids.take(order)
     new_id = [0] * len(order)

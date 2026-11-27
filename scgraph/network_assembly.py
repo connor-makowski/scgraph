@@ -155,7 +155,7 @@ from scgraph.helpers.components import (
 from scgraph.helpers.douglas_peucker import (
     simplify_shapes as simplify_shapes_python,
 )
-from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
+from scgraph.helpers.hilbert import hilbert_key
 from scgraph.helpers.polylines import PieceArrays
 from scgraph.utils import haversine
 from scgraph.array_checks import is_sorted_from_zero
@@ -934,8 +934,8 @@ def keep_components(
 
 def order_nodes(graph: dict[str, array | memoryview]) -> dict[str, array]:
     """Number the nodes of a graph by node mode, then along the Hilbert curve (stage 5
-    of the module docstring). A network file has this order, and
-    `GeoGraph.save_as_scgraph` uses the same one.
+    of the module docstring). A network file has this order. `hilbert_key` gives
+    the key of a node, here and in `GeoGraph.save_as_scgraph`.
 
     Args:
         graph: The graph, with `node_mode_ids` if it has several node modes.
@@ -948,11 +948,16 @@ def order_nodes(graph: dict[str, array | memoryview]) -> dict[str, array]:
     node_count = len(latitudes)
     node_mode_ids = graph.get("node_mode_ids") or bytes(node_count)
 
-    def key(u):  # node mode, Hilbert key (below 4^CURVE_ORDER), index: one int
-        curve = hilbert_key(
-            latitudes[u] / UNITS_PER_DEGREE, longitudes[u] / UNITS_PER_DEGREE
+    def key(u):  # the key of a network file, then the node id: one int
+        return (
+            hilbert_key(
+                latitudes[u] / UNITS_PER_DEGREE,
+                longitudes[u] / UNITS_PER_DEGREE,
+                node_mode_ids[u],
+            )
+            << 32
+            | u
         )
-        return (node_mode_ids[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
     # One int per node, not a list; the sorted ints are freed before renumber_nodes
     keys = sorted(map(key, range(node_count)))
