@@ -146,6 +146,7 @@ class GeoGraph(
         - `node_modes`
             - Type: list of dicts | None
             - What: The node modes, each a dict with its `name` (str or None) and, optionally, the `source` of its node ids (the name of an entry of the network's sources); read back as `node_modes`
+            - Note: The loaders (`load_from_scgraph`, `load_geograph`, `build_geograph`) also have a parameter `node_modes`: there it is a list of the names of the node modes to load
             - Note: At most 256 node modes; two node modes may have the same name (two sea networks merged)
             - Note: A node mode with `"has_turn_restrictions": True` follows turn restrictions: some of its junctions have more than one node (`scgraph/turn_restrictions.py`). The nodes of a junction come one right after the other, with the same external id and the same point. A query point that is connected to one node of a junction is connected to each of them
             - Default: None (one node mode, without a name: `[{"name": None}]`)

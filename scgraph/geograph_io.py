@@ -832,6 +832,7 @@ class GeoGraphIO:
         - `node_modes`
             - Type: list[str] | str | None
             - What: The names of the node modes to load (see `node_modes`): only their nodes and the edges between them, in the order of the file; `node_modes` is the file's list, which `node_mode_ids` indexes, and the file's metadata (sources, attribution, as `scgraph_info` gives it) stays the whole file's
+            - Note: This parameter is a list of names. The parameter `node_modes` of the constructor, and the attribute `node_modes`, are the table of the node modes: one dict for each node mode
             - Default: None (every node mode)
         """
         from scgraph.geograph import GeoGraph, LazyGeoGraph

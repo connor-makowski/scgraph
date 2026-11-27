@@ -374,6 +374,9 @@ class GeoGraphUtils:
               weight of 1 km of an off-graph leg in the metric
             - Note: The total of a metric other than 'length' is not converted to
               `output_units`. An unknown name raises a ValueError
+            - Note: With a metric other than `length`, the result is the total of
+              this metric, not a length. `get_shortest_path` returns both: `length`
+              and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is
               'length' unless a loader or the caller set it)
 
@@ -1309,6 +1312,7 @@ class GeoGraphRouting:
         - `metric`
             - Type: str
             - What: The name of the metric to minimise, a name of `metrics`: the path between two nodes is the one with the smallest total of this metric
+            - Note: With a metric other than `length`, a value of the matrix is the total of this metric, not a length. `get_shortest_path` returns both: `length` and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it)
         - `output_metric`
             - Type: str | None

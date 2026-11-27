@@ -253,6 +253,13 @@ def list_junctions_with_several_nodes(
     """List the junctions of a graph that have added nodes (module docstring, *How
     a network says that it follows turn restrictions*).
 
+    This function groups the nodes of one node mode that come one right after the
+    other with the same external id. It does not ask whether the node mode has
+    `has_turn_restrictions`, as `find_nodes_of_junction` does: the assembly of a
+    network does not hold the table of the node modes. Both give the same
+    junctions when only the node modes with `has_turn_restrictions` hold two nodes
+    with one external id, which is true of every network that scgraph builds.
+
     Args:
         external_node_ids: The external id of each node of a graph that a build
             made with turn restrictions.
