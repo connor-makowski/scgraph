@@ -296,21 +296,113 @@ def test_contraction_order_with_a_heuristic_that_calls_default_heuristic():
 
 
 # --- Two paths of the same length ---
-# The ring 0 - 1 - 2 - 3 - 0 has two paths of length 2 from node 0 to node 2: through
-# node 1 and through node 3. The query keeps the meeting node of smallest id, so it
-# returns the path through node 1. Without this rule, the path depends on the order
-# in which each build reads the edges of a node, and the builds can differ.
+# Of two paths of the same length, a hierarchy returns the one whose meeting node has
+# the smallest id. Without this rule, the path depends on the order in which each
+# build reads the edges of a node, and the builds can differ. The query compares a
+# candidate with the best length at several places. Each row reaches one of them:
+# the forward or the backward step, on the rows of the hierarchy or on a node added
+# after the preprocessing (`added`, each joined both ways), and an origin that is also
+# a destination. A row is (graph, added nodes, origin, destination, path).
 _RING = [{1: 1, 3: 1}, {0: 1, 2: 1}, {1: 1, 3: 1}, {2: 1, 0: 1}]
 
 
-def test_ch_meets_at_the_node_of_smallest_id(ch_class):
-    ch = ch_class([dict(d) for d in _RING])
-    assert ch.search(0, 2) == {"path": [0, 1, 2], "length": 2}
+@pytest.mark.parametrize(
+    "graph, added, origin, destination, path",
+    [
+        pytest.param(_RING, [], 0, 2, [0, 1, 2], id="forward step"),
+        pytest.param(_RING, [], 2, 0, [2, 1, 0], id="backward step"),
+        pytest.param(
+            [{1: 1}, {0: 1}],
+            [{0: 1, 1: 1}, {2: 1, 1: 1}],
+            3,
+            0,
+            [3, 2, 0],
+            id="forward step from an added node",
+        ),
+        pytest.param(
+            [{}],
+            [{0: 1}, {0: 1, 1: 2}],
+            1,
+            2,
+            [1, 0, 2],
+            id="backward step from an added node",
+        ),
+        # Nodes 0 and 8 are both origins and destinations, at 0
+        pytest.param(
+            [{}] * 9,
+            [],
+            {0: 0, 8: 0},
+            {8: 0, 0: 0},
+            [0],
+            id="origin that is also a destination",
+        ),
+    ],
+)
+def test_ch_meets_at_the_node_of_smallest_id(
+    ch_class, graph, added, origin, destination, path
+):
+    ch = ch_class([dict(d) for d in graph])
+    for edges in added:
+        ch.add_node(dict(edges), symmetric=True)
+    assert ch.search(origin, destination)["path"] == path
 
 
-def test_tnr_meets_at_the_node_of_smallest_id(tnr_class):
-    tnr = tnr_class([dict(d) for d in _RING], num_transit_nodes=1)
-    assert tnr.search(0, 2) == {"path": [0, 1, 2], "length": 2}
+# The local search of TNR does not reach the test of an origin that is also a
+# destination with a tie: its first best length is already the shortest of these
+# lengths, so a node of this length never becomes the meeting node.
+_K4 = [
+    {3: 1, 1: 1, 2: 1},
+    {0: 1, 3: 1, 2: 1},
+    {3: 1, 0: 1, 1: 1},
+    {0: 1, 2: 1, 1: 1},
+]
+_K4_WEIGHTED = [
+    {3: 2, 2: 1, 1: 1},
+    {2: 3, 3: 3, 0: 1},
+    {1: 3, 0: 1, 3: 2},
+    {0: 2, 2: 2, 1: 3},
+]
+
+
+@pytest.mark.parametrize(
+    "graph, added, origin, destination, path",
+    [
+        pytest.param(
+            _K4_WEIGHTED,
+            [],
+            {0: 0, 3: 0},
+            {1: 1, 2: 1},
+            [0, 1],
+            id="forward step",
+        ),
+        pytest.param(
+            _K4, [], {3: 1, 1: 0}, {2: 1, 0: 1}, [1, 0], id="backward step"
+        ),
+        pytest.param(
+            [{}],
+            [{0: 2}, {0: 1}, {1: 1, 2: 1}],
+            {2: 0, 0: 1},
+            {1: 0, 3: 1},
+            [2, 3, 1],
+            id="forward step from an added node",
+        ),
+        pytest.param(
+            [{}],
+            [{0: 2}, {0: 2, 1: 1}, {1: 1, 2: 2}],
+            2,
+            3,
+            [2, 1, 3],
+            id="backward step from an added node",
+        ),
+    ],
+)
+def test_tnr_meets_at_the_node_of_smallest_id(
+    tnr_class, graph, added, origin, destination, path
+):
+    tnr = tnr_class([dict(d) for d in graph], num_transit_nodes=1)
+    for edges in added:
+        tnr.add_node(dict(edges), symmetric=True)
+    assert tnr.search(origin, destination)["path"] == path
 
 
 # Node 3 is added next to node 0, and node 4 next to node 3. The path from node 2

@@ -51,10 +51,12 @@ destination and reads `backward_graph`. They take one step each in turn. When on
 lowers the distance of a node that the other side has reached, the sum of the two
 distances is a candidate length. A candidate equal to the best length replaces it only
 if its node has a smaller id than the meeting node. So the path does not depend on the
-order of the edges of a node, and both builds return the same path. A side stops when
-the distance it takes from its queue is above the best length. `_unpack_shortcut` then
-replaces each shortcut from u to w by the edges from u to v and from v to w, with
-v = `shortcuts[(u, w)]`, and repeats this on the two edges.
+order of the edges of a node, and both builds return the same path. A `heuristic_fn`
+whose values differ by less than 1e-9 can still give another contraction order in each
+build, and then another path. A side stops when the distance it takes from its queue is
+above the best length. `_unpack_shortcut` then replaces each shortcut from u to w by the
+edges from u to v and from v to w, with v = `shortcuts[(u, w)]`, and repeats this on the
+two edges.
 
 Example: every node starts with the key 4, and node 0 comes first by its id. Its value
 is 2 shortcuts - 2 edges in - 2 edges out = -2. This value is not above the next key, 4,

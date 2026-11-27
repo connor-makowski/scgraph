@@ -255,7 +255,7 @@ std::optional<GraphResult> TNRGraph::local_search(const NodeIdVariant& origin_id
 
     for (const auto& [oid, odist] : origin_entries) {
         for (const auto& [did, ddist] : dest_entries) {
-            if (oid == did && is_better_meeting(odist + ddist, oid, best_dist, meeting_node)) {
+            if (oid == did && odist + ddist < best_dist) {
                 best_dist = odist + ddist;
                 meeting_node = oid;
             }

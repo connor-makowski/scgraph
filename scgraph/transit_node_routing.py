@@ -37,8 +37,8 @@ HOW A RUN GOES
    The smallest candidate is the table length.
 3. The local search is the bidirectional upward search of `CHGraph`, with the table
    length as its first best length, and the same rule for two equal candidates. It
-   does not scan the edges of a transit node. It
-   gives a path only when it finds a route shorter than the table length.
+   does not scan the edges of a transit node. It gives a path only when it finds a
+   route shorter than the table length.
 4. The search returns the path of the local search if there is one. Otherwise the
    table length is the answer. The table holds lengths only, so the path then comes
    from a full search of `CHGraph.search`. With `length_only=True`, the search returns
@@ -288,9 +288,7 @@ class TNRGraphAlgorithms:
         if overlap:
             for node in overlap:
                 dist = origin_dict[node] + destination_dict[node]
-                if dist < best_dist or (
-                    dist == best_dist and node < meeting_node
-                ):
+                if dist < best_dist:
                     best_dist = dist
                     meeting_node = node
 
