@@ -166,6 +166,8 @@ These notebooks open in Google Colab:
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb): read the legs of a route, route by road only and by hours, draw the routes on a map.
 - [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): try several coefficients of a weighted sum of two metrics, find several of the best trade-offs, draw them.
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb): build Denmark from the newest OpenStreetMap extract, read its sources, check it.
+- [The Motorways of a Country](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/motorways_of_a_country.ipynb): load every motorway of Brazil from its OpenStreetMap extract, with every point of each road, compute a route, draw it.
+- [The Streets of a City](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/streets_of_a_city.ipynb): load the streets of Boston from the Overpass API of OpenStreetMap, with their turn restrictions, compare routes with and without them.
 - [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve (a line that visits every cell of a square grid), compare `OrderedSnapIndex` (the snapping index of scgraph) with `GeoKDTree` (the k-d tree of the library `geokdtree`).
 
 ## Public API
