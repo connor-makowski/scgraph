@@ -91,7 +91,7 @@ from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
 from scgraph.errors import PathNotFoundError
-from scgraph.graph_utils import convert_node_input, _last_search_in_thread
+from scgraph.graph_utils import _last_search_in_thread
 
 if TYPE_CHECKING:  # annotations only
     from scgraph.contraction_hierarchies import CHGraph
@@ -117,16 +117,6 @@ def algorithm(
     def decorator(fn):
         @wraps(fn)
         def wrapper(self, *args, **kwargs):
-            # The first two arguments are the origin and the destination. The
-            # algorithms test `isinstance(origin_id, int)`, so a numpy integer
-            # becomes an int here.
-            args = [
-                convert_node_input(arg) if arg_id < 2 else arg
-                for arg_id, arg in enumerate(args)
-            ]
-            for key in ("origin_id", "destination_id"):
-                if key in kwargs:
-                    kwargs[key] = convert_node_input(kwargs[key])
             if getattr(self, "reduced_graph", None) is None:
                 return fn(self, *args, **kwargs)
             return GraphReducer.run_with_reduced(
