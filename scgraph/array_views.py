@@ -80,15 +80,15 @@ class EdgeShapes(Sequence):
             }
         )
 
-    def _read_shape(self, origin, edge):
-        first, last = self._starts[edge], self._starts[edge + 1]
-        if self._has_reversed_shape[edge]:
+    def _read_shape(self, origin_id, edge_id):
+        first, last = self._starts[edge_id], self._starts[edge_id + 1]
+        if self._has_reversed_shape[edge_id]:
             first, last = find_pair_shape(
                 self._node_first_edge_ids,
                 self._edge_destination_node_ids,
                 self._starts,
-                origin,
-                edge,
+                origin_id,
+                edge_id,
             )
         # A mapped file's `edge_first_shape_point_ids` are checked here, where they are
         # read
@@ -99,7 +99,7 @@ class EdgeShapes(Sequence):
             [flat[i] / scale, flat[i + 1] / scale]
             for i in range(0, len(flat), 2)
         ]
-        if self._has_reversed_shape[edge]:
+        if self._has_reversed_shape[edge_id]:
             shape.reverse()
         return shape
 

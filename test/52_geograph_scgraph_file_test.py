@@ -791,6 +791,27 @@ def test_a_file_with_another_crs_or_node_order_is_refused_at_load(
         GeoGraph.load_from_scgraph(str(path))
 
 
+# A file holds the three arrays of the shapes, or none of them. Here the file
+# gives another name to its array of flags, so a reader does not find it.
+def test_a_file_with_shapes_and_without_their_flags_is_refused_at_load(
+    tmp_path,
+):
+    path = tmp_path / "arrays.scgraph"
+    arrays = _two_road_nodes_and_a_port() | {
+        "edge_first_shape_point_ids": array("i", [0, 0, 0]),
+        "shape_points": array("d"),
+    }
+    network_file.write(str(path), arrays, ROAD_AND_PORT_HEADER)
+    path.write_bytes(
+        path.read_bytes().replace(
+            b"edge_has_reversed_shape", b"edge_has_reversed_shapX"
+        )
+    )
+
+    with pytest.raises(ValueError, match="missing shape arrays"):
+        GeoGraph.load_from_scgraph(str(path))
+
+
 # A search needs weights of zero or more. `network_file.write` does not check
 # the weights, so a file may hold a toll below zero.
 def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):
@@ -831,6 +852,15 @@ def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):
             {"edge_class_ids": array("B", [0])},
             "one edge class per edge",
             id="fewer edge classes than edges",
+        ),
+        pytest.param(
+            {
+                "edge_first_shape_point_ids": array("i", [0, 0, 0]),
+                "edge_has_reversed_shape": array("B", [0]),
+                "shape_points": array("d"),
+            },
+            "one edge_has_reversed_shape value per edge",
+            id="fewer flags of a reversed shape than edges",
         ),
     ],
 )
@@ -897,6 +927,11 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = CRS_AND_NODE_ORDER | {
             | {"metrics": [TOLL, TOLL | {"name": "length"}]},
             "the first metric must be length",
             id="the toll before the length",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"crs": None},
+            "crs must be 'EPSG:4326'",
+            id="a header without its coordinate system",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL

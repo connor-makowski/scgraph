@@ -57,7 +57,7 @@ scgraph/
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
     │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, coordinates, float4 and second_edges (headers), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
-    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes, edge selection, metric weights), pipelines_bindings.cpp
+    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes and their second edges, edge selection, metric weights), pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
   bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py

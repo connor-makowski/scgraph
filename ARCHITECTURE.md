@@ -485,7 +485,7 @@ All multi-byte integers are **little-endian**:
 | next | 0 to 63 | Zeros, up to a multiple of 64 bytes |
 | array section | variable | The arrays, each starting at a multiple of 64 bytes |
 
-In the example, the header of 1,667 bytes ends at byte 1,714, so the arrays start at byte 1,728. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
+In the example, the header of 1,714 bytes ends at byte 1,761, so the arrays start at byte 1,792. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
 
 ### Header JSON Schema
 
@@ -543,9 +543,9 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | :--- | :--- | :--- |
 | `format_version` | `int` | `1` (see *Compatibility Between Versions*). |
 | `arrays` | `dict` | Each array's `dtype`, `shape`, and byte `offset` in the array section. |
-| `metadata.crs` | `str` | `EPSG:4326`. `read` and `write` refuse another value. |
+| `metadata.crs` | `str` | `EPSG:4326`. `read` and `write` refuse another value, and a header without this key. |
 | `metadata.metrics` | `list[dict]` | One row for each metric, `length` first. |
-| `metadata.node_order` | `str` | `"hilbert"`. `read` and `write` refuse another value. |
+| `metadata.node_order` | `str` | `"hilbert"`. `read` and `write` refuse another value, and a header without this key. |
 | `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. A row has `"has_turn_restrictions": true` when the node mode follows turn restrictions: a junction may then have several nodes (`scgraph/turn_restrictions.py`). |
 | `metadata.classes` | `list[dict]` | Only with `edge_class_ids`: one row for each class, its `name` and `edge_mode`. 255 rows at most. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: `name`, `region`, and `PIPELINE_VERSION` as `version`. |
@@ -566,7 +566,7 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 * **node**: a vertex of the graph, from `0` to $N - 1$, at a point.
 * **edge id**: the position of an edge in `edge_destination_node_ids`, from `0` to $M - 1$.
 * **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`). The shape of an edge is the list of its shape points.
-* **second edge**: an edge $v \to u$ whose shape is the shape of the edge $u \to v$ in the reverse order. The edge $u \to v$ is its pair edge. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for a second edge. A reader reads the points of the pair edge backwards.
+* **second edge**: an edge $v \to u$ with at least one shape point, whose shape is the shape of the edge $u \to v$ in the reverse order. The edge $u \to v$ is its pair edge. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for a second edge. A reader reads the points of the pair edge backwards.
 
 The edges are stored by origin node, in Compressed Sparse Row (CSR) arrays. The edges of a node are consecutive, in the order that a search visits them.
 
@@ -640,7 +640,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.
 10. A read that copies the whole file checks the values: the node_first_edge_ids do not decrease, each destination id is a node, and each class id is a row of `classes`, or 255.
 
-A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape raises a `ValueError` for a second edge with shape points of its own, and for a second edge without a pair edge that has shape points.
+A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape checks its second edge: a second edge must have no shape point of its own, and its pair edge must have some. Otherwise the read raises a `ValueError`.
 
 `read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
@@ -651,6 +651,8 @@ A mapped read does not check the values; the C++ graph checks node_first_edge_id
 **The edges.** The file stores the edges by origin node, for the search, so it cannot also group them by class. The class of each edge is one byte in `edge_class_ids`.
 
 ### Compatibility Between Versions
+
+`format_version` is `1` for the format of release 4.0, the first release that writes a network file. The rules of this section hold from that release on.
 
 A later version can add an optional array or a metadata key and keep `format_version` at `1`. An earlier version still reads such a file:
 

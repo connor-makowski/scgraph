@@ -460,7 +460,7 @@ def contract_chains(
     The module docstring (*How a run goes*, stage 3) gives the rule and an example. The
     function walks a chain from its canonical end: the start of a one-way chain, or the
     end with the lower index. A part of a chain that would give an edge from a node to
-    itself, or a second edge between two nodes, is split at its middle node. A cycle of
+    itself, or another edge between the same two nodes, is split at its middle node. A cycle of
     pass-through nodes is walked from its lowest node, which is kept.
 
     Args:

@@ -463,7 +463,7 @@ The network release `networks-2026.11.25-dev.1` holds 23 files.
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges.
   - For example `oceania.scgraph.gz` (9.4 MB) and `oceania.no_shapes.scgraph.gz` (3.8 MB).
-  - The shapes are half of a file or more. With `load_intermediate_nodes=False`,
+  - The shapes are a large part of a file. With `load_intermediate_nodes=False`,
     `load_geograph` loads the file without shapes, for a user who needs only the route lengths.
 - `networks.json`, the index of the network release. It gives for each file its size, its
   `content_sha256`, its number of nodes and of edges, its sources and its credit line. The
