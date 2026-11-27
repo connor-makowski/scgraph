@@ -1,6 +1,8 @@
 import pytest
 from scgraph import PathNotFoundError
 
+from scgraph.graph import Graph as PythonGraph
+
 from helpers import CppGraph, CppTNRGraph, needs_the_cpp_extension
 
 # Adversarial contraction graph:
@@ -275,3 +277,19 @@ def test_contraction_order(graph_class):
         g = graph_class([dict(d) for d in data])
         g.reduce()
         _assert_ch_matches_dijkstra(graph_class, data, g)
+
+
+# A custom heuristic of the pure-Python class may call `default_heuristic` on
+# another node. The C++ class does not give `default_heuristic` to a custom
+# heuristic. Here the heuristic calls it on the next node id. The graph is the
+# path 5 - 0 - 3 - 4, and the nodes 1 and 2 have no edge.
+def test_contraction_order_with_a_heuristic_that_calls_default_heuristic():
+    data = [{3: 3, 5: 5}, {}, {}, {4: 3, 0: 3}, {3: 3}, {0: 5}]
+
+    def heuristic(ch, node_id):
+        ch.default_heuristic((node_id + 1) % len(data))
+        return node_id
+
+    g = PythonGraph([dict(d) for d in data])
+    g.create_contraction_hierarchy(heuristic_fn=heuristic)
+    _assert_ch_matches_dijkstra(PythonGraph, data, g)

@@ -6,7 +6,7 @@ imports `osmium` only when it reads a file.
 
 WHAT IT ANSWERS
 
-`download` and `download_streamed` are the download functions of the OpenStreetMap
+`download` and `write_pbf_layout_file` are the download functions of the OpenStreetMap
 sources. `get_source` gives the source that `scgraph.helpers.osm.build_way_pieces`
 reads. The docstring of `scgraph.helpers.osm` explains the select functions and the
 pieces.
@@ -31,12 +31,9 @@ import requests
 from scgraph.helpers.osm import (
     MAIN_ROADS as MAIN_ROADS,
     MAX_KM_BETWEEN_NODES as MAX_KM_BETWEEN_NODES,
-    get_way_direction as get_way_direction,
     require_osmium,
-    select_main_roads as select_main_roads,
 )
 from scgraph.pipelines import download_file
-from scgraph.utils import has_cpp
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -45,10 +42,7 @@ __all__ = [
     "GEOFABRIK",
     "PLANET",
     "download",
-    "download_streamed",
-    "get_way_direction",
-    "select_main_roads",
-    "select_vehicle_ferries",
+    "write_pbf_layout_file",
 ]
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
@@ -62,6 +56,10 @@ GEOFABRIK = {
 
 def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
     """Download an OSM file to `filename`.
+
+    Args:
+        url: The URL of the OSM file.
+        filename: The path where the function writes the file.
 
     Returns:
         `{"version": time}` when the header of the file gives the time that its data is
@@ -81,19 +79,6 @@ def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
     finally:
         reader.close()
     return {"version": version} if version else {}
-
-
-def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
-    """Return 0 (both ways) for a vehicle ferry, and None for any other way. A vehicle
-    ferry is a ferry, or a shuttle train that carries cars and lorries (as in the Channel
-    Tunnel), that is not closed to motor vehicles.
-    """
-    if tags.get("route") in ("ferry", "shuttle_train") and "no" not in (
-        tags.get("motor_vehicle"),
-        tags.get("motorcar"),
-    ):
-        return 0
-    return None
 
 
 class StreamedPbf:
@@ -127,6 +112,10 @@ class StreamedPbf:
         """Find the layout of the PBF file at `url` and write it to `filename`, with the
         `size` of the file, its `tag`, its `md5` and its `version`. The `md5` is the one
         that the server publishes: the function does not compute it.
+
+        Args:
+            url: The URL of the PBF file. The server must answer byte ranges.
+            filename: The path where the function writes the layout file.
 
         Returns:
             `{version, bytes, md5}`, without the values that the server does not give.
@@ -294,17 +283,19 @@ def get_source(
     return filename
 
 
-def download_streamed(
+def write_pbf_layout_file(
     url: str, filename: str | os.PathLike
 ) -> dict[str, str | int]:
     """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
-    byte ranges (`StreamedPbf.download`). Raise a RuntimeError without the C++ extension.
+    byte ranges (`StreamedPbf.download`).
+
+    Args:
+        url: The URL of the PBF file.
+        filename: The path where the function writes the layout file.
+
+    Returns:
+        The dict that `StreamedPbf.download` returns.
     """
-    # The reader exists in C++ only: it has no pure-Python twin to choose.
-    if not has_cpp():
-        raise RuntimeError(
-            "Reading an OSM file by byte ranges needs the C++ extension of scgraph"
-        )
     return StreamedPbf.download(url, filename)
 
 
@@ -313,7 +304,7 @@ def download_streamed(
 PLANET = {
     **GEOFABRIK,
     "url": "https://osm-planet-eu-central-1.s3.dualstack.eu-central-1.amazonaws.com/planet/pbf/2026/planet-261102.osm.pbf",
-    "download": download_streamed,
+    "download": write_pbf_layout_file,
 }
 _AGENT = {"User-Agent": "scgraph"}
 # In bytes. Below this distance, the start of a section is found blob by blob.

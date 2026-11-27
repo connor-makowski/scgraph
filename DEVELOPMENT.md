@@ -16,7 +16,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
 4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,150 tests with the C++ extension (about 920 in pure Python), in 1 to 2 minutes, all passed or skipped.
-5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, see *C++ Extension* below.
+5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, run the verbose build command of *Debugging a C++ build* below. It shows the compiler error.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
 ## Directory Layout (relevant files only)
@@ -28,15 +28,14 @@ scgraph/
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   errors.py, files.py, array_views.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; list-like views of the arrays of a network file
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
-  geograph_io.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; edges and their classes; metrics; queries and legs
+  geograph_io.py, geograph_networks.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save of files; load, build, list and clear of the networks of scgraph, and the files of the released networks in the cache; edits; edges and their classes; metrics; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
-  node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
+  node_snapping.py               # The snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with. Public: SnapIndex and NodeOrderError of the build
   contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
-  networks.py                    # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
-  network_assembly.py, turn_restrictions.py  # Internal: the graph of a network from the pieces of its ways, for load_from_osm and the pipelines; the nodes that turn restrictions add to a junction
+  network_assembly.py, turn_restrictions.py  # Internal: the graph of a network from the pieces of its ways, for load_from_osm and the pipelines; the nodes that turn restrictions add to a junction, and the forbidden turns of a graph
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py, deprecations.py, step_logs.py, array_checks.py  # Distance math, coordinate helpers, has_cpp, the cache directory; internal: deprecation warnings, the log of a step, the checks of a sorted array
@@ -47,18 +46,18 @@ scgraph/
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m
     derived_networks.py          # derive_network_file: some node modes and a bbox of another network file; runs with python -m
     data/                        # Hub tables: ports, airports, flights and rail terminals (data/README.md)
-    steps/                       # step1_osm_ways, step1_osm_range_streamer, step2_hub_connectors, step2_land_mask, step4_validation_cases (docstring of __init__.py)
+    steps/                       # step1_osm_sources (the downloads of an OpenStreetMap file), step1_osm_range_streamer, step2_hub_connectors, step2_land_mask, step4_validation_cases (docstring of __init__.py)
   helpers/
     geojson.py, visvalingam.py, douglas_peucker.py  # GeoJSON parsing; line simplification (Visvalingam-Whyatt, Douglas-Peucker)
-    polylines.py, near_nodes.py  # Polylines to a graph: nodes where they end or meet, edges with their shape; the nodes near a point
-    osm.py                       # The ways and the turn restrictions of an OpenStreetMap file, and the pieces of its ways, for load_from_osm and the pipelines
+    polylines.py, near_nodes.py  # Polylines to a graph: nodes where they end or meet, edges with their shape, the arrays that store the pieces; the nodes near a point
+    osm.py                       # The ways and the turn restrictions of an OpenStreetMap file, and the pieces of its ways, for load_from_osm and the pipelines. Public: get_way_direction, select_main_roads, select_main_roads_with_class
     components.py                # Strongly connected components, and the choice of the ones to keep, for load_from_osm and the pipelines
     hilbert.py, snap_index.py    # Hilbert-curve order of nodes; snapping index, pure-Python version of cpp/src/snap_index.cpp
     edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
-    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
+    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
+    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes, edge selection, metric weights), pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
   bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
@@ -122,10 +121,10 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 **Shared infrastructure:**
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `built_in`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
 - `test/conftest.py` also gives the fixtures `graph_class`, `ch_class` and `tnr_class`. A test of `Graph`, `CHGraph` or `TNRGraph` takes the fixture: it runs with the pure-Python class, then with the C++ class if the extension is built
-- `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
+- `test/helpers.py` — `assert_result(realized, expected)` (`realized` is the result of the call) rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/step4_validation_cases/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.network_builder NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62` classes, metrics and legs of a `GeoGraph`
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62` classes, metrics and legs of a `GeoGraph`. `CH` is `CHGraph` and `TNR` is `TNRGraph`. `BMSSP` is the algorithm `bmssp`. A bucket test checks `dijkstra_buckets` or `bidirectional_buckets`. A leg is the line between a query point and its node.
 
 **Test pattern:**
 ```python
@@ -159,24 +158,24 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Ids**: A name that holds an id ends with `_id`, and a collection of ids ends with `_ids` (`origin_id`, `node_mode_ids`). No other word names a position: not `index`, `idx`, `row` or `position`.
   - The id of a thing is its position in the list of the geograph or of the graph that holds it: a node in `nodes`, a node mode in `node_modes`, a class in `classes`, an edge in the arrays of the edges.
   - An id from outside the network is an external id (`external_node_ids`).
-- **Types**: Public functions annotate their parameters and their return, with built-in types and `X | Y`. Each kind of value has one form. A number parameter is `float`. A returned length, or a weight inside a graph, is `int | float`. A point is one `[latitude, longitude]` pair, typed `Sequence[float]`. Its latitude and its longitude are its coordinates. A path is `str | os.PathLike`. A buffer of a C++ kernel is `array | memoryview`. A function is `Callable` (from `collections.abc`). A default of `None` adds `| None`. A value of any type is `object`. A type of an optional dependency is written as a string.
+- **Types**: Public functions annotate their parameters and their return, with built-in types and `X | Y`. Each kind of value has one form. A number parameter is `float`. A returned length, or a weight inside a graph, is `int | float`. A point is one `[latitude, longitude]` pair, typed `Sequence[float]`. Its latitude and its longitude are its coordinates. A path is `str | os.PathLike`. A buffer of a C++ kernel (memory that Python and C++ both read) is `array | memoryview`. A function is `Callable` (from `collections.abc`). A default of `None` adds `| None`. A value of any type is `object`. A type of an optional dependency is written as a string.
 - **Docstrings and comments**: A docstring gives a summary, the parameters and the return. It adds the unit and the constraints, not the type. A new function uses the sections `Args:`, `Returns:` and `Raises:`. A method added to a class of release 3.6.0 keeps the layout of that class, and the docstrings of 3.6.0 stay as they are. A comment gives a reason, in full sentences. It does not tell the history of a change or name an issue.
 - **Algorithms**: A file with a new or rewritten algorithm explains it before the code, for a reader who has not seen the issue or the PR. The explanation says what the algorithm answers, how the data is stored, how a run goes and why the result is right. Each of these parts has an example with real values, and the names use the words of the explanation. Model: `scgraph/cpp/src/snap_index.hpp`.
 - **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences. A sentence has a concrete subject, a verb and an object. It holds one idea in about 20 words. Define a term where it first appears, and keep one word for one thing. [WRITING.md](WRITING.md) gives the rules with examples: read it before you write a text.
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
-- **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
-- **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Where the two functions have the same name, arguments and results, the module that calls the kernel chooses it once, at its top: `try: from scgraph.cpp import compute_x`, then `except ImportError: from scgraph.helpers.x import compute_x`, so the caller has no branch on the build. A module that cannot use this form says why in a comment at the place.
+- **Numbers**: Coordinates stored as integers (1e-7 degree) are converted from 32 bits to 64 bits before any difference or product; distances are computed in `float64`.
+- **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Where the two functions have the same name, arguments and results, the module that calls the kernel chooses between the C++ and the Python function once, at the top of the module: `try: from scgraph.cpp import compute_x`, then `except ImportError: from scgraph.helpers.x import compute_x`, so the caller has no branch on the build. A module that cannot use this form says why in a comment at the line of its import.
 - **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `step_logs.log_step` (`guides/routing.md`, *Logging*).
-- **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
+- **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium, a library that reads OpenStreetMap files), imported only when it is called
 - **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
-- **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
+- **Don't mutate caller-provided arguments**: Make a copy of small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 
 ## Contribution Workflow
 
 - Open an issue first, then one branch and one PR per issue. A PR title states the outcome and ends with its issue number: `Fix … (#N)`. The body says what changes for the user and gives the proof.
 - Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`. A contributor without write access works from a fork.
-- Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
+- Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs (PRs that target the branch of another PR) keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - **Documents**: Each fact has one home, and the other documents link to it.
   - The README is the entry page. A guide of `guides/` covers one task.
@@ -186,9 +185,9 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
   - The docstring of `scgraph/__init__.py` includes the README, the guides and `MIGRATING.md`. So the documentation site shows them on the page of the package.
 - `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of `MIGRATING.md`. What 4.0 deprecates is removed in 5.0 at the earliest. `deprecations.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
-- `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
+- `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the *Development* section at the right of the PR page, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
-- **Network releases**: A network release publishes built networks as the assets of a GitHub release. Only a maintainer pushes its tag, `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). The guide `scgraph/pipelines/README.md`, Part 3, gives the procedure: the run, the draft, the publication, and `utils/pin_network_release.py`, which pins the network release that `load_geograph` loads. A release of scgraph pins a network release that is not a development release.
+- **Network releases**: A network release publishes built networks as the assets of a GitHub release. Only a maintainer pushes its tag, `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release, which is a test release). The guide `scgraph/pipelines/README.md`, Part 3, gives the procedure: the run, the draft, the publication, and `utils/pin_network_release.py`, which pins a network release: it writes into scgraph which release `load_geograph` loads. A release of scgraph pins a network release that is not a development release.
 
 ## Release Checklist (owner only — do not execute)
 

@@ -27,8 +27,8 @@ reduced, so the row of a reduced node lists the boundary nodes that it leads to.
 a to node b. The original `graph` does not change.
 
 The hidden nodes of an edge of `reduced_graph` are the reduced nodes of its route.
-`__hidden_next__[x][b]` is the node after x on the route from x to b, and
-`__hidden_previous__[x][a]` is the node before x on the route from a to x.
+`_hidden_next[x][b]` is the node after x on the route from x to b, and
+`_hidden_previous[x][a]` is the node before x on the route from a to x.
 `reduced_graph_connections[a][b]` lists the hidden nodes of the edge from a to b. It is
 built from these pointers at its first read.
 
@@ -53,8 +53,10 @@ with edges both ways. The first pass reduces nodes 1, 2 and 4. Every route from 
 through reduced nodes then ends at node 3, so the second pass reduces node 0.
 
 `run_with_reduced` handles four cases.
-- An origin node and a destination node are in the same chain. `dijkstra_on_graph`
-  then searches the original graph, whatever the algorithm asked.
+- An origin node and a destination node are in the same chain. The pure-Python build
+  runs `dijkstra_on_graph` on the original graph, whatever the algorithm asked. The C++
+  build runs the asked algorithm on the original graph. It runs Dijkstra for a
+  hierarchy (`contraction_hierarchy`, `tnr`) and for a cached tree.
 - The origin is reduced. A search in one direction starts at it and reads its row of
   `reduced_graph`. A bidirectional search starts instead from the boundary nodes in this
   row, with their distances as start distances.
@@ -66,7 +68,7 @@ the hidden nodes back between each pair of nodes of the path. When the destinati
 reduced, the nodes from the last boundary node to the destination are added.
 
 Example: `dijkstra(origin_id=4, destination_id=1)` reads `reduced_graph[4]` and finds
-the path `[4, 1]` of length 7. `__hidden_next__[4][1]` is 5, so the result is
+the path `[4, 1]` of length 7. `_hidden_next[4][1]` is 5, so the result is
 `[4, 5, 1]`. From node 2 to node 5, the destination becomes `{0: 5, 1: 4}`. The search
 reaches node 1 at 6, for a total of 10, and the result is `[2, 1, 5]`.
 
@@ -109,6 +111,7 @@ def algorithm(
     - A decorated algorithm reads `self.search_graph` (and `self.search_inverse_graph` if bidirectional): the reduced graph after `reduce()`, else the original graph.
     - Can be used as a method decorator `@Graph.algorithm` or `@Graph.algorithm(bidirectional=True)`.
     - Can register external algorithms onto Graph via `@Graph.algorithm(name="custom_algo")`.
+    - Reads the origin and the destination from the parameters `origin_id` and `destination_id`, or from the first two positions. Other names skip the handling of the reduced graph.
     """
 
     def decorator(fn):
@@ -209,39 +212,27 @@ class GraphReducer:
     def reduced_graph_connections(
         self,
     ) -> list[dict[int, list[int]] | None] | None:
-        if getattr(self, "__reduced_graph_connections__", None) is None:
-            pointers = getattr(self, "__hidden_next__", None)
+        if getattr(self, "_reduced_graph_connections", None) is None:
+            pointers = getattr(self, "_hidden_next", None)
             if pointers is None:
                 return None
-            self.__reduced_graph_connections__ = (
-                build_reduced_graph_connections(pointers, False)
+            self._reduced_graph_connections = build_reduced_graph_connections(
+                pointers, False
             )
-        return self.__reduced_graph_connections__
-
-    @reduced_graph_connections.setter
-    def reduced_graph_connections(
-        self, value: list[dict[int, list[int]] | None] | None
-    ) -> None:
-        self.__reduced_graph_connections__ = value
+        return self._reduced_graph_connections
 
     @property
     def reduced_inverse_graph_connections(
         self,
     ) -> list[dict[int, list[int]] | None] | None:
-        if getattr(self, "__reduced_inverse_graph_connections__", None) is None:
-            pointers = getattr(self, "__hidden_previous__", None)
+        if getattr(self, "_reduced_inverse_graph_connections", None) is None:
+            pointers = getattr(self, "_hidden_previous", None)
             if pointers is None:
                 return None
-            self.__reduced_inverse_graph_connections__ = (
+            self._reduced_inverse_graph_connections = (
                 build_reduced_graph_connections(pointers, True)
             )
-        return self.__reduced_inverse_graph_connections__
-
-    @reduced_inverse_graph_connections.setter
-    def reduced_inverse_graph_connections(
-        self, value: list[dict[int, list[int]] | None] | None
-    ) -> None:
-        self.__reduced_inverse_graph_connections__ = value
+        return self._reduced_inverse_graph_connections
 
     @_without_gc
     def reduce(self, iterations: int = -1) -> None:
@@ -266,7 +257,16 @@ class GraphReducer:
         Returns:
 
         - None
+
+        Raises:
+
+        - `TypeError`: `iterations` is not an integer
+        - `ValueError`: `iterations` is below -1
         """
+        if not isinstance(iterations, int):
+            raise TypeError(f"iterations must be an int, not {iterations!r}")
+        if iterations < -1:
+            raise ValueError(f"iterations must be -1 or more, not {iterations}")
         self.reset_cache()
         if iterations == 0:
             return
@@ -416,11 +416,11 @@ class GraphReducer:
         # stored as pointers from these searches (see list_hidden_nodes).
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
-        self.__hidden_previous__ = [None] * len(graph)
-        self.reduced_inverse_graph_connections = None  # rebuilt on first read
+        self._hidden_previous = [None] * len(graph)
+        self._reduced_inverse_graph_connections = None
         reduced_graph = self.reduced_graph
         reduced_inverse_graph = self.reduced_inverse_graph
-        previous_nodes = self.__hidden_previous__
+        previous_nodes = self._hidden_previous
 
         for a in range(len(graph)):
             if is_reduced[a]:
@@ -456,9 +456,9 @@ class GraphReducer:
         # 4. Inverse search into each non-reduced node b: it gives the
         # reduced_inverse_graph edges a -> b from non-reduced nodes a, and the
         # reduced_graph edges a -> b from reduced nodes a.
-        self.__hidden_next__ = [None] * len(graph)
-        self.reduced_graph_connections = None  # rebuilt on first read
-        next_nodes = self.__hidden_next__
+        self._hidden_next = [None] * len(graph)
+        self._reduced_graph_connections = None  # rebuilt on first read
+        next_nodes = self._hidden_next
 
         for b in range(len(graph)):
             if is_reduced[b]:
@@ -824,8 +824,8 @@ class GraphReducer:
         """
         if getattr(self, "reduced_graph", None) is None:
             return path
-        next_nodes = self.__hidden_next__
-        previous_nodes = self.__hidden_previous__
+        next_nodes = self._hidden_next
+        previous_nodes = self._hidden_previous
         new_path = []
         append = new_path.append
         extend = new_path.extend

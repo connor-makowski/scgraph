@@ -1,7 +1,7 @@
 """The functions of the steps of a build. The name of a module starts with the rank
 of its step in a build.
 
-- Step 1, read the sources. `step1_osm_ways` downloads an OpenStreetMap file, or reads
+- Step 1, read the sources. `step1_osm_sources` downloads an OpenStreetMap file, or reads
   it on its server. `step1_osm_range_streamer` downloads the byte ranges of the planet
   file for it. `scgraph.helpers.osm` reads the ways of the file and cuts them into
   pieces.

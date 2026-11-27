@@ -26,7 +26,7 @@ import requests
 from scgraph import network_file, pipelines
 from scgraph.files import download_file, is_offline
 from scgraph.geograph import GeoGraph
-from scgraph.networks import find_cached_file, join_source_values
+from scgraph.geograph_networks import find_cached_file, join_source_values
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -366,7 +366,7 @@ def build_network_file(
     work_dir: str | os.PathLike | None = None,
     refresh: bool = False,
     local_files_only: bool | None = None,
-    validate: bool = False,
+    run_validation_cases: bool = False,
 ) -> str:
     """Build a network into the local cache and return the path of its file.
 
@@ -384,13 +384,16 @@ def build_network_file(
             the files of its steps. None takes a folder in the cache directory, which
             the function removes after a build that succeeds. The function does not
             remove a folder that the caller gives. A build that fails keeps its work
-            folder, and the next call resumes from it.
+            folder, and the next call resumes from it. An earlier build of another
+            `PIPELINE_VERSION`, region or version of scgraph may have left the folder:
+            the function then empties its own folder first, and refuses a folder
+            that the caller gives.
         refresh: Download the sources and build again, even if the cache holds a
             current network. The function empties the work folder first, also a
             `work_dir` that the caller gives.
         local_files_only: Use the cache only, and download nothing. None takes True
             when the environment variable `SCGRAPH_OFFLINE` is `1`.
-        validate: Check the network against its validation cases. A network that is
+        run_validation_cases: Check the network against its validation cases. A network that is
             built is checked before it enters the cache. If it fails, the cache stays
             unchanged. A network that the cache already holds is checked as it is.
             With `local_files_only=True`, the call checks the cached network and
@@ -406,7 +409,8 @@ def build_network_file(
             source. With `local_files_only`: `refresh` is true, or scgraph cannot read
             the cached file.
         FileNotFoundError: The network is not in the cache, with `local_files_only`.
-        RuntimeError: The network fails its validation.
+        RuntimeError: The network fails its validation. Or `work_dir` holds the files
+            of a build of another version, and `refresh` is false.
         requests.HTTPError: A source cannot be downloaded.
     """
     if local_files_only is None:
@@ -420,7 +424,7 @@ def build_network_file(
     if not _should_build(
         pipeline, name, folder, cached_file, refresh, local_files_only
     ):
-        if validate:
+        if run_validation_cases:
             _validate_pipeline(pipeline, name, region, cached_file)
         return str(cached_file)
 
@@ -436,9 +440,31 @@ def build_network_file(
         if work_dir
         else cache.joinpath(".work", name, region or "")
     )
-    if refresh:
+    # A work folder serves one pipeline, version, region and scgraph version. After
+    # an upgrade, its files may follow old rules, so the build does not resume from
+    # them. It empties its own folder. A folder of the caller may hold other files:
+    # the caller empties it with `refresh`.
+    stamp = work.joinpath("scgraph_work.json")
+    built_by = pipelines.build_metadata(
+        name, region, pipeline.PIPELINE_VERSION, []
+    )
+    built_by = {
+        **built_by["pipeline"],
+        "scgraph": built_by["software"]["scgraph"],
+    }
+    try:
+        is_stale = json.loads(stamp.read_text()) != built_by
+    except (OSError, ValueError):
+        is_stale = False
+    if is_stale and work_dir and not refresh:
+        raise RuntimeError(
+            f"{work} holds the files of another build (see {stamp.name}). Pass "
+            "refresh=True to empty this folder, or give another work_dir"
+        )
+    if refresh or is_stale:
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(json.dumps(built_by))
     building = work.joinpath(f"{name}.scgraph")
     try:
         files, sources = _download_sources(
@@ -457,7 +483,7 @@ def build_network_file(
             name, region, pipeline.PIPELINE_VERSION, sources, pipeline.__doc__
         )
         digest = _write_network(network, building, metadata, pipeline)
-        if validate:
+        if run_validation_cases:
             _validate_pipeline(pipeline, name, region, building)
         built_file = _move_into_cache(
             building, digest, folder, downloaded, cached_file
@@ -470,7 +496,7 @@ def build_network_file(
         )
     except (Exception, KeyboardInterrupt) as error:
         if work_dir is None and not any(
-            path.is_file() for path in work.rglob("*")
+            path.is_file() and path != stamp for path in work.rglob("*")
         ):
             # The build stopped before it wrote a file, for example on an
             # unknown region. There is nothing to resume from.
@@ -547,7 +573,7 @@ def main(argv: list[str] | None = None) -> None:
                 refresh=args.refresh,
                 # None lets SCGRAPH_OFFLINE decide
                 local_files_only=args.local_files_only or None,
-                validate=args.validate,
+                run_validation_cases=args.validate,
             )
         )
     except KeyboardInterrupt:

@@ -219,11 +219,14 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_intermediate_nodes=False,
+        save_intermediate_nodes=False,
         min_component_nodes=1,
     )
 
-    assert GeoGraph.get_scgraph_info(no_shapes_file)["shapes"] is False
+    assert (
+        GeoGraph.get_scgraph_info(no_shapes_file)["has_intermediate_nodes"]
+        is False
+    )
     assert _km_from_node_1_to_node_21(
         no_shapes_file
     ) == _km_from_node_1_to_node_21(bbox_file)
@@ -289,8 +292,9 @@ def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
     )
     derived_file = str(tmp_path / "derived.scgraph")
 
+    # `node_modes` takes one name, as `GeoGraph.load_from_scgraph` does
     derived_networks.derive_network_file(
-        parent_file, derived_file, node_modes=["road"], min_component_nodes=2
+        parent_file, derived_file, node_modes="road", min_component_nodes=2
     )
 
     # A route that starts at J takes the street to B
@@ -478,7 +482,7 @@ def test_a_network_release_gets_two_files_for_each_derived_network(
     small_world_file, tmp_path
 ):
     written = derived_networks.derive_network_release_files(
-        small_world_file, tmp_path, validate=False
+        small_world_file, tmp_path, run_validation_cases=False
     )
 
     assert [Path(path).name for path in written] == [
@@ -499,7 +503,7 @@ def test_the_index_of_a_network_release_describes_every_file(
     previous.mkdir()
     shutil.copy(small_world_file, files)
     derived_networks.derive_network_release_files(
-        small_world_file, files, validate=False
+        small_world_file, files, run_validation_cases=False
     )
 
     subprocess.run(
@@ -533,7 +537,10 @@ def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     small_world_file, tmp_path
 ):
     written = derived_networks.derive_network_release_files(
-        small_world_file, tmp_path, ["europe", "world_sea"], validate=False
+        small_world_file,
+        tmp_path,
+        ["europe", "world_sea"],
+        run_validation_cases=False,
     )
 
     europe, europe_without_shapes, world_sea, _ = map(
@@ -541,10 +548,10 @@ def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     )
     # The road and the railway of Europe, the port and the sea lane. The
     # roads of the seven other regions are outside the bbox.
-    assert (europe["nodes"], europe["shapes"]) == (31, True)
+    assert (europe["nodes"], europe["has_intermediate_nodes"]) == (31, True)
     assert (
         europe_without_shapes["nodes"],
-        europe_without_shapes["shapes"],
+        europe_without_shapes["has_intermediate_nodes"],
     ) == (
         31,
         False,

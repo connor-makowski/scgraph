@@ -43,8 +43,8 @@ LAYERS = {
     "geograph_edges": 4,
     "geograph_metrics": 4,
     "geograph_routing": 4,
+    "geograph_networks": 4,
     "network_release": 5,
-    "networks": 5,
     "built_in_geographs": 5,
     "pipelines": 6,
     "": 7,  # `scgraph/__init__.py`
@@ -80,25 +80,25 @@ ALLOWED = [
         "`GeoGraphMetrics` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_io",
+        "geograph_networks",
         "built_in_geographs",
         "The default of `geograph_url` in the signatures of `load_geograph` and "
         "`list_geographs` is `built_in_geographs.GEOGRAPH_URL`, and a default is "
         "read when the module loads.",
     ),
     (
-        "geograph_io",
-        "networks",
-        "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
-        "and the like) import the work from a higher layer inside the function.",
+        "geograph_networks",
+        "network_release",
+        "`load_geograph` and `list_geographs` read the networks of the network "
+        "release that this version of scgraph loads.",
     ),
     (
-        "networks",
+        "geograph_networks",
         "pipelines.network_builder",
         "`build_network` runs the build of a network, and "
         "`list_buildable_networks` reads which pipelines need a region. The "
-        "pipelines import `networks` at the top, so these imports are inside the "
-        "functions.",
+        "pipelines import `geograph_networks` at the top, so these imports are "
+        "inside the functions.",
     ),
 ]
 

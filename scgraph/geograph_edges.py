@@ -4,6 +4,7 @@ This module is internal. `GeoGraphEdges` is the mixin of `GeoGraph` that holds t
 reads the arrays of the edges, and lists the edges of the network or of a path.
 """
 
+import operator
 from scgraph.edge_classes import find_edge_id
 from array import array
 from collections.abc import Iterable, Iterator
@@ -39,10 +40,10 @@ class GeoGraphEdges:
         rows = getattr(graph, "__graph__", None) if check_edge_count else None
         if (
             graph is not self._edge_arrays_graph
-            or graph.edit_count != self._edge_arrays_edit_count
+            or graph._edit_count != self._edge_arrays_edit_count
         ):
             self._remove_metrics()
-            self._set_edge_arrays(graph.get_edge_arrays())
+            self._set_edge_arrays(graph._get_edge_arrays())
         elif rows is not None and sum(map(len, rows)) != len(
             self._edge_arrays[1]
         ):
@@ -64,7 +65,7 @@ class GeoGraphEdges:
         # None, `_read_edge_class_ids` computes it.
         self._edge_arrays = edge_arrays
         self._edge_arrays_graph = self.graph_object
-        self._edge_arrays_edit_count = self.graph_object.edit_count
+        self._edge_arrays_edit_count = self.graph_object._edit_count
         self._edge_class_ids = edge_class_ids
 
     def _read_edge_class_ids(self) -> array | memoryview | None:
@@ -198,12 +199,26 @@ class GeoGraphEdges:
 
         Required Arguments:
 
-        - `path`: The node ids of a path, as the `path` of `get_shortest_path` with `output_path=True`; two consecutive nodes without an edge raise a ValueError
+        - `path`: The node ids of a path, as the `path` of `get_shortest_path` with `output_path=True`
 
         Returns:
 
         - A list with one dictionary for each pair of consecutive nodes of the path (see `get_edges`)
+
+        Raises:
+
+        - `TypeError`: `path` is not a sequence of integer node ids
+        - `ValueError`: The geograph has no edge between two consecutive nodes of the path
         """
+        try:
+            # A set or a dict has no order, and a string is not a path
+            if isinstance(path, (str, bytes, bytearray, set, frozenset, dict)):
+                raise TypeError
+            path = [operator.index(node_id) for node_id in path]
+        except TypeError:
+            raise TypeError(
+                f"path must be a sequence of integer node ids, not {path!r}"
+            ) from None
         return list(
             self._iter_edge_dicts(zip(path, self._find_path_edge_ids(path)))
         )

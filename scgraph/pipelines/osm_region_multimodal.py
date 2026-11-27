@@ -114,15 +114,15 @@ from typing import TYPE_CHECKING
 from scgraph import network_assembly
 from scgraph.helpers.osm import (
     build_way_pieces,
-    list_forbidden_turns,
     read_turn_restrictions,
     select_main_roads_with_class,
 )
 from scgraph.pipelines import eurostat_sea_lanes
-from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_sources
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
 from scgraph.step_logs import log_step
+from scgraph.turn_restrictions import list_forbidden_turns
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -150,7 +150,7 @@ SOURCES = {
     "lakes": _natural_earth("lakes"),
     "rivers": _natural_earth("rivers_lake_centerlines"),
     **step2_hub_connectors.HUB_TABLES,
-    "osm": step1_osm_ways.GEOFABRIK,
+    "osm": step1_osm_sources.GEOFABRIK,
 }
 MODES = [
     # The roads follow turn restrictions: a road junction may have several nodes
@@ -166,8 +166,21 @@ MODES = [
 MARGIN_DEGREES = 2
 
 download = (
-    step1_osm_ways.download
+    step1_osm_sources.download
 )  # for the sources without their own download: checks osmium first
+
+
+def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
+    """Return 0 (both ways) for a vehicle ferry, and None for any other way. A vehicle
+    ferry is a ferry, or a shuttle train that carries cars and lorries (as in the Channel
+    Tunnel), that is not closed to motor vehicles.
+    """
+    if tags.get("route") in ("ferry", "shuttle_train") and "no" not in (
+        tags.get("motor_vehicle"),
+        tags.get("motorcar"),
+    ):
+        return 0
+    return None
 
 
 def select_vehicle_ferries_with_class(
@@ -177,7 +190,7 @@ def select_vehicle_ferries_with_class(
     way. The class is the `route` value of the way. Example: a shuttle train gives
     `(0, "shuttle_train")`.
     """
-    direction = step1_osm_ways.select_vehicle_ferries(tags)
+    direction = select_vehicle_ferries(tags)
     return None if direction is None else (direction, tags["route"])
 
 
@@ -218,7 +231,7 @@ def select_rail_with_class(
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = step1_osm_ways.MAX_KM_BETWEEN_NODES,
+    max_km_between_nodes: float = step1_osm_sources.MAX_KM_BETWEEN_NODES,
     min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
@@ -245,7 +258,7 @@ def build(
     # own junctions and its own pieces, so that a level crossing does not join them.
     # Each select function gives the class of a way with its direction.
     pieces = build_way_pieces(
-        step1_osm_ways.get_source(files["osm"]),
+        step1_osm_sources.get_source(files["osm"]),
         {
             "rail": {"ways": select_rail_with_class},
             "road": {
@@ -266,11 +279,12 @@ def build(
             pieces["rail"]
         )
     del pieces  # the graphs hold their own arrays
-    # 2. The forbidden turns of the roads. Step 6 numbers the nodes again, so each
-    # forbidden turn is kept as the external ids of its nodes until step 7.
+    # 2. The forbidden turns of the roads. The join at the hubs (6) numbers the nodes
+    # again, so each forbidden turn is kept as the external ids of its nodes until
+    # the turns are forbidden (7).
     with log_step(logger, "read the turn restrictions", {}) as counts:
         restrictions = read_turn_restrictions(
-            step1_osm_ways.get_source(files["osm"])
+            step1_osm_sources.get_source(files["osm"])
         )
         road_external_ids = roads["external_node_ids"]
         forbidden_turns = [
@@ -323,7 +337,7 @@ def build(
             work_dir=folder("hubs"),
         )
         counts.update(joined)
-    # 7. Forbid the turns. This step comes after the hubs: a hub is then joined to
+    # 7. Forbid the turns. It comes after the hubs: a hub is then joined to
     # a junction that still has one node, and each added node gets the connectors
     # of its junction. A rail node or a hub may have the external id of a road node,
     # so only the road nodes are looked up.

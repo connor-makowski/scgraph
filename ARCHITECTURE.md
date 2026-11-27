@@ -70,7 +70,7 @@ The package `scgraph.pipelines` builds networks from their online sources. A pip
 
 * `network_builder.build_network_file` downloads the sources and calls `build` in a work folder. It writes a `.scgraph` file with the metadata of the build in its header, then moves the file into the cache.
 * `derived_networks.derive_network_file` writes a network file from another network file, the parent file, and downloads nothing. The derived file holds some node modes of the parent file, and its roads, railways and rail terminals inside a bbox.
-* The costly functions of `step2_land_mask` and of `scgraph.network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`). Their pure-Python version gives the same results.
+* The costly functions of `step2_land_mask` and of `scgraph.network_assembly` have a C++ version in `scgraph/cpp/src/` (`network_assembly.hpp`) and in `scgraph/cpp/src/pipelines/` (`land_mask.hpp`). Their pure-Python version gives the same results.
 
 A build of roads runs these steps in this order. Each line says, on the right, what the step does for the turn restrictions.
 
@@ -151,11 +151,11 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 A `GeoGraph` adds these attributes to its `Graph`:
 
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
-* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. In a network that follows turn restrictions, they name a junction, which may have several nodes.
+* **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. A junction is one crossing of roads. In a network that follows turn restrictions, the node mode and the id name a junction, and a junction may have several nodes.
 * **Turn restrictions**: A network that follows the turn restrictions of its source gives some junctions more than one node. [`turn_restrictions.py`](scgraph/turn_restrictions.py) explains the method, with diagrams. The nodes of a junction follow each other. They have the same point, the same external id and the same node mode. The row of this node mode in `node_modes` has `has_turn_restrictions`.
 * **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0.
 * **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
-* **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
+* **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. This curve is one line that visits every cell of a square grid, so that cells close on the line are close on the grid. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
 
 ### Classes and Metrics
 
@@ -169,13 +169,14 @@ A `GeoGraph` also holds the class of each edge and the metrics of the network. I
 * `scgraph/geograph_routing.py` holds the queries, their totals and their legs.
 * `scgraph/geograph_modifiers.py` holds the edits of the network.
 * `scgraph/geograph_io.py` holds the loaders and savers.
+* `scgraph/geograph_networks.py` holds the methods that load, build, list and clear the networks of scgraph.
 
 Two docstrings explain this code with an example:
 
 * The docstring of [`edge_classes.py`](scgraph/edge_classes.py) defines the class id and the edge id. It shows how the geograph finds the class of an edge by its two nodes, before and after an edit.
 * The docstring of [`metrics.py`](scgraph/metrics.py) defines a metric and an array by edge id. It shows how `create_metric` computes the weights.
 
-* **The edges**: `graph_object.get_edge_arrays()` gives the edges by origin, in three arrays: `node_first_edge_ids`, `edge_destination_node_ids` and the lengths.
+* **The edges**: `graph_object._get_edge_arrays()` gives the edges by origin, in three arrays: `node_first_edge_ids`, `edge_destination_node_ids` and the lengths.
 * **Where the classes come from**: A loader gives the classes, or the constructor with its arguments `classes` and `edge_classes`. `classes` gives the rows `{"name", "edge_mode"}`. `edge_classes` gives, for each node, a dict from the destination of an edge to the name of its class. `intermediate_nodes` has the same structure.
   * Without these arguments, a geograph made from a list of dictionaries has no classes.
 * **The array of the class ids**: A network file and the weights per km of `create_metric` need a `uint8` array by edge id: the class id of each edge. The geograph keeps this array beside the arrays of the edges.
@@ -202,7 +203,7 @@ An edit method of a `GeoGraph` removes the metrics at the call: `add_coord_node`
 
 | Change | How scgraph finds it |
 | :--- | :--- |
-| A call of `add_node`, `remove_node`, `add_edge` or `remove_edge` on `graph_object` | Each `Graph` counts its edits (`edit_count`). The geograph compares this count at the next read of the edges or of the metrics |
+| A call of `add_node`, `remove_node`, `add_edge` or `remove_edge` on `graph_object` | Each `Graph` counts its edits (`_edit_count`). The geograph compares this count at the next read of the edges or of the metrics |
 | A write into `graph_object.graph[u][v]` of a pure-Python graph | `create_metric` and `save_as_scgraph` count the edges, and raise a `ValueError` when the count changed |
 | A new weight on an existing edge, written into `graph_object.graph[u][v]` | scgraph does not find it, because the count of the edges stays the same |
 | A write into `graph_object.graph[u][v]` in the C++ build | Changes nothing, because this list is a copy |
@@ -215,6 +216,8 @@ An algorithm takes its origin and its destination in one of three forms:
 * one node id: `int`;
 * a set of candidate node ids: `set[int]`;
 * a dictionary of start distances: `dict[int, float]`. A query from a point uses it, with one entry for each node that the point is connected to.
+
+A node id is an `int`. The C++ extension also takes an integer with `__index__`, such as a numpy integer, and a `frozenset` as a set. Pure Python refuses them with a `TypeError`.
 
 An algorithm returns a dictionary:
 ```python
@@ -280,13 +283,13 @@ If the straight line from origin to destination is not longer than the shortest 
 The selected algorithm (default: `bidirectional_buckets`) runs from the origin candidates to the destination candidates:
 * The search runs on the graph of the metric of the query: `get_graph_object(metric)`. It reads the `search_graph` of this graph: the reduced graph if `reduce()` was called, the original graph otherwise.
 * No search takes a closed edge. When every route needs one, the search raises `PathNotFoundError`.
-* `a_star` uses a distance to the destination as a lower bound:
+* `a_star` uses a distance to the destination as a lower bound. The argument `heuristic_fn` is the function that gives this distance:
   * With `heuristic_fn=geograph.haversine`, the bound is the great-circle distance. The search computes it from the coordinates in radians, which the `GeoGraph` keeps.
   * With `heuristic_fn=geograph.cheap_ruler`, the bound is the distance that `cheap_ruler` returns.
   * For a metric other than `length`, the `GeoGraph` multiplies each of these two bounds by the smallest weight that the metric gives to 1 km of an open edge (`min_weight_per_length_unit`). The total of a route of `d` km is at least `d` times this value, so the bound stays below the real total.
   * Another heuristic function is used as it is.
-  * The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and scans the nodes as Dijkstra does.
-* A search that counts its node scans (`guides/routing.md`, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
+  * The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and works as Dijkstra does.
+* A search counts its node scans. A node scan is one pass over the edges of one node. When the search ends, it stores the count for its thread (`guides/routing.md`, *Logging*; `_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
 ### 4. Path Expansion
 If the search ran on a reduced graph, `run_with_reduced` replaces each contracted edge of the path by the nodes of its chain.
@@ -296,7 +299,7 @@ If the search ran on a reduced graph, `run_with_reduced` replaces each contracte
 * **Totals**: `metric_totals` gives the total of each metric along the route, `length` first: the weights of its edges, plus the two off-graph legs. `metric_totals["length"]` is `length`. The total of the metric of the query is the value that the search returned, without the search penalty.
 * **Coordinates**: The `coordinate_path` is built from `nodes` and `intermediate_nodes`, in the requested format (`list_of_lists`, `list_of_dicts`, or GeoJSON).
 * **Legs**: With `output_legs=True`, the geograph cuts the edges of the path where the edge mode of their class changes. Each part is a leg, with its length, its totals and its length on each class. Its `mode` is the edge mode of its edges.
-  * One off-graph leg comes before the first leg, and one after the last leg: their `mode` is `off_graph`. The sum of the lengths of the legs is `length`, and the sum of their totals is `metric_totals`.
+  * One off-graph leg comes before the first leg, and one after the last leg: their `edge_mode` is `off_graph`. The sum of the lengths of the legs is `length`, and the sum of their totals is `metric_totals`.
   * `transfers` lists the transfers of the route, each with its node id and its node mode. The two nodes where an off-graph leg meets the network are not transfers.
 
 ---
@@ -325,17 +328,17 @@ flowchart TD
 
 `graph.reduce(iterations=-1)` reduces a `Graph` in memory:
 
-1. **Find the pass-through nodes**: a node with one edge in and one edge out, or with two neighbors joined both ways.
+1. **Find the pass-through nodes**: the docstring of `scgraph/graph_reducer.py` gives the rule, with examples.
 2. **Group them into chains**: `reduced_node_chain_ids` gives the chain of each node.
 3. **Connect the boundaries**: A boundary node is a kept node at the end of a chain. The reducer adds one contracted edge between the two boundary nodes of a chain. It also records the distance from each node of the chain to its boundary nodes.
 4. **Answer a query (`run_with_reduced`)**:
    * **Both ends outside chains**: the search runs on the reduced graph.
    * **Origin inside a chain**: the origin becomes a dictionary of distances to the boundary nodes of its chain.
    * **Destination inside a chain**: the destination becomes a dictionary of distances from the boundary nodes of its chain.
-   * **Both ends inside the same chain**: the query is answered on the nodes of the chain, without the reduced graph.
+   * **Both ends inside the same chain**: the query is answered on the original graph, without the reduced graph.
    * **Path expansion**: `@Graph.algorithm` replaces each contracted edge of the result by the nodes of its chain.
 
-`iterations=-1`, the default, repeats the passes until no pass-through node is left. `iterations=1` runs one pass.
+`iterations=-1`, the default, repeats the passes until a pass marks no new node. `iterations=1` runs one pass.
 
 `GeoGraph.reduce` reduces `graph_object` and the graph of each metric, each with its own weights (section 2, *Classes and Metrics*). A graph of a metric that is built later is reduced the same way. The pass-through nodes are the same in every graph, because they depend on the edges and not on the weights.
 
@@ -359,19 +362,18 @@ flowchart TD
 
 ## 5. Adding an Algorithm
 
-The decorator `@Graph.algorithm` adds an algorithm to `Graph`:
+The decorator `@Graph.algorithm` wraps an algorithm for graph reduction. With `name="my_search"`, it also adds the function to `Graph` as the method `my_search`:
 
 ```python
 from scgraph import Graph
 
-@Graph.algorithm(bidirectional=False)
-def my_search(graph, origin_node, destination_node, **kwargs):
+@Graph.algorithm(bidirectional=False, name="my_search")
+def my_search(graph, origin_id, destination_id, **kwargs):
     # graph.search_graph is the graph to search (reduced or not)
     adjacency = graph.search_graph
 
-    # origin_node and destination_node can be:
-    # - int (one node)
-    # - dict {node_id: start_distance} (the boundary nodes of a chain, on a reduced graph)
+    # origin_id and destination_id take the forms of "What an Algorithm Takes
+    # and Returns" (section 2)
     ...
     return {"path": [origin_id, ..., destination_id], "length": total_weight}
 ```
@@ -413,10 +415,11 @@ flowchart TD
 
 **Of a `Graph`.** `reset_cache()` empties the caches below. `add_node`, `remove_node`, `add_edge` and `remove_edge` call it:
 * the shortest path trees of `cached_shortest_path`;
-* the reduced graph and its chains;
-* the hierarchies (`CHGraph` and `TNRGraph`).
+* the reduced graph, its chains, its connections and its hidden-node pointers;
+* the hierarchies (`CHGraph` and `TNRGraph`);
+* the graph that `bmssp` builds, the largest edge weight and the bucket width.
 
-`inverse_graph` is kept: each edit updates it.
+An edit drops `inverse_graph`, and the next read builds it again.
 
 **Of a `GeoGraph`.** A `GeoGraph` keeps what it builds from its nodes and from its edges:
 
@@ -426,16 +429,22 @@ flowchart TD
 | One snapping index for each node mode | At the first query that snaps to this node mode | With `snap_index` |
 | The edges (`node_first_edge_ids`, `edge_destination_node_ids`, lengths) | At the first read of an edge or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
 | The id of the class of each edge, by edge id | At the load of a network file with classes. After an edit, at the first call that needs the array: `create_metric` from weights per km, or `save_as_scgraph` | With the edges |
+| The ratio `min_weight_per_length_unit` of a metric: the smallest weight of one unit of length | At the first A* search by this metric | With the record of the metric |
+| The record of `length` | At the first read of `length` | When `graph_object` or `geograph_units` changes |
+| `graph`, the original graph (`_graph`) | At the first read of `graph` | By an assignment to `graph`. An edit of `graph_object` does not drop it |
+| `geokdtree` (`_geokdtree`) | At the first read of `geokdtree` | With `snap_index`, when its setter gets `None` |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
 
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)
 
-scgraph keeps the networks that it builds or downloads in a cache directory (default on Linux: `~/.cache/scgraph`). The module `scgraph/networks.py` loads, builds, lists and clears the networks of scgraph, and downloads the file of a network of a network release into the cache. The module `scgraph/built_in_geographs.py` does the same for the seven networks of release 3.6.0. The cache directory holds:
+scgraph keeps the networks that it builds or downloads in a cache directory (default on Linux: `~/.cache/scgraph`). The module `scgraph/geograph_networks.py` loads, builds, lists and clears the networks of scgraph, and downloads the file of a network of a network release into the cache. The module `scgraph/built_in_geographs.py` downloads the seven networks of release 3.6.0 and warns that they are deprecated. `geograph_networks.py` converts each one. The cache directory holds:
 * **Built networks**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time. The folder `networks/` holds a `CACHEDIR.TAG` file, so a backup tool can leave it out.
+* **Built-in networks**: `<name>.graphjson` is a built-in network of release 3.6.0 that `load_geograph` downloaded. `<name>.scgraph` is its conversion, which the first load writes and later loads read. A damaged conversion is made again from the `.graphjson`.
 * **Network Releases**: `releases/<tag>/<name>.scgraph` is a network file that `load_geograph` downloaded from the network release `<tag>`, and `<name>.no_shapes.scgraph` is the same network without edge shapes. A file gets this name only after its content is checked, so a later load does not check it again. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md), Part 4, shows the steps of a load.
 * **Atomic Writes**: A build writes into its work folder: `.work/<name>/<region>` of the cache directory, or the `work_dir` of the caller. It then moves the finished `.scgraph` file into the cache.
   * The file arrives beside its final place and takes its name in one step. `cache.json` is written the same way, after the file. `cache.json` therefore always names a whole file.
   * A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it, and `refresh=True` empties it first.
+  * The work folder holds `scgraph_work.json`: the pipeline, its `PIPELINE_VERSION`, the region and the version of scgraph. When `scgraph_work.json` gives other values, a build does not reuse the files, which may follow old rules. It empties its own folder first, and it refuses a folder that the caller gave until the caller passes `refresh=True`. The other files of the folder are the downloaded sources (`sources/`) and the files of the steps, such as `ways.inputs.json` and `ways.done` of the OpenStreetMap pipelines.
 * **Offline Operation**: With `SCGRAPH_OFFLINE=1` or `local_files_only=True`, scgraph makes no network request. It loads only what the cache holds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` removes the cached networks. It leaves every other file of the directory in place.
 
@@ -463,7 +472,7 @@ Five links join them, each as two edges, one each way. A `motorway` joins Rouen 
 ### Design Principles
 
 1. **Mapped files**: In the C++ build, the algorithms read the edge arrays in the file mapped into memory (`mmap`), without a copy.
-2. **A digest of the content**: Two builds from the same sources, with the same software on the same platform, give the same file, byte for byte.
+2. **A digest of the content**: Two builds from the same sources, with the same software on the same platform, give the same file, byte for byte. The software includes the C++ extension: a file written with the extension and a file written by the pure-Python code list the edges of a node in another order.
 
 ### Binary File Layout
 
@@ -550,7 +559,7 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 
 **The node order.** The nodes are sorted by node mode, in the order of the rows of `metadata.node_modes`: this sort is a rule of the format. The nodes of the first row have the ids `0` to `node_count - 1`, and the next rows follow. `"hilbert"` orders the nodes of one node mode along a 2D Hilbert curve.
 
-**One node mode.** If the node mode of a network has no name, the file has no `node_modes`.
+**One node mode.** The file has no `node_modes` only if its one node mode is the row with `name: None` and no other key.
 
 ### Stored Binary Arrays
 
@@ -623,7 +632,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 5. Every array not marked *(opt)* is there, both shape arrays or neither, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
 6. The first metric is `length`, with a `unit`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
 7. The point arrays have one dtype.
-8. `metadata.node_modes` has 256 rows at most, whose `node_count` values add up to $N$.
+8. `metadata.node_modes` has 256 rows at most, whose `node_count` values sum to $N$.
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.
 10. A read that copies the whole file checks the values: the node_first_edge_ids do not decrease, each destination id is a node, and each class id is a row of `classes`, or 255.
 

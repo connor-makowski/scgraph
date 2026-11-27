@@ -2,7 +2,10 @@ import json
 
 import pytest
 
-from scgraph.helpers.douglas_peucker import douglas_peucker
+from scgraph.helpers.douglas_peucker import (
+    douglas_peucker,
+    perpendicular_distance,
+)
 from scgraph.helpers.geojson import simplify_geojson
 from scgraph.helpers.visvalingam import visvalingam
 
@@ -11,6 +14,27 @@ def test_visvalingam_basic():
     data = [[1, 1], [2, 2], [3, 2], [4, 1], [5, 1]]
     expected = [[1, 1], [3, 2], [4, 1], [5, 1]]
     assert visvalingam(data, pct_to_keep=50, min_points=3) == expected
+
+
+def test_visvalingam_refuses_more_than_100_percent_to_keep():
+    with pytest.raises(ValueError, match="between 0 and 100"):
+        visvalingam([[0, 0], [1, 1], [2, 0]], pct_to_keep=101)
+
+
+# The segment runs from (0, 0) to (1, 0). The projection of a point beyond an
+# end falls outside the segment, so the distance is the one to that end:
+# (1.5, 1) is hypot(0.5, 1) from (1, 0), and (-1, 1) is hypot(1, 1) from (0, 0).
+@pytest.mark.parametrize(
+    "point, expected_distance",
+    [([1.5, 1], 1.25**0.5), ([-1, 1], 2**0.5), ([0.5, 1], 1.0)],
+    ids=["beyond the end", "beyond the start", "above the segment"],
+)
+def test_perpendicular_distance_is_the_distance_to_the_segment(
+    point, expected_distance
+):
+    distance = perpendicular_distance(point, [0, 0], [1, 0])
+
+    assert distance == pytest.approx(expected_distance)
 
 
 # A line with one high peak and two small bumps. The peak (1, 2) is 2 away
@@ -102,7 +126,7 @@ def test_simplify_geojson_with_douglas_peucker_removes_points_within_tolerance(
     filename = _write_geojson_of_the_line_with_a_peak_and_two_bumps(tmp_path)
 
     lines = simplify_geojson(
-        filename, algorithm="douglas_peucker", tolerance=0.5
+        filename, algorithm="douglas_peucker", tolerance_degrees=0.5
     )
 
     # The peak is 2 away from the line between the ends: kept. The two bumps

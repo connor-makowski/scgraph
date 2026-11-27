@@ -13,7 +13,7 @@ WHAT IS STABLE
 scgraph keeps these names working from one release to the next: the contract below,
 the three pipeline modules, `network_builder.build_network_file`,
 `derived_networks.derive_network_file`, and the names in the `__all__` of
-`steps.step1_osm_ways` and of `steps.step4_validation_cases`. The other functions of
+`steps.step1_osm_sources` and of `steps.step4_validation_cases`. The other functions of
 `steps` are internal. A copy of a pipeline of scgraph that calls them follows one
 version of scgraph.
 
@@ -67,16 +67,16 @@ THE DOWNLOAD FUNCTIONS
 
 A download function is `download(url, filename)`. It writes to `filename` what `build`
 reads. This is the source itself, or a small file that says how to read the source in
-place (`step1_osm_ways.download_streamed` does this for the planet, which is never stored).
+place (`step1_osm_sources.write_pbf_layout_file` does this for the planet, which is never stored).
 
 The function may return a dict. The runner adds it to the record of the source: the
-entry of the source in the header of the network file. For example, `step1_osm_ways.download`
+entry of the source in the header of the network file. For example, `step1_osm_sources.download`
 returns the `version` of an OpenStreetMap extract, the time that its data is up to.
 
 The runner also puts the `sha256` and the `bytes` of the downloaded file in the
 record. There is one exception. A source can have its own `download` in `SOURCES`.
 When that function returns a dict, the dict must identify the source, and the runner
-does not compute `sha256` and `bytes`. `step1_osm_ways.download_streamed` gives the `bytes` and
+does not compute `sha256` and `bytes`. `step1_osm_sources.write_pbf_layout_file` gives the `bytes` and
 the `md5` that the server publishes.
 
 THE NODE MODES
@@ -148,8 +148,8 @@ step 1. `GeoGraph.load_from_osm` calls the other functions too, so they are in
    `step2_land_mask.LandMask` tells land from water for the connectors of a hub.
 3. Assemble the graph. `scgraph.network_assembly.build_graph_from_pieces` stores the
    pieces as a graph. `scgraph.helpers.osm.read_turn_restrictions` reads the turn
-   restrictions of the file, and `list_forbidden_turns` gives them as forbidden turns
-   of the road graph. After step 2, `forbid_turns` adds the nodes that make the graph
+   restrictions of the file, and `scgraph.turn_restrictions.list_forbidden_turns` gives them as forbidden turns
+   of the road graph. After the join of step 2, `forbid_turns` adds the nodes that make the graph
    follow them (`scgraph/turn_restrictions.py`). A hub is then joined to a junction
    that still has one node, and each added node gets the connectors of its junction.
    `assemble_network` keeps the strongly connected components, contracts the chains
@@ -202,11 +202,11 @@ This pipeline builds the cycleways of an OpenStreetMap extract, both ways:
 
 ```py
 from scgraph import GeoGraph
-from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_sources
 
 PIPELINE_VERSION = 1
-SOURCES = {"ways": step1_osm_ways.GEOFABRIK}
-download = step1_osm_ways.download  # checks osmium before downloading the extract
+SOURCES = {"ways": step1_osm_sources.GEOFABRIK}
+download = step1_osm_sources.download  # checks osmium before downloading the extract
 
 def select(tags):
     return 0 if tags.get("highway") == "cycleway" else None
@@ -226,7 +226,7 @@ pipelines. Two modules with the same last name share one cache entry.
 HOW TO ADD A NETWORK TO SCGRAPH
 
 1. Add the module to this package, with the names above.
-2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/networks.py` and to the
+2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/geograph_networks.py` and to the
    `Literal` of `GeoGraph.build_geograph`, in alphabetical order. A test checks that the
    two lists are the same.
 3. Add its row to the table of *Building Networks from Their Sources*, in
@@ -247,7 +247,7 @@ import sysconfig
 
 from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.files import download_file
-from scgraph.networks import BUILDABLE_NETWORKS
+from scgraph.geograph_networks import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
 
 __all__ = ["BUILDABLE_NETWORKS", "CLASSES", "download_file"]

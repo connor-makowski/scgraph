@@ -418,7 +418,8 @@ class CHGraphPreprocessing:
         """
         self._shortcuts_cache_node = -1
         self._shortcuts_cache = []
-        self._shortcuts_cache_table = [[] for _ in range(self.nodes_count)]
+        # None: `default_heuristic` has not counted the shortcuts of the node
+        self._shortcuts_cache_table = [None] * self.nodes_count
         self._witness_distances = [float("inf")] * self.nodes_count
         self._witness_resolved = [False] * self.nodes_count
         self._witness_visited = []
@@ -453,6 +454,7 @@ class CHGraphPreprocessing:
             current_heuristic = heuristic_value
             evaluated_now = False
             if not up_to_date[node_id]:
+                self._shortcuts_cache_table[node_id] = None
                 current_heuristic = heuristic_fn(self, node_id)
                 up_to_date[node_id] = True
                 evaluated_now = True
@@ -466,13 +468,13 @@ class CHGraphPreprocessing:
             contracted[node_id] = True
             self.contracted_count += 1
 
-            # Reuse shortcuts cached by the heuristic call above (default_heuristic
-            # stores them) only if it ran in this iteration: a list cached earlier
-            # can be out of date, as other nodes were contracted since
+            # Reuse the shortcuts that `default_heuristic` counted for this node
+            # during the heuristic call above. A list counted earlier can be out of
+            # date, as other nodes were contracted since.
             if (
                 evaluated_now
                 and 0 <= node_id < len(self._shortcuts_cache_table)
-                and self._shortcuts_cache_table[node_id]
+                and self._shortcuts_cache_table[node_id] is not None
             ):
                 found_shortcuts = self._shortcuts_cache_table[node_id]
             elif evaluated_now and self._shortcuts_cache_node == node_id:

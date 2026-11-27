@@ -12,7 +12,17 @@ This page lists what release 4.0 changes for a user of scgraph 3.6, and what to 
 | `GeoGraph.get_shortest_path` takes its options by keyword | Write `get_shortest_path(origin, destination, output_units="mi")`, not `get_shortest_path(origin, destination, "mi")` |
 | `CHGraph`, `TNRGraph`, `create_contraction_hierarchy` and `create_tnr_hierarchy` take their options by keyword, with the same names in both builds | Write `TNRGraph(graph, num_transit_nodes=100)` |
 | `ch_graph_kwargs` and `tnr_graph_kwargs` have no effect and give a `DeprecationWarning` | Pass `settled_limit` and `heuristic_fn` |
-| A wrong argument raises a `ValueError`, not an `AssertionError` | Catch `ValueError` |
+| In pure Python, a wrong argument no longer raises an `AssertionError`. A wrong value raises `ValueError`, and a wrong type raises `TypeError`. `add_edge` raises `IndexError` for a node id that is not in the graph. `validate` raises `RuntimeError` for a graph that is not connected, and `remove_node` raises it for a graph with no node. The C++ build of 3.6 raised these types | Catch the type of the fault that you expect, not `AssertionError` |
+| Both builds now refuse the same wrong origin or destination of an algorithm. A node id or a start distance of a wrong type raises `TypeError`: in pure Python, 3.6 raised `ValueError`. A list raises `TypeError`: with the C++ extension, 3.6 read it as a set | Give an origin as an int, as a set of ints, or as a dict of start distances |
+| With the C++ extension, an origin given as a dict keeps its start distances when they are ints (`{0: 5}`). Release 3.6 read this dict as the set of its keys | Nothing: the result is now the one of the pure-Python build |
+| `Graph.contraction_hierarchy` and `Graph.tnr` raise `ValueError` for a node id that is not in the graph. With the C++ extension, 3.6 stopped the interpreter. In pure Python, 3.6 raised `IndexError`, or returned a wrong path for a negative id | Catch `ValueError` |
+| In pure Python, an assignment to `reduced_graph_connections` or `reduced_inverse_graph_connections` raises `AttributeError`, as with the C++ extension in 3.6 | Nothing replaces the assignment: `reduce()` computes both |
+| `reduce` raises `ValueError` for `iterations` below -1, and `add_edge` raises `ValueError` for a distance that is NaN. Release 3.6 accepted both | Pass `iterations=-1` to reduce until no pass-through node is left |
+| `GeoGraph.remove_node` removes the point of the node from `nodes` too | Do not remove the point yourself after the call |
+| After `reduce()`, `Graph.graph` and `Graph.inverse_graph` are the original graph in both builds. In 3.6, the pure-Python build gave the reduced graph | A custom algorithm reads `search_graph` and `search_inverse_graph` |
+| `GridGraph.format_coordinate` names its parameters `coordinate_dict` and `output_coordinate_path`. Release 3.6 had `cooinate_dict` and `output_coorinate_path` | A call by position does not change. A call by keyword uses the new names |
+| `load_from_geojson` weighs each edge by its great-circle length, and numbers the nodes along a Hilbert curve. So the lengths differ from those of 3.6 for the same file | Nothing for the lengths. `geograph.external_node_ids[i]` gives the id that node `i` had in 3.6 |
+| Six functions of `scgraph.utils` are deprecated and give a `DeprecationWarning`: `print_console`, `validate`, `time_test`, `cpp_check`, `adjacency_dict_to_list_tuples` and `adjacency_list_tuples_to_dict`. `print_console`, `validate`, `time_test` and `cpp_check` write their message with `logging`, not with `print` | Use `logging` in place of `print_console`, and `has_cpp()` in place of `cpp_check`. Nothing replaces `validate`, `time_test` and the two `adjacency_*` functions: copy the one that you use into your code |
 | `reduce()` runs until no pass-through node is left (`iterations=-1`). Release 3.6 ran one pass | Pass `iterations=1` for one pass. Route lengths are the same |
 | `'kdclosest'` and `'kdquadrant'` are deprecated values of `node_addition_type` | Use `'closest'` and `'quadrant'`, which give the same results |
 | `geograph_url` is deprecated. Another URL than the default still loads `<name>.graphjson` from that URL, with a `DeprecationWarning` | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
@@ -26,7 +36,7 @@ This page lists what release 4.0 changes for a user of scgraph 3.6, and what to 
 | After an edit of a geograph of `load_from_osmnx_graph(graph, weight_key="travel_time")`, a query without `metric` raises a `ValueError` | Pass `metric="length"`: the query gives the shortest route |
 | Without `off_graph_travel_speed`, `travel_time` adds 240 seconds for each km off the graph. Release 3.6 added no time | Pass `off_graph_travel_speed`, in km/h, to choose another speed |
 
-Release 5.0 removes what 4.0 deprecates.
+Release 5.0 removes what 4.0 deprecates, at the earliest.
 
 ## Deprecated Networks of scgraph 3.6.0
 

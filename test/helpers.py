@@ -59,24 +59,25 @@ def build_main_roads(files, *, work_dir=None):
     """
     from scgraph import network_assembly
     from scgraph.helpers import osm
-    from scgraph.pipelines.steps import step1_osm_ways
+    from scgraph.pipelines import osm_region_multimodal
+    from scgraph.pipelines.steps import step1_osm_sources
 
     pieces = osm.build_way_pieces(
-        step1_osm_ways.get_source(files["roads"]),
+        step1_osm_sources.get_source(files["roads"]),
         {
             "road": {
-                "ways": step1_osm_ways.select_main_roads,
-                "ferries": step1_osm_ways.select_vehicle_ferries,
+                "ways": osm.select_main_roads,
+                "ferries": osm_region_multimodal.select_vehicle_ferries,
             }
         },
         ("highway", "route"),
-        step1_osm_ways.MAX_KM_BETWEEN_NODES,
+        step1_osm_sources.MAX_KM_BETWEEN_NODES,
         os.path.join(work_dir, "ways") if work_dir else None,
     )
     graph = network_assembly.build_graph_from_pieces(pieces["road"])
     arrays = network_assembly.assemble_network(
         graph,
-        max_km_between_nodes=step1_osm_ways.MAX_KM_BETWEEN_NODES,
+        max_km_between_nodes=step1_osm_sources.MAX_KM_BETWEEN_NODES,
         min_component_nodes=None,  # only the largest component
     )
     return arrays, [{"name": None}]

@@ -48,17 +48,17 @@ An edit of the network removes the metrics. If it removes the default metric, ea
 
 ## The Legs of a Route
 
-A **leg** is a part of a route on one edge mode. The mode of the leg is this edge mode. A **transfer** is a node where a route goes from a leg of one edge mode to a leg of another. `output_legs=True` returns the legs of a route, and its transfers:
+A **leg** is a part of a route on one edge mode. The `edge_mode` of the leg is this edge mode. A **transfer** is a node where a route goes from a leg of one edge mode to a leg of another. `output_legs=True` returns the legs of a route, and its transfers:
 
 ```py
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
 for leg in route["legs"]:
-    print(leg["mode"], round(leg["length"]), "km", round(leg["metric_totals"]["hours"], 1), "h")
+    print(leg["edge_mode"], round(leg["length"]), "km", round(leg["metric_totals"]["hours"], 1), "h")
 # One line for each leg: mode, km, hours
 route["transfers"]  # [{'node_id': ..., 'node_mode': 'airport'}, ...]: each transfer with its node mode
 ```
 
-The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. An off-graph leg ends at a node of the network: this node is not a transfer. Here each query point is less than 0.5 km from its node, so the loop prints 0 km for each off-graph leg.
+The first leg and the last leg are the two off-graph legs: their `edge_mode` is `off_graph`. An off-graph leg ends at a node of the network: this node is not a transfer. Here each query point is less than 0.5 km from its node, so the loop prints 0 km for each off-graph leg.
 
 The hours of a leg by air include the wait at its two airports: 3 hours at each, from `weight_at_hub`. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
 
@@ -114,7 +114,7 @@ A weighted sum can also add two metrics of different units: `weighted_sum_of={"c
 - **The off-graph legs.** A call that gives `edge_weight_fn` also gives `off_graph_weight_per_km`. A call without `edge_weight_fn` does not give it. A dict of `weight_per_km` gives a weight per km for `off_graph`.
 - **The classes.** Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`.
 - **The values.** A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it.
-- **The name.** A metric of the same name is replaced, and `remove_metric(name)` removes a metric.
+- **The name.** A metric of the same name is replaced, and `remove_metric(metric)` removes a metric.
 
 The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
 

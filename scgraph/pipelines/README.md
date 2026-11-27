@@ -60,8 +60,16 @@ import logging
 from scgraph.pipelines.network_builder import build_network_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_network_file("osm_region_multimodal", region="europe/denmark", validate=True)
+build_network_file("osm_region_multimodal", region="europe/denmark", run_validation_cases=True)
 ```
+
+The runner downloads `https://download.geofabrik.de/{region}-latest.osm.pbf`: `--region europe`
+names the file of the whole of Europe. Such a build needs much more memory and time than the
+build of Denmark. The released network `europe` is not built this way: it is a part of
+`world_multimodal` (see Part 2 below). The runner keeps
+the sources in a work folder inside the cache directory, and removes it after a build that
+succeeds. The environment variable `SCGRAPH_CACHE_DIR`, or the option `--cache-dir`, gives
+another cache directory. The option `--work-dir` gives the work folder and keeps it.
 
 ### Build Steps
 
@@ -213,16 +221,17 @@ orders the nodes.
   classes. A chain longer than `max_km_between_nodes` keeps nodes along it. In this build, 151
   nodes stay because the class changes there.
 - **Keep the node of a split.** The new node in the middle of a split road (step 2) stays.
-- **Keep a junction with a turn restriction.** Before this step, the pipeline applies the
-  turn restrictions of OpenStreetMap between two kept roads. A junction with a turn
+- **Keep a junction with a turn restriction.** A turn restriction is an OpenStreetMap rule that
+  forbids one turn at a junction, such as no left turn. Before this step, the pipeline applies the
+  turn restrictions between two kept roads. A junction with a turn
   restriction then has more than one road node, at the same point
   (`scgraph/turn_restrictions.py` explains why). Such a junction keeps all its nodes or loses
   them all, and no chain is contracted through it. The table above comes from the extract of
   2026-11-18, built without the turn restrictions. The numbers of this item come from another
   build, on the extract of 2026-11-16. There, the turn restrictions forbid 1,091 turns and
-  add 1,028 nodes to the 66,145 nodes of the joined graph. The network file has 876
+  add 1,028 nodes to the joined graph. The network file has 876
   junctions with more than one node.
-- **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve. Nodes
+- **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve (a line that visits every cell of a square grid, so that close nodes get close ids). Nodes
   that are near on the map are then near in the file, so a search reads nearby memory.
 
 Where to read more: the docstring at the top of `scgraph/network_assembly.py`.
@@ -383,7 +392,7 @@ for download.
 ### Before the Tag
 
 The date of the data is in the code, not in the tag. The constant `PLANET` of
-`steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
+`steps/step1_osm_sources.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
 `networks-2026.11.25-dev.1` holds the planet of 2026-11-02.
 
@@ -517,6 +526,9 @@ loads a released network. The guide
 lists the eleven networks, and gives the arguments of the call, the cache and the errors of a
 load.
 
+With `local_files_only=True`, or with `SCGRAPH_OFFLINE=1`, a load downloads nothing. It raises
+`FileNotFoundError` when the cache does not hold the network.
+
 This part follows one load of `oceania` without its edge shapes. The **cache** is the folder
 where scgraph keeps network files on the machine of a user.
 
@@ -546,7 +558,7 @@ extension. The first load took 2.7 s, download included, and the later load 0.01
 shortest route from Sydney (-33.8688, 151.2093) to Perth (-31.9523, 115.8613) is 3311.7 km,
 with a flight. With `node_modes=["road"]`, the route is 3930.3 km.
 
-Where to read more: the docstring of `fetch_released_file`, in `networks.py`.
+Where to read more: the docstring of `fetch_released_file`, in `geograph_networks.py`.
 
 ## Custom Networks
 

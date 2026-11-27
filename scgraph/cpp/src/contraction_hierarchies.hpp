@@ -31,7 +31,8 @@ protected:
     mutable std::vector<bool> witness_resolved;
     mutable int shortcuts_cache_node = -1;
     mutable std::vector<std::tuple<int, int, double, int>> shortcuts_cache;
-    mutable std::vector<std::vector<std::tuple<int, int, double, int>>> shortcuts_cache_table;
+    // std::nullopt: default_heuristic has not counted the shortcuts of the node
+    mutable std::vector<std::optional<std::vector<std::tuple<int, int, double, int>>>> shortcuts_cache_table;
     mutable std::vector<double> query_f_distances;
     mutable std::vector<double> query_b_distances;
     mutable std::vector<int> query_f_parents;

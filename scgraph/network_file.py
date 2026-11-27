@@ -27,7 +27,8 @@ the file in `metadata["metrics"]`, and `length` is the first one. The file holds
 array `metric_<name>` for each metric. Example: a file with the metrics `length` and
 `travel_time` holds `metric_length` and `metric_travel_time`.
 
-The public functions are `read`, `write`, `get_scgraph_info` and `check_content`.
+The public functions are `read`, `write`, `get_scgraph_info`, `check_content`,
+`build_header_metadata` and `build_node_mode_ids`.
 """
 
 import hashlib
@@ -38,6 +39,7 @@ import os
 import sys
 from array import array
 from collections.abc import Sequence
+from datetime import datetime
 from itertools import chain, starmap
 
 from scgraph import files
@@ -49,7 +51,14 @@ try:
 except ImportError:
     from scgraph.helpers.edge_selection import select_edges
 
-__all__ = ["check_content", "get_scgraph_info", "read", "write"]
+__all__ = [
+    "build_header_metadata",
+    "build_node_mode_ids",
+    "check_content",
+    "get_scgraph_info",
+    "read",
+    "write",
+]
 
 MAGIC = b"SCGRAPH1"
 FORMAT_VERSION = 1
@@ -151,8 +160,8 @@ RESERVED_METADATA_KEYS = frozenset(
         "nodes",
         "edges",
         "coordinate_dtype",
-        "shapes",
-        "external_node_ids",
+        "has_intermediate_nodes",
+        "has_external_node_ids",
         "attribution",
         "data_up_to",
     }
@@ -265,6 +274,8 @@ def write(
 
     Raises:
         TypeError: The values of an array do not have a dtype that the array may have.
+        ValueError: `read` would refuse the file: the arrays do not fit together,
+            or the metadata does not describe them.
         PermissionError: On Windows, a process has mapped the file at `filename`, so
             the file cannot be replaced.
     """
@@ -292,6 +303,11 @@ def write(
             "offset": position,
         }
         position = _align(position + len(values) * values.itemsize)
+    # The checks of `read`, so that `read` accepts every file that `write` writes
+    try:
+        _check(filename, arrays, header["metadata"])
+    except (AttributeError, KeyError, OverflowError, TypeError) as error:
+        raise ValueError(f"{filename}: invalid metadata ({error!r})") from error
     # Sorted, so that in one build the same network and metadata give the same file
     text = json.dumps(header, sort_keys=True).encode()
     start = _align(_PREAMBLE + len(text))
@@ -352,7 +368,9 @@ def read(
         (`node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`, ...), with the array `metric_<name>`
         of each other metric. `metadata` holds the metadata of the header, and the
         `content_sha256` of the file. `build_node_mode_ids` gives the node mode of
-        each node from the rows of `metadata["node_modes"]`.
+        each node from the rows of `metadata["node_modes"]`. A read of some node
+        modes returns `external_node_ids` even when the file holds none. The id of
+        a node is then its position in the file.
 
     Raises:
         ValueError: The header or the layout of the arrays is not valid. `read`
@@ -390,24 +408,50 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         filename: The path of the `.scgraph` file.
 
     Returns:
-        The keys of the metadata of the file, then `content_sha256`,
-        `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
-        `external_node_ids`. `nodes` and `edges` are counts. `shapes` and
-        `external_node_ids` are True when the file holds these arrays.
+        The keys of the metadata of the file (`metrics`, `sources`, `node_modes`
+        with the `node_count` of each node mode, `classes`, `pipeline`, ...), then
+        `content_sha256`, `format_version`, `nodes`, `edges`, `coordinate_dtype`,
+        `has_intermediate_nodes` and `has_external_node_ids`. `nodes` and `edges`
+        are counts. `has_intermediate_nodes` and `has_external_node_ids` are True
+        when the file holds these arrays. With `sources`, the dict also has
+        `attribution`, the credit line to cite with results ("credit (license);
+        ..."). It also has `data_up_to`, the newest `version` of a source that is
+        a date, or None if no source has one.
 
     Raises:
         ValueError: The header of the file is not valid.
     """
     arrays, metadata = read(filename, mapped=True)
-    return {
+    info = {
         **metadata,
         "format_version": FORMAT_VERSION,
         "nodes": len(arrays["node_points"]) // 2,
         "edges": len(arrays["edge_destination_node_ids"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
-        "shapes": "shape_points" in arrays,
-        "external_node_ids": "external_node_ids" in arrays,
+        "has_intermediate_nodes": "shape_points" in arrays,
+        "has_external_node_ids": "external_node_ids" in arrays,
     }
+    if "sources" in info:
+        sources = info["sources"]
+        credits = dict.fromkeys(
+            f"{s['credit']} ({s.get('license', 'NOASSERTION')})"
+            for s in sources
+            if "credit" in s
+        )
+        if credits:
+            info["attribution"] = "; ".join(credits)
+        # ISO 8601 times in UTC (as Geofabrik gives them) sort as text
+        dates = [s["version"] for s in sources if _is_date(s.get("version"))]
+        info["data_up_to"] = max(dates, default=None)
+    return info
+
+
+def _is_date(text):
+    try:
+        datetime.fromisoformat(text)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def check_content(filename: str | os.PathLike) -> str:
@@ -690,7 +734,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid edge_first_shape_point_ids",
         )
-        # Mapped, each shape's node_first_edge_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
+        # Mapped, each shape's edge_first_shape_point_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(
             not should_check_values or is_sorted(shapes),
             "invalid edge_first_shape_point_ids",

@@ -4,9 +4,10 @@ import random
 from array import array
 
 import pytest
+from geokdtree import GeoKDTree
 
 from scgraph import GeoGraph
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.helpers.snap_index import SnapIndex as PythonSnapIndex
 
 # The pure-Python index and, when the extension is built, the C++ index.
@@ -109,7 +110,7 @@ def _networks():
     ]
     mixed = spread + cluster + special
     # Along a Hilbert curve, as network files are (a query scans about 4 leaves)
-    ordered = [mixed[i] for i in hilbert_order(mixed)]
+    ordered = [mixed[i] for i in get_hilbert_order(mixed)]
     shuffled = ordered[:]
     rng.shuffle(shuffled)  # a query would scan about 40 leaves
     return {
@@ -246,7 +247,7 @@ def test_snap_index_refuses_an_odd_number_of_coordinates(implementation):
 def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
     implementation, network
 ):
-    with pytest.raises(ValueError, match="hilbert_order"):
+    with pytest.raises(ValueError, match="get_hilbert_order"):
         implementation(_networks()[network])
 
 
@@ -359,3 +360,19 @@ def test_snap_index_refuses_a_coordinate_that_is_not_finite(
 ):
     with pytest.raises(ValueError, match="finite"):
         implementation([[0.0, 0.0], point_that_is_not_finite])
+
+
+# Release 3.6.0 gave a GeoGraph the attribute `geokdtree`.
+def test_geokdtree_of_a_geograph_gives_the_id_of_the_closest_node():
+    geograph = GeoGraph(graph=[{}, {}], nodes=[[0.0, 0.0], [0.0, 10.0]])
+
+    assert geograph.geokdtree.closest_idx([0.0, 9.0]) == 1
+
+
+def test_a_geokdtree_that_is_assigned_snaps_the_nodes_of_the_geograph():
+    geograph = GeoGraph(graph=[{}, {}], nodes=[[0.0, 0.0], [0.0, 10.0]])
+    # The ids of this tree are the reverse of the ids of the nodes, so only
+    # the assigned tree gives 1 for the point at the first node.
+    geograph.geokdtree = GeoKDTree(points=[[0.0, 10.0], [0.0, 0.0]])
+
+    assert geograph.snap_index.closest_idx([0.0, 0.0]) == 1

@@ -2,9 +2,9 @@
 
 This module is internal. A network file stores the points of the nodes, the shapes of
 the edges and the source ids of the nodes as flat arrays, which `network_file.read`
-can map into memory. A `GeoGraph` loaded from a file holds the three classes below in
-place of Python lists: `NodePoints` is its `nodes`, `EdgeShapes` its
-`intermediate_nodes`, and `ExternalNodeIds` its `external_node_ids`. Each class reads a
+can map into memory. A `GeoGraph` loaded from a file holds `NodePoints` as its `nodes`
+and `EdgeShapes` as its `intermediate_nodes`, in place of Python lists. Every
+`GeoGraph` holds `ExternalNodeIds` as its `external_node_ids`. Each class reads a
 value from the arrays when it is asked for, and behaves as the list that it replaces.
 Example: `NodePoints(node_points)[3]` builds the list `[latitude, longitude]` of the
 node 3 from its two values in `node_points`, and keeps no list of it.
@@ -26,8 +26,6 @@ try:
     from scgraph.cpp import shape_path as _shape_path
 except ImportError:
     _coordinate_lists = _shape_path = None
-
-__all__ = ["EdgeShapes", "NodePoints", "ExternalNodeIds"]
 
 
 class EdgeShapes(Sequence):
@@ -179,14 +177,14 @@ class ExternalNodeIds(Sequence):
     def __reduce__(self):
         return ExternalNodeIds, (list(self), self._nodes)
 
-    def take(self, positions: Iterable[int]) -> array:
-        """The ids of the nodes at `positions`, as an int64 array."""
+    def take(self, node_ids: Iterable[int]) -> array:
+        """The external ids of the nodes `node_ids`, as an int64 array."""
         ids = self._ids
         if len(ids) < len(self):  # nodes were added since
-            return array("q", (self[i] for i in positions))
+            return array("q", (self[i] for i in node_ids))
         if ids == range(len(ids)):
-            return array("q", positions)
-        return array("q", (ids[i] for i in positions))
+            return array("q", node_ids)
+        return array("q", (ids[i] for i in node_ids))
 
     def array(self, order: Iterable[int] | None = None) -> array | None:
         """The ids (in `order`, `order[new] = old`, if given) as an int64 array, int32

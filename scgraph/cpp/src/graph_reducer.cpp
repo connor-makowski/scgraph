@@ -20,6 +20,9 @@ void GraphReducer::reset_cache() {
 }
 
 void GraphReducer::reduce(int iterations) {
+    if (iterations < -1) {
+        throw std::invalid_argument("iterations must be -1 or more, not " + std::to_string(iterations));
+    }
     this->reset_cache();
     if (iterations == 0) {
         return;

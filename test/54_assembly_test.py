@@ -8,6 +8,7 @@ from helpers import great_circle_km, needs_the_cpp_extension
 
 from scgraph import network_assembly
 from scgraph.helpers.near_nodes import NearNodes
+from scgraph.helpers.polylines import PieceArrays
 from scgraph.utils import has_cpp
 
 BACKENDS = {"python": network_assembly.python}
@@ -335,9 +336,7 @@ def assembled(tmp_path_factory):
     """The arrays of the network built from the four pieces. The arguments
     keep every component, even of one node, and cut no edge: no chain reaches
     100 km."""
-    pieces = network_assembly.PieceArrays(
-        work_dir=tmp_path_factory.mktemp("pieces")
-    )
+    pieces = PieceArrays(work_dir=tmp_path_factory.mktemp("pieces"))
     shapes = {1: POINTS_FROM_1_TO_2, 2: POINTS_FROM_2_TO_3}
     for origin, destination, direction in PIECES:
         pieces.append(
@@ -406,7 +405,7 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     # table.
     primary, trunk = 5, 3
     places = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [0, 0.03]}
-    pieces = network_assembly.PieceArrays(work_dir=tmp_path)
+    pieces = PieceArrays(work_dir=tmp_path)
     for origin, class_id in ((1, primary), (2, primary), (3, trunk)):
         ends = [places[origin], places[origin + 1]]
         pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_id)
@@ -430,7 +429,7 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
 
 
 def test_pieces_with_and_without_a_class_are_refused():
-    pieces = network_assembly.PieceArrays()
+    pieces = PieceArrays()
     pieces.append(1, 2, 1.0, 0, [[0, 0], [0, 0.01]], [], 5)
     pieces.append(2, 3, 1.0, 0, [[0, 0.01], [0, 0.02]], [])
 
@@ -454,7 +453,7 @@ NO_TURN_FROM_W_TO_B = [W, J, B]
 
 
 def _fork_graph():
-    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    pieces = PieceArrays(tolerance_meters=None)
     for i, (origin, destination) in enumerate(FORK_STREETS):
         pieces.append(
             origin,
@@ -512,7 +511,7 @@ MOTORWAY, PRIMARY = 0, 4
 
 
 def _motorway_and_primary_road(points_of_primary_road, junctions=(10, 20)):
-    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    pieces = PieceArrays(tolerance_meters=None)
     ends = [[0, 0], [0, 0.03]]
     pieces.append(*junctions, 3.0, -1, ends, [], MOTORWAY)
     pieces.append(*junctions, 4.0, 0, ends, points_of_primary_road, PRIMARY)
@@ -580,9 +579,7 @@ def test_a_road_is_split_at_its_middle_point_and_its_halves_keep_the_others(
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     # PieceArrays stores the pieces by batches of 10,000. Each of the 10,002
     # pieces has one point, at its own latitude: i units of 1e-7 degree.
-    pieces = network_assembly.PieceArrays(
-        tolerance_meters=None, work_dir=tmp_path
-    )
+    pieces = PieceArrays(tolerance_meters=None, work_dir=tmp_path)
     for i in range(10_002):
         pieces.append(i, i + 1, 1.0, 0, [[0, 0], [0, 0.01]], [[i * 1e-7, 0]])
     pieces.flush()

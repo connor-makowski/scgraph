@@ -43,7 +43,7 @@ constexpr int MAX_LEVELS = 10;
 // How to fix a scattered order, in the error message. Same text in helpers/snap_index.py
 constexpr const char* SORT_HINT =
     "Sort them along a Hilbert curve and map the answers back: "
-    "order = scgraph.helpers.hilbert.hilbert_order(nodes); "
+    "order = scgraph.helpers.hilbert.get_hilbert_order(nodes); "
     "index = SnapIndex([nodes[i] for i in order]); "
     "node = order[index.closest_idx(point)]";
 

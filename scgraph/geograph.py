@@ -1,8 +1,9 @@
 """Geographic graphs: a `Graph` whose nodes have a latitude and a longitude.
 
 - `GeoGraphIO`, in `scgraph/geograph_io.py`, loads and saves networks (GeoJSON,
-  graphjson, `.scgraph` files, OpenStreetMap, OSMnx), and loads or builds the networks
-  of scgraph.
+  graphjson, `.scgraph` files, OpenStreetMap, OSMnx).
+- `GeoGraphNetworks`, in `scgraph/geograph_networks.py`, loads, builds, lists and
+  clears the networks of scgraph, and downloads the released networks.
 - `GeoGraphModifiers`, in `scgraph/geograph_modifiers.py`, adds and removes nodes and
   edges, by id or by coordinates.
 - `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes, reads the
@@ -16,9 +17,8 @@
 - `GeoGraph` joins these classes.
 - `LazyGeoGraph` stands for a `GeoGraph` and loads it at its first use.
 
-Users reach this module through `scgraph.GeoGraph`. `scgraph/networks.py` downloads
-the released networks, and `scgraph/built_in_geographs.py` holds the seven networks
-of scgraph 3.6.0.
+Users reach this module through `scgraph.GeoGraph`. `scgraph/built_in_geographs.py`
+holds the seven networks of scgraph 3.6.0.
 """
 
 from scgraph.step_logs import log_step
@@ -26,11 +26,12 @@ from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
 from scgraph import array_views
-from scgraph import geograph_io
+from scgraph import geograph_io, geograph_networks
 from scgraph.geograph_io import GeoGraphIO
 from scgraph.geograph_modifiers import GeoGraphModifiers
 from scgraph.geograph_edges import GeoGraphEdges
 from scgraph.geograph_metrics import GeoGraphMetrics
+from scgraph.geograph_networks import GeoGraphNetworks
 from scgraph.geograph_routing import (
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -56,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 class GeoGraph(
     GeoGraphIO,
+    GeoGraphNetworks,
     GeoGraphModifiers,
     GeoGraphEdges,
     GeoGraphMetrics,
@@ -224,7 +226,7 @@ class GeoGraph(
         # The record of `length`, as `_read_metric("length")` last built it
         self._length_metric = None
         # The arrays of the edges of `graph_object`
-        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
+        # (`Graph._get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
         # `edge_destination_node_ids` and the lengths. The id of an edge is its position in `edge_destination_node_ids`.
         # The graph and its count of edits at that
         # time show whether the graph was edited since.
@@ -290,7 +292,7 @@ class GeoGraph(
         # Create a geograph from what a loader read, with the other arguments of
         # the constructor. `edge_arrays` are the node_first_edge_ids, the edge_destination_node_ids and the
         # lengths of the edges of the graph, in the order of
-        # `Graph.get_edge_arrays`. The geograph keeps them without a copy.
+        # `Graph._get_edge_arrays`. The geograph keeps them without a copy.
         # `edge_class_ids` is the class id of each edge, by edge id, when a
         # network file holds it. `metrics` are the metrics other than `length`.
         geograph = cls(**kwargs)
@@ -336,7 +338,7 @@ class GeoGraph(
         Optional Arguments:
 
         - `node_mode`: The name of a node mode of `node_modes`: only the nodes of this node mode are returned; an unknown name raises a ValueError
-        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
+        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned; a bbox with its south above its north, or its west beyond its east, raises a ValueError
 
         Returns:
 
@@ -351,6 +353,12 @@ class GeoGraph(
         south, west, north, east = (
             (-inf, -inf, inf, inf) if bbox is None else bbox
         )
+        # A NaN in the bbox fails this test too
+        if not (south <= north and west <= east):
+            raise ValueError(
+                f"bbox {bbox} has its south above its north, or its west beyond "
+                "its east: a bbox is (south, west, north, east)"
+            )
         nodes = []
         for node_id, (point, node_mode_id) in enumerate(
             zip(self.nodes, self._read_node_mode_ids())
@@ -372,6 +380,7 @@ class GeoGraph(
 
     @property
     def graph(self) -> list[dict[int, int | float]]:
+        """The original graph, as a list of adjacency dictionaries, whether or not it is reduced."""
         if self._graph is None:
             # The original graph, whether or not it has been reduced
             self._graph = self.graph_object.unreduced_graph
@@ -404,9 +413,9 @@ class GeoGraph(
         # index of a node mode: they are rebuilt with the index.
         self._snap_indexes = SnapIndexes(snap_index)
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
-        self.__node_radians__ = None
+        self._node_radians = None
         if snap_index is None:
-            self.__geokdtree__ = None
+            self._geokdtree = None
 
     @property
     def geokdtree(self) -> "GeoKDTree":
@@ -415,15 +424,15 @@ class GeoGraph(
         Interchangeable with `snap_index`, sharing the same `closest_idx` and
         `closest_idx_per_quadrant` methods.
         """
-        if self.__geokdtree__ is None:
+        if self._geokdtree is None:
             from geokdtree import GeoKDTree
 
-            self.__geokdtree__ = GeoKDTree(points=self.nodes)
-        return self.__geokdtree__
+            self._geokdtree = GeoKDTree(points=self.nodes)
+        return self._geokdtree
 
     @geokdtree.setter
     def geokdtree(self, geokdtree: "GeoKDTree | None") -> None:
-        self.__geokdtree__ = geokdtree
+        self._geokdtree = geokdtree
         self.snap_index = geokdtree
 
     def reduce(self, iterations: int = -1) -> None:
@@ -593,6 +602,8 @@ class LazyGeoGraph(GeoGraph):
         return super().__dir__()
 
 
-# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_io` cannot
-# import the class at the top, so `typing.get_type_hints` finds it through this name.
+# The methods of `GeoGraphIO` and `GeoGraphNetworks` annotate their result as "GeoGraph".
+# Their modules cannot import the class at the top, so `typing.get_type_hints` finds it
+# through this name.
 geograph_io.GeoGraph = GeoGraph
+geograph_networks.GeoGraph = GeoGraph

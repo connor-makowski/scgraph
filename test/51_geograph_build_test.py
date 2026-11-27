@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import importlib.metadata
 import importlib.util
 import json
 import logging
@@ -26,10 +27,10 @@ from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph, network_assembly, network_file, pipelines
 from scgraph.helpers import osm
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
-from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_sources
 from scgraph.utils import has_cpp
 
 
@@ -238,7 +239,7 @@ def test_build_geograph_numbers_the_nodes_along_the_hilbert_curve(
     # The lines of /lines.gpkg list their points in another order.
     geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
-    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
+    assert get_hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
 
 
 # The header of a network file says what built the network. The tests below
@@ -267,6 +268,7 @@ def test_a_network_file_records_what_built_it_and_from_which_sources(
     software = network_file_info["software"]
     assert software["backend"] == ("cpp" if has_cpp() else "python")
     assert software["platform"].startswith(sysconfig.get_platform())
+    assert software["scgraph"] == importlib.metadata.version("scgraph")
     # The record has no version: this file does not date its data.
     assert network_file_info["sources"] == [
         {
@@ -529,7 +531,7 @@ def test_build_file_caches_a_network_that_passes_its_validation(
     pipeline = _lines_pipeline(source)
 
     built_file = network_builder.build_network_file(
-        pipeline=pipeline, cache_dir=tmp_path, validate=True
+        pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
     )
 
     cached = GeoGraph.build_geograph(
@@ -547,7 +549,7 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            pipeline=pipeline, cache_dir=tmp_path, validate=True
+            pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
         )
 
     assert not (tmp_path / "networks" / "lines").exists()
@@ -566,7 +568,10 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            pipeline=failing, cache_dir=tmp_path, refresh=True, validate=True
+            pipeline=failing,
+            cache_dir=tmp_path,
+            refresh=True,
+            run_validation_cases=True,
         )
 
     cached_file = network_builder.build_network_file(
@@ -584,7 +589,7 @@ def test_build_geograph_refuses_a_network_that_fails_its_validation(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         GeoGraph.build_geograph(
-            pipeline=pipeline, cache_dir=tmp_path, validate=True
+            pipeline=pipeline, cache_dir=tmp_path, run_validation_cases=True
         )
 
 
@@ -601,7 +606,7 @@ def test_validate_checks_a_cached_network_without_building_it_again(
         network_builder.build_network_file(
             pipeline=failing,
             cache_dir=tmp_path,
-            validate=True,
+            run_validation_cases=True,
             local_files_only=True,
         )
 
@@ -635,6 +640,42 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
     GeoGraph.build_geograph(pipeline=repaired, cache_dir=tmp_path, refresh=True)
 
     assert _Source.served == ["/lines.gpkg"] * 2
+
+
+# After an upgrade, the files of a failed build may follow the old rules. The
+# next build starts from an empty work folder and downloads the sources again.
+def test_a_build_of_the_next_pipeline_version_does_not_resume_a_failed_build(
+    tmp_path, source
+):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    with pytest.raises(RuntimeError, match="build failed"):
+        GeoGraph.build_geograph(pipeline=broken, cache_dir=tmp_path)
+
+    next_version = _lines_pipeline(source)
+    next_version.PIPELINE_VERSION = 2
+    GeoGraph.build_geograph(pipeline=next_version, cache_dir=tmp_path)
+
+    assert _Source.served == ["/lines.gpkg"] * 2
+
+
+def test_a_build_refuses_a_work_folder_of_the_caller_that_another_version_left(
+    tmp_path, source
+):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    work_dir = tmp_path / "work"
+    with pytest.raises(RuntimeError, match="build failed"):
+        network_builder.build_network_file(
+            pipeline=broken, cache_dir=tmp_path / "cache", work_dir=work_dir
+        )
+
+    next_version = _lines_pipeline(source)
+    next_version.PIPELINE_VERSION = 2
+    with pytest.raises(RuntimeError, match="refresh=True"):
+        network_builder.build_network_file(
+            pipeline=next_version,
+            cache_dir=tmp_path / "cache",
+            work_dir=work_dir,
+        )
 
 
 def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
@@ -915,7 +956,9 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
             "osm_region_multimodal", region="nowhere", cache_dir=str(tmp_path)
         )
     # The small sources were downloaded before the extract. No network is built.
-    kinds = {entry["kind"] for entry in GeoGraph.get_cache_info(str(tmp_path))}
+    kinds = {
+        entry["kind"] for entry in GeoGraph.list_geograph_cache(str(tmp_path))
+    }
     assert "built" not in kinds
 
 
@@ -1065,10 +1108,13 @@ def _main_roads_pipeline(server):
     select functions give no class."""
     module = types.ModuleType("my_pipelines.main_roads")
     module.SOURCES = {
-        "roads": {**step1_osm_ways.GEOFABRIK, "url": f"{server}/{{region}}.osm"}
+        "roads": {
+            **step1_osm_sources.GEOFABRIK,
+            "url": f"{server}/{{region}}.osm",
+        }
     }
     module.PIPELINE_VERSION, module.build = 1, build_main_roads
-    module.download = step1_osm_ways.download
+    module.download = step1_osm_sources.download
     return module
 
 

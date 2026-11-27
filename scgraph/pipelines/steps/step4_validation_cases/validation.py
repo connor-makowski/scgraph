@@ -361,6 +361,10 @@ def load_validation_cases(
     `region`, and no case when the region has none. Without `region`, return the
     cases of every region.
 
+    Args:
+        validation: The `VALIDATION` dict of a pipeline.
+        region: The region of the build, for a regional pipeline. None for every region.
+
     Raises:
         ValueError: An entry is neither the id of a case nor the name of a kind.
     """
@@ -409,18 +413,24 @@ def validate_network(
     network: GeoGraph | str | os.PathLike, cases: list[dict]
 ) -> ValidationResult:
     """Check `network` against `cases`. Each case is checked by the rule of its
-    kind. A case that fails is logged and recorded in the result. The coverage
-    cases are the exception: when at most `MAX_SHARE_OF_FAILED_CITIES` of them
-    fail, they all count as passed.
+    kind. A case that fails is logged and recorded in the result. A coverage case
+    checks that a city has a road route to the main city of its landmass. When
+    the share of failed coverage cases is at most `MAX_SHARE_OF_FAILED_CITIES`,
+    they all count as passed.
 
     The points of a case snap to the nodes of the node modes of its kind: a road node
-    for a road distance, any node for a hub. The default rule of a query does not
-    count: a hub case starts at the node of its hub, which is not a road node.
+    for a road distance, any node for a hub. The usual choice of node modes for a
+    query does not apply: a hub case starts at the node of its hub, which is not a
+    road node.
 
     Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of node modes, one at a time, to limit the memory used.
-            The coverage rule resets the cache of trees of a loaded GeoGraph.
+            A route in a GeoGraph may take the edges of every node mode: only the two
+            ends of a case snap to the node modes of its kind. In a GeoGraph with
+            roads and flights, a flight can then replace a road. Give the path of the
+            file to search each kind on its node modes only.
+            The coverage rule deletes the stored shortest path trees of a loaded GeoGraph.
         cases: The cases, as `load_validation_cases` returns them.
 
     Returns:

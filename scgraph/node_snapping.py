@@ -1,7 +1,9 @@
 """The snapping of a query point to its closest node in a GeoGraph.
 
-This module is internal. Each `GeoGraph` has one `SnapIndexes`, in
-`GeoGraph._snap_indexes`.
+Each `GeoGraph` has one `SnapIndexes`, in `GeoGraph._snap_indexes`. The public
+names of this module are `SnapIndex` and `NodeOrderError`. They are the C++ classes
+when the extension is installed, and the pure-Python classes otherwise. The other
+names of this module are internal.
 
 WORDS
 
@@ -80,7 +82,7 @@ from typing import TYPE_CHECKING
 
 from scgraph import array_views
 from scgraph.step_logs import log_step
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.utils import haversine
 
 try:
@@ -90,6 +92,8 @@ except ImportError:
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.geograph import GeoGraph
+
+__all__ = ["NodeOrderError", "SnapIndex"]
 
 # The README gives the records of the snapping indexes under this name.
 logger = logging.getLogger("scgraph.geograph")
@@ -335,7 +339,7 @@ def _build_snap_index(
         points = (
             list(nodes) if node_ids is None else [nodes[i] for i in node_ids]
         )
-        order = array("q", hilbert_order(points))
+        order = array("q", get_hilbert_order(points))
         index = SnapIndex([points[i] for i in order])
         if node_ids is not None:
             # A position in `points` becomes the id of its node

@@ -6,11 +6,15 @@ import pytest
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import osm_region_multimodal
+from scgraph.pipelines import osm_region_multimodal, osm_world_multimodal
 from scgraph.helpers import osm
-from scgraph.pipelines.steps import step1_osm_ways
-from scgraph.helpers.hilbert import hilbert_order
-from scgraph.helpers.osm import TurnRestriction, read_turn_restrictions
+from scgraph.pipelines.steps import step1_osm_sources
+from scgraph.helpers.hilbert import get_hilbert_order
+from scgraph.helpers.osm import (
+    TurnRestriction,
+    read_turn_restrictions,
+    select_main_roads,
+)
 from scgraph.utils import has_cpp
 
 osmium = pytest.importorskip("osmium")
@@ -156,6 +160,20 @@ def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(edges):
     }
 
 
+def test_a_way_is_not_cut_by_length_without_max_km_between_nodes(osm_file):
+    # Way 6 runs 10, 11, 12, 13 and meets no other way: one edge in each
+    # direction joins its two ends.
+    network = GeoGraph.load_from_osm(
+        osm_file, max_km_between_nodes=None, largest_component=False
+    )
+
+    edges = _edges(network)
+    assert {edge for edge in edges if 10 in edge or 13 in edge} == {
+        (10, 13),
+        (13, 10),
+    }
+
+
 def test_default_select_follows_one_way_streets_in_their_legal_direction(edges):
     # Way 5 (4-7) has oneway=yes. Way 8 (30-31) has oneway=-1: traffic runs
     # against its drawing. Way 9 (40-41) is a piece of a roundabout and way
@@ -290,7 +308,7 @@ def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
     # Both selects keep the primary roads, and "ways" comes first.
     selects = {
         "road": {
-            "ways": step1_osm_ways.select_main_roads,
+            "ways": select_main_roads,
             "ferries": select_primary_roads,
         }
     }
@@ -305,7 +323,7 @@ def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
         return 0 if tags.get("highway") == "primary" else None
 
     selects = {
-        "road": {"ways": step1_osm_ways.select_main_roads},
+        "road": {"ways": select_main_roads},
         "primary_road": {"ways": select_primary_roads},
     }
 
@@ -326,7 +344,7 @@ def test_ways_of_two_kinds_meet_at_a_node_that_both_have(osm_file):
     selects = {
         "road": {
             "ferries": select_side_roads,
-            "ways": step1_osm_ways.select_main_roads,
+            "ways": select_main_roads,
         }
     }
 
@@ -344,7 +362,7 @@ def test_ways_of_two_modes_do_not_meet_at_a_node_that_both_have(osm_file):
 
     selects = {
         "side_road": {"ways": select_side_roads},
-        "road": {"ways": step1_osm_ways.select_main_roads},
+        "road": {"ways": select_main_roads},
     }
 
     junctions, _ = osm.locate_ways(osm_file, selects, ("highway",))
@@ -388,7 +406,7 @@ def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
         points[osm_id] for osm_id in whole_network.external_node_ids
     ]
 
-    assert hilbert_order(nodes) == list(range(len(nodes)))
+    assert get_hilbert_order(nodes) == list(range(len(nodes)))
     assert places_of_external_node_ids == [tuple(node) for node in nodes]
     # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
     # stores it the same way, as an int32.
@@ -423,13 +441,13 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
             osm_file,
             {"rail": {"ways": osm_region_multimodal.select_rail}},
             ("railway",),
-            step1_osm_ways.MAX_KM_BETWEEN_NODES,
+            step1_osm_sources.MAX_KM_BETWEEN_NODES,
             os.path.join(work_dir, "ways"),  # the folder of `build_main_roads`
         )
 
 
 # The planet file is too large to download: scgraph reads it in place, by
-# HTTP byte ranges (`step1_osm_ways.StreamedPbf`). It first finds where the nodes and
+# HTTP byte ranges (`step1_osm_sources.StreamedPbf`). It first finds where the nodes and
 # the ways start in the file. In a file above 8 MB, it finds them by bisection.
 @pytest.fixture(scope="module")
 def planet_folder(osm_file, tmp_path_factory):
@@ -531,7 +549,7 @@ def planet_url(planet_folder):
 def test_streamed_pbf_download_records_the_version_size_and_md5_of_the_file(
     planet_url, planet_folder, tmp_path
 ):
-    record = step1_osm_ways.StreamedPbf.download(
+    record = step1_osm_sources.write_pbf_layout_file(
         planet_url, tmp_path / "layout.json"
     )
 
@@ -548,7 +566,7 @@ def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
     planet_url, osm_file, tmp_path
 ):
     layout = str(tmp_path / "layout.json")
-    step1_osm_ways.StreamedPbf.download(planet_url, layout)
+    step1_osm_sources.StreamedPbf.download(planet_url, layout)
 
     streamed = build_main_roads({"roads": layout})[0]
 
@@ -560,9 +578,9 @@ def test_a_pbf_read_by_byte_ranges_gives_its_turn_restrictions(
     planet_url, tmp_path
 ):
     layout = str(tmp_path / "layout.json")
-    step1_osm_ways.StreamedPbf.download(planet_url, layout)
+    step1_osm_sources.StreamedPbf.download(planet_url, layout)
 
-    restrictions = read_turn_restrictions(step1_osm_ways.get_source(layout))
+    restrictions = read_turn_restrictions(step1_osm_sources.get_source(layout))
 
     assert restrictions == [
         TurnRestriction(
@@ -579,7 +597,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
     planet_url, planet_folder, tmp_path
 ):
     layout = str(tmp_path / "layout.json")
-    step1_osm_ways.StreamedPbf.download(planet_url, layout)
+    step1_osm_sources.StreamedPbf.download(planet_url, layout)
     (planet_folder / "tag").write_text('"second upload"')
 
     with pytest.raises(RuntimeError, match="Reading http"):
@@ -587,11 +605,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
 
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")
-def test_the_planet_is_not_streamed_without_the_cpp_extension(tmp_path):
-    download_planet = step1_osm_ways.PLANET["download"]
-
-    # The refusal comes before any request: nothing listens at this address.
+def test_the_world_network_is_not_built_without_the_cpp_extension(tmp_path):
+    # The refusal comes before the build reads a file: no file is given.
     with pytest.raises(RuntimeError, match="C\\+\\+ extension"):
-        download_planet(
-            "http://127.0.0.1:9/planet.osm.pbf", str(tmp_path / "layout.json")
-        )
+        osm_world_multimodal.build({}, work_dir=tmp_path)

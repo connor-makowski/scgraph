@@ -1432,6 +1432,7 @@ std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<doubl
 }
 
 GraphResult Graph::contraction_hierarchy(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) {
+    input_check(origin_id, destination_id);
     if (is_same_chain(origin_id, destination_id)) {
         auto res = dijkstra(origin_id, destination_id);
         if (length_only) {
@@ -1461,6 +1462,7 @@ void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
 }
 
 GraphResult Graph::tnr(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) {
+    input_check(origin_id, destination_id);
     if (is_same_chain(origin_id, destination_id)) {
         auto res = dijkstra(origin_id, destination_id);
         if (length_only) {

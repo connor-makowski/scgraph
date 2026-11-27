@@ -3,8 +3,7 @@
 The module holds the distance functions (`haversine`, `cheap_ruler`,
 `distance_converter`), helpers on coordinates (`get_line_path`,
 `get_lat_lon_bound_between_pts`), the check of the C++ extension (`has_cpp`), the
-cache directory (`resolve_cache_dir`), and the helpers for logging (`log_step`) and
-deprecation warnings. `GeoGraph`, the helpers and the pipelines import it.
+cache directory (`resolve_cache_dir`). `GeoGraph`, the helpers and the pipelines import it.
 """
 
 import json
@@ -313,7 +312,7 @@ def adjacency_dict_to_list_tuples(
     - What: The converted graph in adjacency list representation
     """
     warnings.warn(
-        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. scgraph 5.0 removes it.",
+        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -344,7 +343,7 @@ def adjacency_list_tuples_to_dict(
     - What: The converted graph in adjacency dictionary representation
     """
     warnings.warn(
-        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. scgraph 5.0 removes it.",
+        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -415,7 +414,10 @@ def cpp_check() -> None:
     Deprecated. Logs at INFO which build is installed. `has_cpp()` gives the same
     answer as a boolean.
     """
-    warn_deprecated("scgraph.utils.cpp_check")
+    warn_deprecated(
+        "scgraph.utils.cpp_check",
+        instead="scgraph.utils.has_cpp() gives the same answer as a boolean",
+    )
     if has_cpp():
         logger.info("Using C++ & Python implementation of SCGraph.")
     else:

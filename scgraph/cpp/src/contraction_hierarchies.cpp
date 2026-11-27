@@ -184,7 +184,7 @@ double CHGraph::default_heuristic(int node_id) const {
 void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
     shortcuts_cache_node = -1;
     shortcuts_cache.clear();
-    shortcuts_cache_table.assign(nodes_count, {});
+    shortcuts_cache_table.assign(nodes_count, std::nullopt);
 
     if (!heuristic_fn) {
         heuristic_fn = [](CHGraph* g, int node_id) { return g->default_heuristic(node_id); };
@@ -209,6 +209,7 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         double current_heuristic = heuristic_value;
         bool evaluated_now = false;
         if (!up_to_date[node_id]) {
+            shortcuts_cache_table[node_id].reset();
             current_heuristic = heuristic_fn(this, node_id);
             up_to_date[node_id] = true;
             evaluated_now = true;
@@ -224,11 +225,11 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         contracted_count++;
 
         std::vector<std::tuple<int, int, double, int>> found_shortcuts;
-        // Reuse shortcuts cached by default_heuristic only if it ran in this iteration: a list
-        // cached earlier can be out of date (other nodes were contracted since), and a custom
-        // heuristic does not fill the cache
-        if (evaluated_now && node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size()) && !shortcuts_cache_table[node_id].empty()) {
-            found_shortcuts = std::move(shortcuts_cache_table[node_id]);
+        // Reuse the shortcuts that default_heuristic counted for this node during the
+        // heuristic call above. A list counted earlier can be out of date, as other nodes
+        // were contracted since.
+        if (evaluated_now && node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size()) && shortcuts_cache_table[node_id].has_value()) {
+            found_shortcuts = std::move(*shortcuts_cache_table[node_id]);
         } else if (evaluated_now && shortcuts_cache_node == node_id) {
             found_shortcuts = std::move(shortcuts_cache);
         } else {

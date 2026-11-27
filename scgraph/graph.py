@@ -92,6 +92,7 @@ from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, isfinite, sin
+from scgraph.array_checks import is_sorted_from_zero
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
     _last_search_in_thread,
@@ -520,7 +521,7 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). The width is raised when needed, so that the ring (the list of buckets that the search reuses in turn) holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation
@@ -656,7 +657,7 @@ class GraphAlgorithms:
             - Default: None
         - `bucket_width`
             - Type: int | float | None
-            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - What: The range of distances held by one bucket. If None, 8 times the median finite edge weight of the graph (1 if that median is 0). The width is raised when needed, so that the ring (the list of buckets that the search reuses in turn) holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
             - Default: None
         """
         # Input Validation
@@ -1053,7 +1054,7 @@ class GraphAlgorithms:
             "length": best_dist,
         }
 
-    def a_star_great_circle(
+    def _a_star_great_circle(
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
@@ -1084,7 +1085,8 @@ class GraphAlgorithms:
             - What: The longitude of each node, in radians (at least one entry per graph node)
         - `radius`
             - Type: float
-            - What: The earth radius in the units of the graph weights
+            - What: The bound of one radian of great circle, in the units of the graph weights
+            - Note: For the metric `length` it is the earth radius. For another metric, `get_shortest_path` passes the earth radius times `min_weight_per_length_unit`
 
         Optional Arguments:
 
@@ -1222,6 +1224,7 @@ class GraphAlgorithms:
         - `use_constant_degree_graph`
             - Type: bool
             - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
+            - Note: The C++ build ignores this parameter
             - Default: True
 
         Optional Arguments:
@@ -1358,6 +1361,10 @@ class GraphAlgorithms:
             - What: A heuristic function for CH preprocessing
             - Default: None (uses default heuristic)
 
+        - `ch_graph_kwargs`:
+            - Type: dict or None
+            - What: Deprecated, with no effect. Pass `settled_limit` and `heuristic_fn`
+
         - `settled_limit`:
             - Type: int
             - What: The settled count limit for witness search
@@ -1400,6 +1407,10 @@ class GraphAlgorithms:
             - What: The number of transit nodes to use
                 - On a reduced graph, at most the number of nodes left
             - Default: 100
+
+        - `tnr_graph_kwargs`:
+            - Type: dict or None
+            - What: Deprecated, with no effect. Pass `settled_limit` and `heuristic_fn`
 
         - `settled_limit`:
             - Type: int
@@ -1465,6 +1476,7 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         self.create_tnr_hierarchy(num_transit_nodes=50)
         return self.__tnr_graph__.search(
             origin_id, destination_id, length_only=length_only
@@ -1496,6 +1508,7 @@ class GraphAlgorithms:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         self.create_contraction_hierarchy()
         return self.__ch_graph__.search(
             origin_id, destination_id, length_only=length_only
@@ -1613,12 +1626,12 @@ class Graph(
         n = len(node_first_edge_ids) - 1
         if (
             n < 0
-            or node_first_edge_ids[0] != 0
+            or not is_sorted_from_zero(node_first_edge_ids)
             or node_first_edge_ids[-1] != len(edge_destination_node_ids)
             or len(weights) != len(edge_destination_node_ids)
         ):
             raise ValueError(
-                "expected node_first_edge_ids from 0 to the number of edges and one weight per edge"
+                "expected non-decreasing node_first_edge_ids from 0 to the number of edges and one weight per edge"
             )
         if len(edge_destination_node_ids) and (
             min(edge_destination_node_ids) < 0
@@ -1639,24 +1652,24 @@ class Graph(
         )
 
     @staticmethod
-    def reset_node_scans() -> None:
+    def _reset_node_scans() -> None:
         """
         Forgets the number of node scans of the last search in this thread.
-        `GeoGraph` calls this method: it is not in the public API and may change.
+        `GeoGraph` calls this method.
         """
         _last_search_in_thread.node_scans = None
 
     @staticmethod
-    def get_last_node_scans() -> int | None:
+    def _get_last_node_scans() -> int | None:
         """
         Returns the number of node scans of the last search in this thread.
 
         - A node scan is one pass over the edges of one node. A bidirectional or bucket
           search can scan a node more than once
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
-          such search ran since `reset_node_scans`
+          such search ran since `_reset_node_scans`
 
-        `GeoGraph` calls this method: it is not in the public API and may change.
+        `GeoGraph` calls this method.
         """
         return getattr(_last_search_in_thread, "node_scans", None)
 
@@ -1670,13 +1683,13 @@ class Graph(
             delattr(self, "__bmssp_graph__")
         if hasattr(self, "__max_edge_weight__"):
             delattr(self, "__max_edge_weight__")
-        if hasattr(self, "__bucket_width__"):
-            delattr(self, "__bucket_width__")
+        if hasattr(self, "_bucket_width"):
+            delattr(self, "_bucket_width")
         self.reduced_graph = None
-        self.reduced_graph_connections = None
+        self._reduced_graph_connections = None
         self.reduced_inverse_graph = None
-        self.reduced_inverse_graph_connections = None
-        self.__hidden_next__ = None
-        self.__hidden_previous__ = None
+        self._reduced_inverse_graph_connections = None
+        self._hidden_next = None
+        self._hidden_previous = None
         self.is_reduced = None
         self.reduced_node_chain_ids = None
