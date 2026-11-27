@@ -25,7 +25,7 @@ from scgraph.pipelines import osm_region_multimodal as regional
 from scgraph.pipelines.steps import step1_osm_sources
 from scgraph.utils import has_cpp
 
-PIPELINE_VERSION = 7
+PIPELINE_VERSION = 1
 
 # The sources of the regional pipeline, with the planet in place of the extract
 SOURCES = {**regional.SOURCES, "osm": step1_osm_sources.PLANET}
