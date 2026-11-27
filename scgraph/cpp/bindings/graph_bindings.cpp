@@ -102,6 +102,60 @@ static bool is_empty_tree_data(const TreeData& t) {
     return t.predecessors.empty();
 }
 
+// Appends the edges of one node, given as a dict {destination id: weight}, in the order
+// of the dict. A search visits the edges of a node in this order, as in the pure-Python
+// class. So the two builds break a tie between two paths of the same length in one way.
+static void read_row(nb::handle row, std::vector<int32_t>& edge_destination_node_ids,
+                     std::vector<double>& weights) {
+    if (!PyDict_Check(row.ptr())) {
+        throw nb::type_error("each node of a graph must be a dict {destination id: weight}");
+    }
+    PyObject *destination, *weight;
+    Py_ssize_t position = 0;
+    while (PyDict_Next(row.ptr(), &position, &destination, &weight)) {
+        nb::detail::make_caster<int> destination_id;
+        nb::detail::make_caster<double> distance;
+        const uint8_t convert = (uint8_t) nb::detail::cast_flags::convert;
+        if (!destination_id.from_python(destination, convert, nullptr) ||
+            !distance.from_python(weight, convert, nullptr)) {
+            throw nb::type_error("a graph maps each destination id (int) to a weight (number)");
+        }
+        edge_destination_node_ids.push_back(destination_id.value);
+        weights.push_back(distance.value);
+    }
+}
+
+// The edges of a list of dicts, stored by origin, each node in the order of its dict
+static std::tuple<std::vector<int32_t>, std::vector<int32_t>, std::vector<double>> read_rows(nb::handle graph) {
+    std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
+    std::vector<double> weights;
+    for (nb::handle row : graph) {
+        read_row(row, edge_destination_node_ids, weights);
+        if (edge_destination_node_ids.size() > INT32_MAX) {
+            throw std::length_error("a graph holds at most 2^31 - 1 edges");
+        }
+        node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_node_ids.size()));
+    }
+    return {std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)};
+}
+
+// The edges of one node as a dict, in the order that a search visits them
+static nb::dict row_to_dict(Row edges) {
+    nb::dict row;
+    for (const auto& [destination_id, weight] : edges) {
+        row[nb::int_(destination_id)] = nb::float_(weight);
+    }
+    return row;
+}
+
+static nb::list rows_to_list(const CsrGraph& g) {
+    nb::list rows;
+    for (int u = 0; u < g.size(); ++u) {
+        rows.append(row_to_dict(g[u]));
+    }
+    return rows;
+}
+
 // A Graph from edges stored by origin. With copy, the graph copies the three arrays.
 // Without it, the graph reads them in place and keeps them alive.
 static std::unique_ptr<Graph> csr_graph(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray weights, bool copy) {
@@ -112,7 +166,7 @@ static std::unique_ptr<Graph> csr_graph(Int32Array node_first_edge_ids, Int32Arr
     if (!copy) {
         owner = std::make_shared<std::tuple<Int32Array, Int32Array, DoubleArray>>(node_first_edge_ids, edge_destination_node_ids, weights);
     }
-    auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
+    auto graph = std::make_unique<Graph>(std::vector<int32_t>{0}, std::vector<int32_t>{}, std::vector<double>{});
     graph->load_csr(node_first_edge_ids.data(), edge_destination_node_ids.data(), weights.data(),
                     (int)node_first_edge_ids.shape(0) - 1, (int64_t)edge_destination_node_ids.shape(0), owner);
     return graph;
@@ -190,8 +244,11 @@ NB_MODULE(cpp, m) {
     // Graph class
     nb::class_<Graph>(m, "Graph")
         // Constructor
-        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, bool>(),
-             nb::arg("graph"), nb::arg("validate") = false,
+        .def("__init__", [](Graph* self, nb::handle graph, bool validate) {
+            auto [node_first_edge_ids, edge_destination_node_ids, weights] = read_rows(graph);
+            new (self) Graph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids),
+                             std::move(weights), validate);
+        }, nb::arg("graph"), nb::arg("validate") = false,
              "Initialize a Graph object with adjacency list representation")
 
         // Validation and utility
@@ -204,15 +261,18 @@ NB_MODULE(cpp, m) {
             "Number of node scans of the last search in this thread (Dijkstra, A* and bucket searches), or None. GeoGraph calls this method")
         .def("reset_cache", &Graph::reset_cache,
              "Reset the cached shortest path trees")
-        .def("get", &Graph::get, nb::arg("idx"),
+        .def("get", [](const Graph& self, int idx) {
+            check_node_id(idx, self.size(), "Node");
+            return row_to_dict(self.edges()[idx]);
+        }, nb::arg("idx"),
              "Get the adjacency dictionary for a specific node")
         .def("size", &Graph::size,
              "Get the number of nodes in the graph")
         .def_prop_ro("_edit_count", &Graph::edit_count,
              "The number of calls of add_node, add_edge, remove_node and remove_edge that changed the graph. GeoGraph reads it")
-        .def_prop_ro("graph", &Graph::get_graph,
+        .def_prop_ro("graph", [](const Graph& self) { return rows_to_list(self.edges()); },
              "Get the entire graph adjacency list")
-        .def_prop_ro("unreduced_graph", &Graph::get_graph,
+        .def_prop_ro("unreduced_graph", [](const Graph& self) { return rows_to_list(self.edges()); },
              "Same as graph")
         .def("_get_edge_arrays", &graph_csr, nb::arg("order") = nb::none(),
              "The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_node_ids, float64 weights, "
@@ -221,11 +281,8 @@ NB_MODULE(cpp, m) {
              "API and may change")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
-        .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {
-            if (self.get_has_reduced_graph()) {
-                return self.get_reduced_graph();
-            }
-            return self.get_graph();
+        .def_prop_ro("search_graph", [](const Graph& self) {
+            return rows_to_list(self.get_has_reduced_graph() ? self.get_reduced_graph_internal() : self.edges());
         }, "The graph searched by the algorithms: reduced_graph after reduce(), else graph")
         .def_prop_ro("search_inverse_graph", [](Graph& self) -> std::vector<std::unordered_map<int, double>> {
             if (self.get_has_reduced_graph()) {
@@ -338,8 +395,14 @@ NB_MODULE(cpp, m) {
              "Sum the graph weights along a sequence of node ids")
 
         // Graph modification methods
-        .def("add_node", &Graph::add_node,
-             nb::arg("node_dict") = std::unordered_map<int, double>{},
+        .def("add_node", [](Graph& self, nb::handle node_dict, bool symmetric) {
+            std::vector<int32_t> edge_destination_node_ids;
+            std::vector<double> weights;
+            if (!node_dict.is_none()) {
+                read_row(node_dict, edge_destination_node_ids, weights);
+            }
+            return self.add_node(edge_destination_node_ids, weights, symmetric);
+        }, nb::arg("node_dict") = nb::none(),
              nb::arg("symmetric") = false,
              "Add a node to the graph")
         .def("add_edge", &Graph::add_edge,

@@ -3,7 +3,8 @@ from array import array
 
 import pytest
 from scgraph import Graph, PathNotFoundError
-from helpers import assert_result
+from scgraph.graph import Graph as PythonGraph
+from helpers import CppGraph, assert_result, needs_the_cpp_extension
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -285,3 +286,29 @@ def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):
     )
 
     assert found["length"] == 10
+
+
+@needs_the_cpp_extension
+@pytest.mark.parametrize(
+    "algorithm",
+    ["dijkstra_buckets", "bidirectional_buckets", "bidirectional_dijkstra"],
+)
+def test_both_builds_return_the_same_path_of_two_with_the_same_length(
+    algorithm,
+):
+    # Two paths of length 3 join node 0 to node 4: 0 -> 1 -> 2 -> 4 and
+    # 0 -> 1 -> 3 -> 4. The dicts list node 2 before node 3 in the edges of
+    # node 1, and node 3 before node 2 in the edges of node 4.
+    graph_with_two_equal_paths = [
+        {1: 1},
+        {0: 1, 2: 1, 3: 1},
+        {4: 1, 1: 1},
+        {4: 1, 1: 1},
+        {3: 1, 2: 1},
+    ]
+    python_search = getattr(PythonGraph(graph_with_two_equal_paths), algorithm)
+    cpp_search = getattr(CppGraph(graph_with_two_equal_paths), algorithm)
+
+    assert cpp_search(origin_id=0, destination_id=4) == python_search(
+        origin_id=0, destination_id=4
+    )
