@@ -542,9 +542,9 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | :--- | :--- | :--- |
 | `format_version` | `int` | `1` (see *Compatibility Between Versions*). |
 | `arrays` | `dict` | Each array's `dtype`, `shape`, and byte `offset` in the array section. |
-| `metadata.crs` | `str` | `EPSG:4326`. |
+| `metadata.crs` | `str` | `EPSG:4326`. `read` and `write` refuse another value. |
 | `metadata.metrics` | `list[dict]` | One row for each metric, `length` first. |
-| `metadata.node_order` | `str` | `"hilbert"`. |
+| `metadata.node_order` | `str` | `"hilbert"`. `read` and `write` refuse another value. |
 | `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. A row has `"has_turn_restrictions": true` when the node mode follows turn restrictions: a junction may then have several nodes (`scgraph/turn_restrictions.py`). |
 | `metadata.classes` | `list[dict]` | Only with `edge_class_ids`: one row for each class, its `name` and `edge_mode`. 255 rows at most. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: `name`, `region`, and `PIPELINE_VERSION` as `version`. |

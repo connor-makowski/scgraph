@@ -686,6 +686,36 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     assert loaded.node_modes == ROAD_AND_PORT
 
 
+# A pipeline says in the header what its lengths measure.
+def test_a_load_then_a_save_keeps_the_description_of_the_lengths(tmp_path):
+    length = LENGTH_IN_KM | {"description": "Length along the road."}
+    path = str(tmp_path / "arrays.scgraph")
+    saved = str(tmp_path / "saved.scgraph")
+    network_file.write(
+        path, _two_road_nodes_and_a_port(), {"metrics": [length]}
+    )
+
+    GeoGraph.load_from_scgraph(path).save_as_scgraph(saved)
+
+    assert GeoGraph.get_scgraph_info(saved)["metrics"] == [length]
+
+
+# scgraph writes one coordinate system and one order of the nodes. Another value
+# comes from a file that scgraph cannot read rightly.
+@pytest.mark.parametrize(
+    "key, value", [("crs", "EPSG:3857"), ("node_order", "none")]
+)
+def test_a_file_with_another_crs_or_node_order_is_refused(tmp_path, key, value):
+    path = str(tmp_path / "arrays.scgraph")
+
+    with pytest.raises(ValueError, match="crs must be 'EPSG:4326'"):
+        network_file.write(
+            path,
+            _two_road_nodes_and_a_port(),
+            ROAD_AND_PORT_HEADER | {key: value},
+        )
+
+
 # A search needs weights of zero or more. `network_file.write` does not check
 # the weights, so a file may hold a toll below zero.
 def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):

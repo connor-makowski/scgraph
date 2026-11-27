@@ -65,6 +65,8 @@ __all__ = [
 ]
 
 MAGIC = b"SCGRAPH1"
+# The coordinate system of every network file: WGS84 latitude and longitude
+CRS = "EPSG:4326"
 FORMAT_VERSION = 1
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
@@ -195,7 +197,7 @@ def build_header_metadata(
             }
         ]
     return {
-        "crs": "EPSG:4326",
+        "crs": CRS,
         "metrics": metrics,
         **(
             {
@@ -610,6 +612,14 @@ def _check(filename, arrays, metadata, should_check_values=True):
     require(
         n >= 0 and node_first_edge_ids[0] == 0 and node_first_edge_ids[-1] == m,
         "invalid node_first_edge_ids",
+    )
+    # A file in another coordinate system would give wrong distances, and the
+    # index of a file in another order of the nodes would be slow. A header without
+    # one of the two keys has the value that scgraph writes.
+    require(
+        metadata.get("crs", CRS) == CRS
+        and metadata.get("node_order", NODE_ORDER) == NODE_ORDER,
+        f"crs must be {CRS!r} and node_order must be {NODE_ORDER!r}",
     )
     # Each metric has its info in the header and one array of weights
     metrics = metadata["metrics"]

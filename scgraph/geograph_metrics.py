@@ -95,11 +95,15 @@ class GeoGraphMetrics:
         """
         The info of each metric (see `create_metric`): what describes the metric,
         without the weights of its edges. The first one is `length`, with its unit:
-        `geograph_units`. The info of another metric has its `name`, its `unit` and
+        `geograph_units`, and with the `description` of the network file that the
+        geograph was loaded from, if it has one. The info of another metric has its `name`, its `unit` and
         `description` if it has them, and `off_graph_weight_per_km`: the weight of
         1 km of an off-graph leg.
         """
-        return [{"name": "length", "unit": self.geograph_units}] + [
+        length = {"name": "length", "unit": self.geograph_units}
+        if self._length_description is not None:
+            length["description"] = self._length_description
+        return [length] + [
             metric_record.get_info()
             for metric_record in self._read_metrics().values()
         ]
