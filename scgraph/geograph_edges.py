@@ -33,11 +33,11 @@ class GeoGraphEdges:
         # It then removes the metrics: a metric has the weight of each edge at the
         # id that the edge had before the edit.
         graph = self.graph_object
-        # A pure-Python graph keeps its edges in the list `__graph__`, which a
+        # A pure-Python graph keeps its edges in the list `_graph`, which a
         # caller can change without a counted edit. A C++ graph has no such list.
         # The count reads every node, so only a call that computes or writes one
         # value for each edge asks for it: a query does not.
-        rows = getattr(graph, "__graph__", None) if check_edge_count else None
+        rows = getattr(graph, "_graph", None) if check_edge_count else None
         if (
             graph is not self._edge_arrays_graph
             or graph._edit_count != self._edge_arrays_edit_count

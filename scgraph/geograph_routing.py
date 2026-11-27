@@ -83,7 +83,7 @@ def _cut_legs(edges: list[dict]) -> list[dict]:
 
 
 class GeoGraphUtils:
-    def __get_quadrant_node_indices__(
+    def _get_quadrant_node_indices(
         self,
         node: list,
         snap_index: "QuerySnapIndex",
@@ -94,7 +94,7 @@ class GeoGraphUtils:
             node_indices.add(snap_index.closest_idx(point=node))
         return node_indices
 
-    def __get_node_distances__(
+    def _get_node_distances(
         self,
         node: list,
         circuity: float,
@@ -153,7 +153,7 @@ class GeoGraphUtils:
                     circuity=circuity,
                     units=self.geograph_units,
                 )
-                for idx in self.__get_quadrant_node_indices__(node, snap_index)
+                for idx in self._get_quadrant_node_indices(node, snap_index)
             }
         if not (node_addition_type == "all"):
             raise ValueError(
@@ -199,14 +199,14 @@ class GeoGraphUtils:
             for node_idx, node_i in nodes.items()
         }
 
-    def __get_intermediate_nodes__(
+    def _get_intermediate_nodes(
         self, origin_idx: int, destination_idx: int, sequence: str = "lat_lon"
     ) -> list[list[float]]:
         """
         Function:
 
         - Get the intermediate nodes between two nodes if they exist in the graph object
-        - Note: Not as performant so not used in __get_coordinate_path__, but can be used in post processing of the path if desired
+        - Note: Not as performant so not used in _get_coordinate_path, but can be used in post processing of the path if desired
 
         Required Arguments:
 
@@ -236,7 +236,7 @@ class GeoGraphUtils:
         else:
             return []
 
-    def __format_coordinates__(
+    def _format_coordinates(
         self,
         coordinate_path: list[list[int | float]],
         output_format: str = "list_of_lists",
@@ -272,7 +272,7 @@ class GeoGraphUtils:
                 "Invalid output_format. Must be one of 'list_of_lists', 'list_of_lists_long_first', or 'list_of_dicts'"
             )
 
-    def __get_coordinate_path__(
+    def _get_coordinate_path(
         self, path: list[int], get_intermediate_nodes: bool = False
     ) -> list[list[float]]:
         """
@@ -575,7 +575,7 @@ class GeoGraphRouting:
         legs = _cut_legs(self.get_path_edges(path))
         transfers = self._get_transfers(legs)
         for leg in legs:
-            leg["coordinate_path"] = self.__get_coordinate_path__(
+            leg["coordinate_path"] = self._get_coordinate_path(
                 leg.pop("path"), get_intermediate_nodes=get_intermediate_nodes
             )
         off_graph_legs = self._get_off_graph_legs(
@@ -672,7 +672,7 @@ class GeoGraphRouting:
             )
             for name, length in leg["class_lengths"].items()
         }
-        leg["coordinate_path"] = self.__format_coordinates__(
+        leg["coordinate_path"] = self._format_coordinates(
             coordinate_path=leg["coordinate_path"],
             output_format=output_coordinate_path,
         )
@@ -909,8 +909,8 @@ class GeoGraphRouting:
         search_function = self._build_search_function(
             algorithm_fn, algorithm_kwargs, graph_object, metric
         )
-        node_addition_type = self.__get_node_addition_type__(node_addition_type)
-        destination_node_addition_type = self.__get_node_addition_type__(
+        node_addition_type = self._get_node_addition_type(node_addition_type)
+        destination_node_addition_type = self._get_node_addition_type(
             destination_node_addition_type
         )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
@@ -942,7 +942,7 @@ class GeoGraphRouting:
         # Snap the origin and destination to their closest nodes in the graph
         origin_id = connect_to_nodes_of_junctions(
             self,
-            self.__get_node_distances__(
+            self._get_node_distances(
                 node=origin,
                 circuity=node_addition_circuity,
                 node_addition_type=node_addition_type,
@@ -952,7 +952,7 @@ class GeoGraphRouting:
         )
         destination_id = connect_to_nodes_of_junctions(
             self,
-            self.__get_node_distances__(
+            self._get_node_distances(
                 node=destination,
                 circuity=node_addition_circuity,
                 node_addition_type=destination_node_addition_type,
@@ -1043,14 +1043,14 @@ class GeoGraphRouting:
         # Get the coordinate path
         output["coordinate_path"] = (
             [origin]
-            + self.__get_coordinate_path__(
+            + self._get_coordinate_path(
                 output["path"], get_intermediate_nodes=get_intermediate_nodes
             )
             + [destination]
         )
         # Format the coordinate path to the desired output format
         if output_coordinate_path != "list_of_lists":
-            output["coordinate_path"] = self.__format_coordinates__(
+            output["coordinate_path"] = self._format_coordinates(
                 coordinate_path=output["coordinate_path"],
                 output_format=output_coordinate_path,
             )

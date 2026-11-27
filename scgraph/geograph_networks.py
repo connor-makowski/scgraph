@@ -559,7 +559,7 @@ def _load_network(
                 f"Geograph '{name}' is not in the cache ({cache_path}) and "
                 "local_files_only=True (or SCGRAPH_OFFLINE=1) forbids downloading it"
             )
-        GeoGraph.__fetch_geograph_to_cache__(name, cached_file, geograph_url)
+        GeoGraph._fetch_geograph_to_cache(name, cached_file, geograph_url)
     # Written in Hilbert order (nodes close on the globe get close ids): node ids
     # differ from the .graphjson's, which the nodes keep as their external_node_ids
     geograph = GeoGraph.load_from_graphjson(str(cached_file))
@@ -658,7 +658,7 @@ def build_network(
 
 class GeoGraphNetworks:
     @staticmethod
-    def __fetch_geograph_to_cache__(
+    def _fetch_geograph_to_cache(
         name: str, cached_file: Path, geograph_url: str
     ) -> None:
         """

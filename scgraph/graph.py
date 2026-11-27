@@ -141,7 +141,7 @@ class GraphTrees:
         """
         # Input Validation
         origin_id = convert_node_input(origin_id)
-        self.__input_check__(origin_id=origin_id, destination_id=0)
+        self._input_check(origin_id=origin_id, destination_id=0)
         return self._get_shortest_path_tree(self.graph, origin_id)
 
     def _get_shortest_path_tree(
@@ -288,7 +288,7 @@ class GraphAlgorithms:
         - None
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
 
@@ -347,7 +347,7 @@ class GraphAlgorithms:
             )
 
         return {
-            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "path": self._reconstruct_path(best_dest_node, predecessor),
             "length": best_dist,
         }
 
@@ -380,7 +380,7 @@ class GraphAlgorithms:
         - None
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
         origin_ids = set(origin_dict.keys())
@@ -527,12 +527,12 @@ class GraphAlgorithms:
             - Default: None
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
         graph = self.search_graph
 
-        max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
+        max_edge_weight = self._get_max_edge_weight(max_edge_weight)
         width = self._get_bucket_width(bucket_width, max_edge_weight)
 
         # Variable Initialization
@@ -620,7 +620,7 @@ class GraphAlgorithms:
             )
 
         return {
-            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "path": self._reconstruct_path(best_dest_node, predecessor),
             "length": best_dist,
         }
 
@@ -663,7 +663,7 @@ class GraphAlgorithms:
             - Default: None
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         # A node at an infinite distance has no bucket. On a reduced graph, a
         # boundary node gets this distance when its path to the node of the query
         # takes an edge whose weight is infinite.
@@ -684,7 +684,7 @@ class GraphAlgorithms:
         inverse_graph = self.search_inverse_graph
         num_nodes = len(graph)
 
-        max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
+        max_edge_weight = self._get_max_edge_weight(max_edge_weight)
         width = self._get_bucket_width(bucket_width, max_edge_weight)
 
         num_buckets = ceil(max_edge_weight / width) + 1
@@ -877,7 +877,7 @@ class GraphAlgorithms:
             - Default: None (Then set to the number of nodes in the graph)
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
         graph = self.search_graph
@@ -903,7 +903,7 @@ class GraphAlgorithms:
                 cycle_iteration += 1
                 if cycle_iteration >= cycle_check_iterations:
                     cycle_iteration = 0  # Reset the cycle iteration counter
-                    self.__check_predecessor_loop__(
+                    self._check_predecessor_loop(
                         predecessor_matrix=predecessor, node_id=current_id
                     )
                 for connected_id, connected_distance in graph[
@@ -929,7 +929,7 @@ class GraphAlgorithms:
             )
 
         return {
-            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "path": self._reconstruct_path(best_dest_node, predecessor),
             "length": best_dist,
         }
 
@@ -974,7 +974,7 @@ class GraphAlgorithms:
                 destination_id=destination_id,
             )
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
 
@@ -1052,7 +1052,7 @@ class GraphAlgorithms:
             )
 
         return {
-            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "path": self._reconstruct_path(best_dest_node, predecessor),
             "length": best_dist,
         }
 
@@ -1144,7 +1144,7 @@ class GraphAlgorithms:
         - None
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
         graph = self.search_graph
@@ -1191,7 +1191,7 @@ class GraphAlgorithms:
             )
 
         return {
-            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "path": self._reconstruct_path(best_dest_node, predecessor),
             "length": best_dist,
         }
 
@@ -1239,8 +1239,8 @@ class GraphAlgorithms:
             return self.dijkstra(
                 origin_id=origin_id, destination_id=destination_id
             )
-        if not hasattr(self, "__bmssp_graph__"):
-            self.__bmssp_graph__ = Bmssp(
+        if not hasattr(self, "_bmssp_graph"):
+            self._bmssp_graph = Bmssp(
                 # BMSSPy cannot round an infinite weight: it gets the rows without
                 # the edges that such a weight closes.
                 graph=[
@@ -1254,7 +1254,7 @@ class GraphAlgorithms:
                 use_constant_degree_graph=use_constant_degree_graph,
             )
         try:
-            output = self.__bmssp_graph__.solve(
+            output = self._bmssp_graph.solve(
                 origin_id=origin_id, destination_id=destination_id
             )
         # BMSSPy raises a bare Exception when no path joins the two nodes.
@@ -1282,7 +1282,7 @@ class GraphAlgorithms:
         - Get the shortest path between two nodes in the graph attempting to use a cached shortest path tree if available
         - If a cached shortest path tree is not available, it will compute the shortest path tree and cache it for future use if specified by `cache`
         - Builds each tree with Dijkstra on the searched graph and reads it with get_tree_path: after `reduce()`, the cached trees are those of the reduced graph (`inf` on contracted nodes), in both builds
-        - Stores cached shortest path trees in a list (self.__cache__) where the index corresponds to the origin node id
+        - Stores cached shortest path trees in a list (self._cache) where the index corresponds to the origin node id
         - Note: If you modify this graph after caching shortest path trees, the cached trees may become invalid
 
         Required Arguments:
@@ -1308,7 +1308,7 @@ class GraphAlgorithms:
             - `length`: The length of the path from the origin node to the destination node
         """
         # Input Validation
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
 
         # Main function
         if isinstance(origin_id, int):
@@ -1324,14 +1324,14 @@ class GraphAlgorithms:
             is_single_origin = False
 
         if is_single_origin:
-            if self.__cache__[orig_node] == 0:
-                self.__cache__[orig_node] = self._get_shortest_path_tree(
+            if self._cache[orig_node] == 0:
+                self._cache[orig_node] = self._get_shortest_path_tree(
                     self.search_graph, orig_node
                 )
             return self.get_tree_path(
                 origin_id=origin_id,
                 destination_id=destination_id,
-                tree_data=self.__cache__[orig_node],
+                tree_data=self._cache[orig_node],
                 length_only=length_only,
             )
 
@@ -1354,7 +1354,7 @@ class GraphAlgorithms:
         Function:
 
         - Create a Contraction Hierarchies (CH) graph from the current Graph object
-        - The CH graph is stored as an instance variable `self.__ch_graph__`
+        - The CH graph is stored as an instance variable `self._ch_graph`
 
         Optional Arguments:
 
@@ -1379,14 +1379,14 @@ class GraphAlgorithms:
                 DeprecationWarning,
                 stacklevel=2,
             )
-        if not hasattr(self, "__ch_graph__"):
-            self.__ch_graph__ = CHGraph(
+        if not hasattr(self, "_ch_graph"):
+            self._ch_graph = CHGraph(
                 graph=self.search_graph,
                 inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
             )
-        return self.__ch_graph__
+        return self._ch_graph
 
     def create_tnr_hierarchy(
         self,
@@ -1400,7 +1400,7 @@ class GraphAlgorithms:
         Function:
 
         - Create a Transit Node Routing (TNR) graph from the current Graph object
-        - The TNR graph is stored as an instance variable `self.__tnr_graph__`
+        - The TNR graph is stored as an instance variable `self._tnr_graph`
 
         Optional Arguments:
 
@@ -1431,7 +1431,7 @@ class GraphAlgorithms:
                 DeprecationWarning,
                 stacklevel=2,
             )
-        if not hasattr(self, "__tnr_graph__"):
+        if not hasattr(self, "_tnr_graph"):
             is_reduced = getattr(self, "is_reduced", None)
             if is_reduced is not None:
                 # Transit nodes are the last contracted, and reduced nodes are
@@ -1439,14 +1439,14 @@ class GraphAlgorithms:
                 num_transit_nodes = min(
                     num_transit_nodes, max(1, is_reduced.count(False))
                 )
-            self.__tnr_graph__ = TNRGraph(
+            self._tnr_graph = TNRGraph(
                 graph=self.search_graph,
                 inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
                 num_transit_nodes=num_transit_nodes,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
             )
-        return self.__tnr_graph__
+        return self._tnr_graph
 
     @algorithm(bidirectional=True)
     def tnr(
@@ -1478,9 +1478,9 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         self.create_tnr_hierarchy(num_transit_nodes=50)
-        return self.__tnr_graph__.search(
+        return self._tnr_graph.search(
             origin_id, destination_id, length_only=length_only
         )
 
@@ -1510,9 +1510,9 @@ class GraphAlgorithms:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
-        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        self._input_check(origin_id=origin_id, destination_id=destination_id)
         self.create_contraction_hierarchy()
-        return self.__ch_graph__.search(
+        return self._ch_graph.search(
             origin_id, destination_id, length_only=length_only
         )
 
@@ -1677,14 +1677,14 @@ class Graph(
 
     def reset_cache(self) -> None:
         super().reset_cache()
-        if hasattr(self, "__ch_graph__"):
-            delattr(self, "__ch_graph__")
-        if hasattr(self, "__tnr_graph__"):
-            delattr(self, "__tnr_graph__")
-        if hasattr(self, "__bmssp_graph__"):
-            delattr(self, "__bmssp_graph__")
-        if hasattr(self, "__max_edge_weight__"):
-            delattr(self, "__max_edge_weight__")
+        if hasattr(self, "_ch_graph"):
+            delattr(self, "_ch_graph")
+        if hasattr(self, "_tnr_graph"):
+            delattr(self, "_tnr_graph")
+        if hasattr(self, "_bmssp_graph"):
+            delattr(self, "_bmssp_graph")
+        if hasattr(self, "_max_edge_weight"):
+            delattr(self, "_max_edge_weight")
         if hasattr(self, "_bucket_width"):
             delattr(self, "_bucket_width")
         self.reduced_graph = None

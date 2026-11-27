@@ -42,7 +42,7 @@ def convert_node_input(node_input: object) -> object:
     integer, and a `frozenset` as a set. It takes any number with `__float__` as a
     start distance, such as a `Decimal`. In pure Python, this function turns such a
     node id into an `int`, a `frozenset` into a `set`, and such a distance into a
-    `float`. It returns another value unchanged, so that `__input_check__` refuses it.
+    `float`. It returns another value unchanged, so that `_input_check` refuses it.
     """
 
     def _as_int(node_id):
@@ -72,11 +72,11 @@ class GraphUtils:
     @property
     def graph(self) -> list[dict[int, int | float]]:
         """The graph as given (or as modified), also after `reduce()`."""
-        return getattr(self, "__graph__", None)
+        return getattr(self, "_graph", None)
 
     @graph.setter
     def graph(self, value: list[dict[int, int | float]]) -> None:
-        self.__graph__ = value
+        self._graph = value
 
     @property
     def unreduced_graph(self) -> list[dict[int, int | float]]:
@@ -118,12 +118,12 @@ class GraphUtils:
     @property
     def inverse_graph(self) -> list[dict[int, int | float]]:
         """The inverse of `graph`: every edge reversed."""
-        self.__ensure_inverse_graph__()
-        return self.__inverse_graph__
+        self._ensure_inverse_graph()
+        return self._inverse_graph
 
     @inverse_graph.setter
     def inverse_graph(self, value: list[dict[int, int | float]] | None) -> None:
-        self.__inverse_graph__ = value
+        self._inverse_graph = value
 
     @property
     def search_graph(self) -> list[dict[int, int | float]]:
@@ -141,7 +141,7 @@ class GraphUtils:
             return self.reduced_inverse_graph
         return self.inverse_graph
 
-    def __input_check__(
+    def _input_check(
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
@@ -228,7 +228,7 @@ class GraphUtils:
         total = 0
         for origin, destination in zip(path, path[1:]):
             try:
-                total += self.__graph__[origin][destination]
+                total += self._graph[origin][destination]
             except KeyError:
                 raise ValueError(
                     f"No edge from node {origin} to node {destination}"
@@ -236,7 +236,7 @@ class GraphUtils:
         return total
 
     @staticmethod
-    def __reconstruct_path__(
+    def _reconstruct_path(
         destination_id: int, predecessor: list[int]
     ) -> list[int]:
         """
@@ -266,7 +266,7 @@ class GraphUtils:
         path.reverse()
         return path
 
-    def __check_predecessor_loop__(
+    def _check_predecessor_loop(
         self, predecessor_matrix: list[int], node_id: int
     ) -> None:
         """
@@ -299,23 +299,21 @@ class GraphUtils:
                     f"Cycle detected in the graph at node {node_id}"
                 )
 
-    def __ensure_inverse_graph__(self) -> None:
+    def _ensure_inverse_graph(self) -> None:
         """
         Function:
 
-        - Ensure the inverse of the graph as self.__inverse_graph__ is computed and stored
+        - Ensure the inverse of the graph as self._inverse_graph is computed and stored
             - The inverse of the graph is a graph where all edges are reversed
             - This is useful for checking the connectivity of the graph and for algorithms that require the inverse graph
         """
-        if getattr(self, "__inverse_graph__", None) is None:
-            self.__inverse_graph__ = [
-                dict() for _ in range(len(self.__graph__))
-            ]
-            for origin_id, origin_dict in enumerate(self.__graph__):
+        if getattr(self, "_inverse_graph", None) is None:
+            self._inverse_graph = [dict() for _ in range(len(self._graph))]
+            for origin_id, origin_dict in enumerate(self._graph):
                 for destination_id, distance in origin_dict.items():
-                    self.__inverse_graph__[destination_id][origin_id] = distance
+                    self._inverse_graph[destination_id][origin_id] = distance
 
-    def __connected_check__(self, origin_id: int = 0) -> bool:
+    def _connected_check(self, origin_id: int = 0) -> bool:
         """
         Function:
 
@@ -328,10 +326,10 @@ class GraphUtils:
             - What: The id of the origin node from which to start the connectivity check
             - Default: 0
         """
-        self.__ensure_inverse_graph__()
+        self._ensure_inverse_graph()
 
-        graph = self.__graph__
-        inverse_graph = self.__inverse_graph__
+        graph = self._graph
+        inverse_graph = self._inverse_graph
 
         visited = [0] * len(graph)
         open_leaves = [origin_id]
@@ -354,21 +352,21 @@ class GraphUtils:
 
         return min(visited) == 1 and min(inverse_visited) == 1
 
-    def __symmetric_check__(self) -> bool:
+    def _symmetric_check(self) -> bool:
         """
         Function:
 
         - Return True if this graph is symmetric and False if it is not
             - A graph is symmetric if for every edge from node A to node B, there is an edge from node B to node A with the same distance
         """
-        graph = self.__graph__
+        graph = self._graph
         for origin_id, origin_dict in enumerate(graph):
             for destination_id, distance in origin_dict.items():
                 if distance != graph[destination_id].get(origin_id, None):
                     return False
         return True
 
-    def __get_max_edge_weight__(
+    def _get_max_edge_weight(
         self,
         max_edge_weight: float | None,
     ) -> int:
@@ -376,7 +374,7 @@ class GraphUtils:
         weight closes its edge, so the maximum is that of the finite weights."""
         if max_edge_weight is not None:
             return math.ceil(max_edge_weight)
-        cached_max_edge_weight = getattr(self, "__max_edge_weight__", None)
+        cached_max_edge_weight = getattr(self, "_max_edge_weight", None)
         if cached_max_edge_weight is None:
             graph = self.search_graph
             max_edge_weight = max(
@@ -392,7 +390,7 @@ class GraphUtils:
                 ),
             )
             cached_max_edge_weight = math.ceil(max_edge_weight)
-            self.__max_edge_weight__ = cached_max_edge_weight
+            self._max_edge_weight = cached_max_edge_weight
         return cached_max_edge_weight
 
     def _get_bucket_width(
@@ -453,7 +451,7 @@ class GraphUtils:
         - `ValueError`: The graph is empty, a destination id is not in the graph, a distance is negative or NaN, or the graph is not symmetric
         - `RuntimeError`: The graph is not fully connected
         """
-        graph = self.__graph__
+        graph = self._graph
         if not isinstance(graph, list):
             raise TypeError("Your graph must be a list")
         len_graph = len(graph)
@@ -495,10 +493,10 @@ class GraphUtils:
                 )
 
         if check_symmetry:
-            if not self.__symmetric_check__():
+            if not self._symmetric_check():
                 raise ValueError("The provided graph is not symmetric")
         if check_connected:
-            if not self.__connected_check__():
+            if not self._connected_check():
                 raise RuntimeError("The provided graph is not fully connected")
 
     def reset_cache(self) -> None:
@@ -508,7 +506,7 @@ class GraphUtils:
         - Reset the cached shortest path trees
             - This is useful if the graph has been modified and the cached shortest path trees are no longer valid
         """
-        self.__cache__ = [0] * len(self.__graph__)
+        self._cache = [0] * len(self._graph)
 
     def get_cache(self) -> list[dict | None]:
         """
@@ -522,7 +520,7 @@ class GraphUtils:
         - A list of cached shortest path trees, where each tree is represented as a dictionary
             - If a tree is not cached for a specific node, the corresponding entry in the list will be 0
         """
-        return self.__cache__
+        return self._cache
 
     def set_cache(self, new_cache: list[dict | Literal[0]]) -> None:
         """
@@ -545,9 +543,9 @@ class GraphUtils:
         """
         if not isinstance(new_cache, list):
             raise TypeError("Cache must be a list")
-        if len(new_cache) != len(self.__graph__):
+        if len(new_cache) != len(self._graph):
             raise ValueError("Cache must be the same length as the graph")
-        self.__cache__ = new_cache
+        self._cache = new_cache
 
     def get(self, idx: int) -> dict[int, int | float]:
         """
@@ -570,9 +568,9 @@ class GraphUtils:
 
         - IndexError if `idx` is not the id of a node of the graph
         """
-        if not 0 <= idx < len(self.__graph__):
+        if not 0 <= idx < len(self._graph):
             raise IndexError("Index out of range")
-        return self.__graph__[idx]
+        return self._graph[idx]
 
 
 class GraphModifiers:
@@ -610,12 +608,12 @@ class GraphModifiers:
         - The id of the newly added node
         """
         node_dict = node_dict if node_dict is not None else dict()
-        self.__graph__.append(node_dict)
-        new_node_id = len(self.__graph__) - 1
+        self._graph.append(node_dict)
+        new_node_id = len(self._graph) - 1
         if symmetric:
             for dest_id, distance in node_dict.items():
-                self.__graph__[dest_id][new_node_id] = distance
-        self.__inverse_graph__ = None
+                self._graph[dest_id][new_node_id] = distance
+        self._inverse_graph = None
         self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return new_node_id
@@ -666,11 +664,11 @@ class GraphModifiers:
         if not isinstance(distance, (int, float)):
             # A Decimal or a numpy number: the searches add floats to it
             distance = float(distance)
-        if origin_id < 0 or origin_id >= len(self.__graph__):
+        if origin_id < 0 or origin_id >= len(self._graph):
             raise IndexError(
                 f"Origin node id ({origin_id}) is not in the graph"
             )
-        if destination_id < 0 or destination_id >= len(self.__graph__):
+        if destination_id < 0 or destination_id >= len(self._graph):
             raise IndexError(
                 f"Destination node id ({destination_id}) is not in the graph"
             )
@@ -678,10 +676,10 @@ class GraphModifiers:
             raise ValueError("distance must not be NaN")
         if origin_id == destination_id:
             return
-        self.__graph__[origin_id][destination_id] = distance
+        self._graph[origin_id][destination_id] = distance
         if symmetric:
-            self.__graph__[destination_id][origin_id] = distance
-        self.__inverse_graph__ = None
+            self._graph[destination_id][origin_id] = distance
+        self._inverse_graph = None
         self._edit_counter = self._edit_count + 1
         self.reset_cache()
 
@@ -710,18 +708,18 @@ class GraphModifiers:
 
         - `RuntimeError`: The graph has no node
         """
-        if len(self.__graph__) == 0:
+        if len(self._graph) == 0:
             raise RuntimeError("Graph is empty, cannot remove node")
-        node_id = len(self.__graph__) - 1
+        node_id = len(self._graph) - 1
         if symmetric_node:
-            for dest_id in self.__graph__[node_id].keys():
-                self.__graph__[dest_id].pop(node_id, None)
+            for dest_id in self._graph[node_id].keys():
+                self._graph[dest_id].pop(node_id, None)
         else:
-            for origin_dict in self.__graph__:
+            for origin_dict in self._graph:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
-        removed_node = self.__graph__.pop()
-        self.__inverse_graph__ = None
+        removed_node = self._graph.pop()
+        self._inverse_graph = None
         self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return removed_node
@@ -755,14 +753,14 @@ class GraphModifiers:
 
         - `IndexError`: The origin id or the destination id is not in the graph
         """
-        if origin_id < 0 or origin_id >= len(self.__graph__):
+        if origin_id < 0 or origin_id >= len(self._graph):
             raise IndexError("Origin node id is not in the graph")
-        if destination_id < 0 or destination_id >= len(self.__graph__):
+        if destination_id < 0 or destination_id >= len(self._graph):
             raise IndexError("Destination node id is not in the graph")
         if symmetric:
-            self.__graph__[destination_id].pop(origin_id, None)
-        res = self.__graph__[origin_id].pop(destination_id, None)
-        self.__inverse_graph__ = None
+            self._graph[destination_id].pop(origin_id, None)
+        res = self._graph[origin_id].pop(destination_id, None)
+        self._inverse_graph = None
         self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return res

@@ -50,7 +50,7 @@ starts at the origin and reads `forward_graph`. The backward search starts at th
 destination and reads `backward_graph`. They take one step each in turn. When one side
 lowers the distance of a node that the other side has reached, the sum of the two
 distances is a candidate length. A side stops when the distance it takes from its queue
-is above the best length. `__unpack_shortcut__` then replaces each shortcut from u to w
+is above the best length. `_unpack_shortcut` then replaces each shortcut from u to w
 by the edges from u to v and from v to w, with v = `shortcuts[(u, w)]`, and repeats this
 on the two edges.
 
@@ -196,7 +196,7 @@ class CHGraphPreprocessing:
         contracting_inverse_graph = self.contracting_inverse_graph
         contracted = self.contracted
 
-        shortcuts_needed, found_shortcuts = self.__count_shortcuts__(node_id)
+        shortcuts_needed, found_shortcuts = self._count_shortcuts(node_id)
         if hasattr(self, "_shortcuts_cache_table") and 0 <= node_id < len(
             self._shortcuts_cache_table
         ):
@@ -220,7 +220,7 @@ class CHGraphPreprocessing:
 
         return edge_diff + contracted_neighbors
 
-    def __count_shortcuts__(
+    def _count_shortcuts(
         self, node_id: int
     ) -> tuple[int, list[tuple[int, int, int | float, int]]]:
         """
@@ -278,7 +278,7 @@ class CHGraphPreprocessing:
                 continue
 
             # Witness search from in_neighbor_id
-            distances = self.__witness_search__(
+            distances = self._witness_search(
                 in_neighbor_id,
                 node_id,
                 max_dist,
@@ -311,7 +311,7 @@ class CHGraphPreprocessing:
 
         return len(shortcuts), shortcuts
 
-    def __witness_search__(
+    def _witness_search(
         self,
         start_node: int,
         avoid_node: int,
@@ -394,7 +394,7 @@ class CHGraphPreprocessing:
 
         return witness_distances
 
-    def __preprocess__(
+    def _preprocess(
         self,
         heuristic_fn: Callable[["CHGraph", int], int | float] | None = None,
     ) -> None:
@@ -480,7 +480,7 @@ class CHGraphPreprocessing:
             elif evaluated_now and self._shortcuts_cache_node == node_id:
                 found_shortcuts = self._shortcuts_cache
             else:
-                _, found_shortcuts = self.__count_shortcuts__(node_id)
+                _, found_shortcuts = self._count_shortcuts(node_id)
 
             # Add shortcuts to the contracting graph
             for (
@@ -525,7 +525,7 @@ class CHGraphPreprocessing:
 
 
 class CHGraphAlgorithms:
-    def __get_rank__(self, node_id: int) -> int | float:
+    def _get_rank(self, node_id: int) -> int | float:
         """
         Function:
 
@@ -546,7 +546,7 @@ class CHGraphAlgorithms:
             return self.ranks[node_id]
         return float("inf")
 
-    def __get_neighbors__(
+    def _get_neighbors(
         self, node_id: int, forward: bool = True
     ) -> dict[int, int | float]:
         """
@@ -583,10 +583,10 @@ class CHGraphAlgorithms:
             # Node added after preprocessing (always infinite rank)
             # It can reach any of its neighbors that have a rank
             neighbors = {}
-            node_rank = self.__get_rank__(node_id)
+            node_rank = self._get_rank(node_id)
             for neighbor_id, weight in self.original_graph[node_id].items():
                 if (
-                    self.__get_rank__(neighbor_id) > node_rank
+                    self._get_rank(neighbor_id) > node_rank
                 ):  # This won't happen if node_rank is inf
                     neighbors[neighbor_id] = weight
                 elif (
@@ -801,7 +801,7 @@ class CHGraphAlgorithms:
         if length_only:
             return {"path": [], "length": best_dist}
 
-        path = self.__reconstruct_ch_path__(
+        path = self._reconstruct_ch_path(
             origin_id,
             destination_id,
             meeting_node,
@@ -810,7 +810,7 @@ class CHGraphAlgorithms:
         )
         return {"path": path, "length": best_dist}
 
-    def __reconstruct_ch_path__(
+    def _reconstruct_ch_path(
         self,
         origin_id: int,
         destination_id: int,
@@ -868,11 +868,11 @@ class CHGraphAlgorithms:
         for i in range(len(contracted_path) - 1):
             origin_id = contracted_path[i]
             destination_id = contracted_path[i + 1]
-            path.extend(self.__unpack_shortcut__(origin_id, destination_id))
+            path.extend(self._unpack_shortcut(origin_id, destination_id))
         path.append(contracted_path[-1])
         return path
 
-    def __unpack_shortcut__(
+    def _unpack_shortcut(
         self, origin_id: int, destination_id: int
     ) -> list[int]:
         """
@@ -896,9 +896,9 @@ class CHGraphAlgorithms:
         """
         if (origin_id, destination_id) in self.shortcuts:
             via_node_id = self.shortcuts[(origin_id, destination_id)]
-            return self.__unpack_shortcut__(
+            return self._unpack_shortcut(
                 origin_id, via_node_id
-            ) + self.__unpack_shortcut__(via_node_id, destination_id)
+            ) + self._unpack_shortcut(via_node_id, destination_id)
         else:
             return [origin_id]
 
@@ -969,7 +969,7 @@ class CHGraph(
         """
         # Set original_graph from either 'graph' or 'original_graph'
         self.original_graph = graph if graph is not None else original_graph
-        self.__graph__ = self.original_graph
+        self._graph = self.original_graph
         self.settled_limit = settled_limit
 
         if all(
@@ -1030,7 +1030,7 @@ class CHGraph(
             self.contracted = [False] * self.nodes_count
             self.contracted_count = 0
 
-            self.__preprocess__(heuristic_fn=heuristic_fn)
+            self._preprocess(heuristic_fn=heuristic_fn)
 
     @property
     def graph(self) -> list[dict[int, int | float]]:
