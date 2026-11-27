@@ -217,6 +217,8 @@ An algorithm takes its origin and its destination in one of three forms:
 * a set of candidate node ids: `set[int]`;
 * a dictionary of start distances: `dict[int, float]`. A query from a point uses it, with one entry for each node that the point is connected to.
 
+A node id is an `int`. The C++ extension also takes an integer with `__index__`, such as a numpy integer, and a `frozenset` as a set. Pure Python refuses them with a `TypeError`.
+
 An algorithm returns a dictionary:
 ```python
 {"path": [node_0, node_1, ...], "length": total_path_weight}
