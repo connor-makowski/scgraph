@@ -103,71 +103,47 @@ static bool is_empty_tree_data(const TreeData& t) {
 }
 
 // Appends the edges of one node, given as a dict {destination id: weight}, in the order
-// of the dict. A search visits the edges of a node in this order, as in the pure-Python
-// class. So the two builds break a tie between two paths of the same length in one way.
+// of the dict. A search visits the edges of a node in this order, as in the pure-Python class.
 static void read_row(nb::handle row, std::vector<int32_t>& edge_destination_node_ids,
                      std::vector<double>& weights) {
     if (!PyDict_Check(row.ptr())) {
         throw nb::type_error("each node of a graph must be a dict {destination id: weight}");
     }
-    nb::object dict = nb::borrow(row);
-    const Py_ssize_t edge_count = PyDict_GET_SIZE(dict.ptr());
-    PyObject *destination, *weight;
+    PyObject *key, *value;
     Py_ssize_t cursor = 0;
-    while (PyDict_Next(dict.ptr(), &cursor, &destination, &weight)) {
+    while (PyDict_Next(row.ptr(), &cursor, &key, &value)) {
         // An exact int key and an exact int or float weight convert without Python code.
-        // Another type runs its __index__ or __float__, which may change the dict and free
-        // the key or the weight: the read then holds both, and stops if the dict changed.
-        const bool runs_python_code =
-            !PyLong_CheckExact(destination) || !(PyLong_CheckExact(weight) || PyFloat_CheckExact(weight));
-        nb::object held_destination, held_weight;
-        if (runs_python_code) {
-            held_destination = nb::borrow(destination);
-            held_weight = nb::borrow(weight);
+        // Another type runs its __index__ or __float__, which can change the dict and free
+        // the key or the weight. The tuple keeps both alive during the conversion, the
+        // caller holds the dict, and PyDict_Next stays inside the dict that it finds.
+        const bool can_run_python_code =
+            !PyLong_CheckExact(key) || !(PyFloat_CheckExact(value) || PyLong_CheckExact(value));
+        nb::object held;
+        if (can_run_python_code) {
+            held = nb::make_tuple(nb::handle(key), nb::handle(value));
         }
-        nb::detail::make_caster<int> destination_id;
-        nb::detail::make_caster<double> distance;
-        const uint8_t convert = (uint8_t) nb::detail::cast_flags::convert;
-        if (!destination_id.from_python(destination, convert, nullptr) ||
-            !distance.from_python(weight, convert, nullptr)) {
+        const long long destination_id = PyLong_AsLongLong(key);
+        const bool is_node_id = !(destination_id == -1 && PyErr_Occurred()) &&
+                                destination_id >= INT32_MIN && destination_id <= INT32_MAX;
+        const double weight = is_node_id ? PyFloat_AsDouble(value) : -1.0;
+        if (!is_node_id || (weight == -1.0 && PyErr_Occurred())) {
+            PyErr_Clear();
             throw nb::type_error("a graph maps each destination id (int) to a weight (number)");
         }
-        if (runs_python_code && PyDict_GET_SIZE(dict.ptr()) != edge_count) {
-            throw std::runtime_error("dictionary changed size during iteration");
-        }
-        edge_destination_node_ids.push_back(destination_id.value);
-        weights.push_back(distance.value);
+        edge_destination_node_ids.push_back(static_cast<int32_t>(destination_id));
+        weights.push_back(weight);
     }
 }
 
-// The edges of a list of dicts, stored by origin, each node in the order of its dict
-static std::tuple<std::vector<int32_t>, std::vector<int32_t>, std::vector<double>> read_rows(nb::handle graph) {
-    std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
-    std::vector<double> weights;
-    for (nb::handle row : graph) {
-        read_row(row, edge_destination_node_ids, weights);
-        if (edge_destination_node_ids.size() > INT32_MAX) {
-            throw std::length_error("a graph holds at most 2^31 - 1 edges");
-        }
-        node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_node_ids.size()));
-    }
-    return {std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)};
-}
-
-// The edges of one node as a dict, in the order that a search visits them
 static nb::dict row_to_dict(Row edges) {
     nb::dict row;
-    for (const auto& [destination_id, weight] : edges) {
-        row[nb::int_(destination_id)] = nb::float_(weight);
-    }
+    for (const auto& [destination_id, weight] : edges) row[nb::int_(destination_id)] = nb::float_(weight);
     return row;
 }
 
 static nb::list rows_to_list(const CsrGraph& g) {
     nb::list rows;
-    for (int u = 0; u < g.size(); ++u) {
-        rows.append(row_to_dict(g[u]));
-    }
+    for (int u = 0; u < g.size(); ++u) rows.append(row_to_dict(g[u]));
     return rows;
 }
 
@@ -260,9 +236,14 @@ NB_MODULE(cpp, m) {
     nb::class_<Graph>(m, "Graph")
         // Constructor
         .def("__init__", [](Graph* self, nb::handle graph, bool validate) {
-            auto [node_first_edge_ids, edge_destination_node_ids, weights] = read_rows(graph);
-            new (self) Graph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids),
-                             std::move(weights), validate);
+            std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
+            std::vector<double> weights;
+            for (nb::handle row : graph) {
+                read_row(row, edge_destination_node_ids, weights);
+                if (edge_destination_node_ids.size() > INT32_MAX) throw std::length_error("a graph holds at most 2^31 - 1 edges");
+                node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_node_ids.size()));
+            }
+            new (self) Graph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights), validate);
         }, nb::arg("graph"), nb::arg("validate") = false,
              "Initialize a Graph object with adjacency list representation")
 
@@ -413,9 +394,7 @@ NB_MODULE(cpp, m) {
         .def("add_node", [](Graph& self, nb::handle node_dict, bool symmetric) {
             std::vector<int32_t> edge_destination_node_ids;
             std::vector<double> weights;
-            if (!node_dict.is_none()) {
-                read_row(node_dict, edge_destination_node_ids, weights);
-            }
+            if (!node_dict.is_none()) read_row(node_dict, edge_destination_node_ids, weights);
             return self.add_node(edge_destination_node_ids, weights, symmetric);
         }, nb::arg("node_dict") = nb::none(),
              nb::arg("symmetric") = false,

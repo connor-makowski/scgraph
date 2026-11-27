@@ -96,7 +96,6 @@ from scgraph.array_checks import is_sorted_from_zero
 from scgraph.deprecations import warn_deprecated
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
-    convert_node_input,
     _last_search_in_thread,
     GraphUtils,
     GraphModifiers,
@@ -141,7 +140,6 @@ class GraphTrees:
 
         """
         # Input Validation
-        origin_id = convert_node_input(origin_id)
         self._input_check(origin_id=origin_id, destination_id=0)
         return self._get_shortest_path_tree(self.graph, origin_id)
 
@@ -1527,8 +1525,6 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
-        origin_id = convert_node_input(origin_id)
-        destination_id = convert_node_input(destination_id)
         self._input_check(origin_id=origin_id, destination_id=destination_id)
         if self.is_same_chain(origin_id, destination_id):
             return self._dijkstra_on_same_chain(
@@ -1566,8 +1562,6 @@ class GraphAlgorithms:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
-        origin_id = convert_node_input(origin_id)
-        destination_id = convert_node_input(destination_id)
         self._input_check(origin_id=origin_id, destination_id=destination_id)
         if self.is_same_chain(origin_id, destination_id):
             return self._dijkstra_on_same_chain(
