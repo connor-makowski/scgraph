@@ -47,6 +47,20 @@ def test_basic_gridgraph_a_star():
     assert hard_round(4, output["length"]) == _EXPECTED_LENGTH
 
 
+def test_tie_between_two_paths_returns_the_path_of_release_3_6():
+    # Two paths of this query have the same length. Release 3.6.0 returned this one
+    # with the C++ extension.
+    grid = GridGraph(x_size=8, y_size=8, blocks=[], add_exterior_walls=True)
+    output = grid.get_shortest_path(
+        origin_node={"x": 1, "y": 1},
+        destination_node={"x": 6, "y": 3},
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="bidirectional_dijkstra",
+    )
+    path_of_release_3_6 = [[1, 1], [2, 1], [3, 1], [4, 2], [5, 3], [6, 3]]
+    assert output["coordinate_path"] == path_of_release_3_6
+
+
 @pytest.mark.parametrize(
     "output_coordinate_path, as_point",
     [

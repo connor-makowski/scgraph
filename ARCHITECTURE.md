@@ -141,6 +141,11 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 ```
 
 * **Reading the edges of a node**: The edges of node `u` are at the positions `node_first_edge_ids_[u]` to `node_first_edge_ids_[u + 1] - 1` of `edge_destination_node_ids_` and `weights_`.
+* **Order of the edges**: Both builds keep the edges of a node in the order of its dictionary, and a search visits them in this order. `graph`, `search_graph` and `get` return them in this order. `GridGraph` writes the edges of a cell in the reverse order of `conn_data`. Of two paths with the same length, the builds can still return different ones in four cases:
+  * a search after `reduce()`, from or to a reduced node;
+  * an origin or a destination given as a dict of several nodes;
+  * `contraction_hierarchy` and `tnr`;
+  * `bmssp`.
 * **Mapped files (`mmap`)**: When scgraph opens a `.scgraph` network file, `CsrGraph` reads the arrays in the mapped file. It makes no copy.
 * **Edits**:
   * A CSR array is not edited in place. `add_node`, `add_edge` and `remove_edge` record their changes in a hash map (`RowEdits`).

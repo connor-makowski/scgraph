@@ -48,6 +48,7 @@ public:
 
     SCGRAPH_INLINE iterator begin() const { return {edge_destination_node_ids_, weights_}; }
     SCGRAPH_INLINE iterator end() const { return {edge_destination_node_ids_ + count_, weights_ + count_}; }
+    int32_t size() const { return count_; }
 
     void append_to(std::vector<int32_t>& to_edge_destination_node_ids, std::vector<double>& to_weights) const {
         to_edge_destination_node_ids.insert(to_edge_destination_node_ids.end(), edge_destination_node_ids_,
@@ -202,9 +203,15 @@ struct RowEdits {
     CsrGraph apply(const CsrGraph& base) const {
         std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
         std::vector<double> weights;
+        // The arrays get their final size at once: a vector that grows copies itself, and
+        // its new memory costs page faults to the first search after an edit.
+        int64_t edge_count = base.edges();
+        for (const auto& [u, row] : rows) {
+            edge_count += static_cast<int64_t>(row.size()) - (u < base.size() ? base[u].size() : 0);
+        }
         node_first_edge_ids.reserve(node_count + 1);
-        edge_destination_node_ids.reserve(base.edges());
-        weights.reserve(base.edges());
+        edge_destination_node_ids.reserve(edge_count);
+        weights.reserve(edge_count);
         for (int u = 0; u < node_count; ++u) {
             auto edited = rows.find(u);
             if (edited != rows.end()) {

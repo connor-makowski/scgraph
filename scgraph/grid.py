@@ -351,13 +351,16 @@ class GridGraph:
         ####################
         # Convert the graph matrix into the very efficient graph format as specified by the scgraph library
         ####################
+        # A search visits the edges of a cell in this order, which decides a tie
+        # between two paths. The reverse of conn_data gives the paths of release
+        # 3.6.0 with the C++ extension on most grids.
         graph = []
         for x_data in graph_matrix:
             for connection_dict in x_data:
                 graph.append(
                     {
                         self._get_idx(x, y): dist
-                        for (x, y), dist in connection_dict.items()
+                        for (x, y), dist in reversed(connection_dict.items())
                     }
                 )
 
@@ -493,7 +496,7 @@ class GridGraph:
             - `path`: A list of graph ids in the order they are visited
             - `coordinate_path`: A list of dicts (x, y) in the order they are visited
             - `length`: The length of the path
-        - Of two paths with the same length, the C++ extension and the pure-Python code can return different paths
+        - Of two paths with the same length, `bmssp`, `contraction_hierarchy` and `tnr` can return another one with the C++ extension than in pure Python
 
          Required Arguments:
 

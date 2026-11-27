@@ -9,33 +9,21 @@
 #include "bmssp.hpp"
 
 // Constructor
-Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate) {
-    const int n = (int)graph_data.size();
-    std::vector<int32_t> node_first_edge_ids(n + 1, 0);
+Graph::Graph(std::vector<int32_t> node_first_edge_ids, std::vector<int32_t> edge_destination_node_ids,
+             std::vector<double> weights, bool validate) {
+    const int n = (int)node_first_edge_ids.size() - 1;
     for (int i = 0; i < n; ++i) {
-        if (node_first_edge_ids[i] + graph_data[i].size() > INT32_MAX) {
-            throw std::length_error("a graph holds at most 2^31 - 1 edges");
-        }
-        node_first_edge_ids[i + 1] = node_first_edge_ids[i] + (int32_t)graph_data[i].size();
-    }
-    std::vector<int32_t> edge_destination_node_ids;
-    std::vector<double> weights;
-    edge_destination_node_ids.reserve(node_first_edge_ids[n]);
-    weights.reserve(node_first_edge_ids[n]);
-    for (size_t i = 0; i < graph_data.size(); ++i) {
-        for (const auto& [node, weight] : graph_data[i]) {
+        for (int32_t j = node_first_edge_ids[i]; j < node_first_edge_ids[i + 1]; ++j) {
             // An edge to a node outside the graph would be indexed out of bounds
-            // by every algorithm (undefined behaviour, a crash in reduce()); the
-            // check is cheap here, where every edge is copied anyway. It raises
+            // by every algorithm (undefined behaviour, a crash in reduce()). It raises
             // the type that validate() raises for this graph. With validate=True,
             // validate() reports it with its own message.
+            const int node = edge_destination_node_ids[j];
             if (!validate && (node < 0 || node >= n)) {
                 throw std::invalid_argument(
                     "Destination id " + std::to_string(node) + " at origin " +
                     std::to_string(i) + " is not in the graph");
             }
-            edge_destination_node_ids.push_back(node);
-            weights.push_back(weight);
         }
     }
     this->set_graph(CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)));

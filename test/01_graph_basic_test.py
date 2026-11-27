@@ -3,7 +3,8 @@ from array import array
 
 import pytest
 from scgraph import Graph, PathNotFoundError
-from helpers import assert_result
+from scgraph.graph import Graph as PythonGraph
+from helpers import CppGraph, assert_result, needs_the_cpp_extension
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -285,3 +286,36 @@ def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):
     )
 
     assert found["length"] == 10
+
+
+@needs_the_cpp_extension
+def test_both_builds_return_the_same_path_of_two_with_the_same_length():
+    # Two paths of length 3 join node 0 to node 4: through node 2 and through
+    # node 3. The dict of node 1 lists node 2 before node 3.
+    graph_with_two_equal_paths = [
+        {1: 1},
+        {0: 1, 2: 1, 3: 1},
+        {4: 1, 1: 1},
+        {4: 1, 1: 1},
+        {3: 1, 2: 1},
+    ]
+    python_graph = PythonGraph(graph_with_two_equal_paths)
+    cpp_graph = CppGraph(graph_with_two_equal_paths)
+
+    assert cpp_graph.bidirectional_dijkstra(
+        origin_id=0, destination_id=4
+    ) == python_graph.bidirectional_dijkstra(origin_id=0, destination_id=4)
+
+
+@needs_the_cpp_extension
+def test_both_builds_keep_the_order_of_the_edges_of_an_added_node():
+    # Node 4, added last, has two paths of length 2 to node 3: through node 1
+    # and through node 2. Its dict lists node 1 before node 2.
+    python_graph = PythonGraph([{}, {3: 1}, {3: 1}, {}])
+    cpp_graph = CppGraph([{}, {3: 1}, {3: 1}, {}])
+    python_graph.add_node({1: 1, 2: 1})
+    cpp_graph.add_node({1: 1, 2: 1})
+
+    assert cpp_graph.dijkstra_buckets(
+        origin_id=4, destination_id=3
+    ) == python_graph.dijkstra_buckets(origin_id=4, destination_id=3)

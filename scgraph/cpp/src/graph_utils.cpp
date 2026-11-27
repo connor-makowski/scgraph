@@ -273,10 +273,6 @@ void GraphUtils::reset_cache() {
     max_edge_weight_computed = false;
 }
 
-const std::unordered_map<int, double> GraphUtils::get(int idx) const {
-    return get_adjacency_dict(idx);
-}
-
 double GraphUtils::get_path_weight(const std::vector<int>& path) const {
     double total = 0.0;
     for (size_t i = 0; i + 1 < path.size(); ++i) {
@@ -322,23 +318,24 @@ std::vector<std::unordered_map<int, double>> GraphUtils::get_inverse_graph() {
     return result;
 }
 
-int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool symmetric) {
+int GraphUtils::add_node(const std::vector<int32_t>& edge_destination_node_ids, const std::vector<double>& weights,
+                         bool symmetric) {
     // Every key is checked before the graph changes, so a wrong key leaves it whole
-    for (const auto& [dest_id, distance] : node_dict) {
-        check_node_id(dest_id, size(), "Destination node");
+    for (int32_t destination_id : edge_destination_node_ids) {
+        check_node_id(destination_id, size(), "Destination node");
     }
     std::vector<std::pair<int, double>> edges;
-    edges.reserve(node_dict.size());
-    for (const auto& [dest_id, distance] : node_dict) {
-        edges.emplace_back(dest_id, distance);
+    edges.reserve(edge_destination_node_ids.size());
+    for (size_t i = 0; i < edge_destination_node_ids.size(); ++i) {
+        edges.emplace_back(edge_destination_node_ids[i], weights[i]);
     }
 
     auto graph = rows_to_edit();
-    graph.push_back(std::move(edges));
+    graph.push_back(edges);
     int new_node_id = graph.size() - 1;
 
     if (symmetric) {
-        for (const auto& [dest_id, distance] : node_dict) {
+        for (const auto& [dest_id, distance] : edges) {
             graph[dest_id].emplace_back(new_node_id, distance);
         }
     }

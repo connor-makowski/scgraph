@@ -113,7 +113,6 @@ public:
     virtual void reset_cache();
 
     // Access
-    const std::unordered_map<int, double> get(int idx) const;
     // The number of nodes, without packing pending edits
     int size() const { return edits.has_edits() ? edits.node_count : packed_graph.size(); }
     int64_t edit_count() const { return edit_count_; }
@@ -126,7 +125,9 @@ public:
     double get_path_weight(const std::vector<int>& path) const;
 
     // Graph modification
-    int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
+    // The edges of the new node keep the order of the two vectors
+    int add_node(const std::vector<int32_t>& edge_destination_node_ids, const std::vector<double>& weights,
+                 bool symmetric = false);
     void add_edge(int origin_id, int destination_id, double distance, bool symmetric = false);
     std::unordered_map<int, double> remove_node(bool symmetric_node = false);
     std::optional<double> remove_edge(int origin_id, int destination_id, bool symmetric = false);
