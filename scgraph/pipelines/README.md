@@ -413,6 +413,10 @@ A tag that ends with `-dev.N` makes a development network release, to try the ne
 new version of scgraph. GitHub shows it as a pre-release. By convention, a version of scgraph
 on PyPI loads a network release without `-dev`.
 
+Push a tag only for networks that scgraph will pin. A tag stays in the repository, also when
+its run fails or when its draft is deleted. To check a change of a pipeline, build a small
+region before and after the change, and compare the `content_sha256` of the two files.
+
 ### Run Steps
 
 A **run** is one execution of a workflow. This run has three **jobs**, one after the other, and
