@@ -343,7 +343,6 @@ def build(
             mask,
             list_node_mode_names(MODES),
             flights=step2_hub_connectors.read_flights(files["flights"]),
-            work_dir=folder("hubs"),
         )
         counts.update(joined)
     # 7. Forbid the turns. It comes after the hubs: a hub is then joined to
