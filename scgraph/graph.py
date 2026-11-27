@@ -1448,7 +1448,6 @@ class GraphAlgorithms:
             )
         return self._tnr_graph
 
-    @algorithm(bidirectional=True)
     def tnr(
         self,
         origin_id: int | set[int] | dict[int, int | float],
@@ -1478,13 +1477,20 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
+        origin_id = convert_node_input(origin_id)
+        destination_id = convert_node_input(destination_id)
         self._input_check(origin_id=origin_id, destination_id=destination_id)
+        if self.is_same_chain(origin_id, destination_id):
+            return self._dijkstra_on_same_chain(
+                origin_id, destination_id, length_only
+            )
         self.create_tnr_hierarchy(num_transit_nodes=50)
-        return self._tnr_graph.search(
+        res = self._tnr_graph.search(
             origin_id, destination_id, length_only=length_only
         )
+        res["path"] = self.expand_path(res["path"])
+        return res
 
-    @algorithm(bidirectional=True)
     def contraction_hierarchy(
         self,
         origin_id: int | set[int] | dict[int, int | float],
@@ -1510,11 +1516,19 @@ class GraphAlgorithms:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
+        origin_id = convert_node_input(origin_id)
+        destination_id = convert_node_input(destination_id)
         self._input_check(origin_id=origin_id, destination_id=destination_id)
+        if self.is_same_chain(origin_id, destination_id):
+            return self._dijkstra_on_same_chain(
+                origin_id, destination_id, length_only
+            )
         self.create_contraction_hierarchy()
-        return self._ch_graph.search(
+        res = self._ch_graph.search(
             origin_id, destination_id, length_only=length_only
         )
+        res["path"] = self.expand_path(res["path"])
+        return res
 
 
 class Graph(
