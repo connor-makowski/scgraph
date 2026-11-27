@@ -38,6 +38,9 @@ MIN_COMPONENT_NODES = 1000
 
 # For the sources without a download function of their own: it checks osmium first
 download = regional.download
+# The node modes of the regional pipeline, for `derive_network_file`
+LAND_MODES = regional.LAND_MODES
+EDGE_SOURCE_OF_MODE = regional.EDGE_SOURCE_OF_MODE
 
 
 def build(

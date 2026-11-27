@@ -69,7 +69,7 @@ Each graph operation has two implementations that give the same results:
 The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It lists the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline, and lists the steps of a build with their modules.
 
 * `network_builder.build_network_file` downloads the sources and calls `build` in a work folder. It writes a `.scgraph` file with the metadata of the build in its header, then moves the file into the cache.
-* `derived_networks.derive_network_file` writes a network file from another network file, the parent file, and downloads nothing. The derived file holds some node modes of the parent file, and its roads, railways and rail terminals inside a bbox.
+* `derived_networks.derive_network_file` writes a network file from another network file, the parent file, and downloads nothing. The derived file holds some node modes of the parent file, and its land node modes inside a bbox. The pipeline of the parent file lists its land node modes in `LAND_MODES`.
 * The costly functions of `step2_land_mask` and of `scgraph.network_assembly` have a C++ version in `scgraph/cpp/src/` (`network_assembly.hpp`) and in `scgraph/cpp/src/pipelines/` (`land_mask.hpp`). Their pure-Python version gives the same results.
 
 A build of roads runs these steps in this order. Each line says, on the right, what the step does for the turn restrictions.

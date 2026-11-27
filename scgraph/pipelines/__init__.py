@@ -59,6 +59,11 @@ WHAT A PIPELINE MODULE HOLDS
   own. The default is `download_file`.
 - `CLASSES`, optional: the classes of the pipeline, in place of the classes of this
   package (see *The classes*).
+- `LAND_MODES` and `EDGE_SOURCE_OF_MODE`, optional: what
+  `derived_networks.derive_network_file` reads from the pipeline of a parent file.
+  `LAND_MODES` lists the node modes that a bbox cuts. `EDGE_SOURCE_OF_MODE` gives the
+  source of the edges of a node mode, when it is not the source of its node ids:
+  `{"airport": "flights"}`.
 
 The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.

@@ -101,8 +101,8 @@ __all__ = ["NodeOrderError", "OrderedSnapIndex"]
 logger = logging.getLogger("scgraph.geograph")
 
 # The node mode that a query point snaps to by default. A journey of a person or of
-# goods starts and ends on a road, and the pipelines of scgraph give this name to
-# the node mode of their road nodes.
+# goods starts and ends on a road. The pipelines of scgraph import this constant as
+# the name of the node mode of their road nodes.
 ROAD_NODE_MODE = "road"
 
 

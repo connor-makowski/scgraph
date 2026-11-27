@@ -114,6 +114,7 @@ from typing import TYPE_CHECKING
 from scgraph import network_assembly
 from scgraph.coordinates import decode_coordinate
 from scgraph.node_modes import list_node_mode_names
+from scgraph.node_snapping import ROAD_NODE_MODE
 from scgraph.helpers.osm import (
     build_way_pieces,
     read_turn_restrictions,
@@ -155,14 +156,22 @@ SOURCES = {
     "osm": step1_osm_sources.GEOFABRIK,
 }
 MODES = [
-    # The roads follow turn restrictions: a road junction may have several nodes
-    {"name": "road", "source": "osm", "has_turn_restrictions": True},
+    # The roads follow turn restrictions: a road junction may have several nodes. A
+    # query point snaps to a road node by default.
+    {"name": ROAD_NODE_MODE, "source": "osm", "has_turn_restrictions": True},
     {"name": "rail", "source": "osm"},
     {"name": "sea", "source": "sea"},
     {"name": "port", "source": "ports"},
     {"name": "airport", "source": "airports"},
     {"name": "rail_terminal", "source": "rail_terminals"},
 ]
+# The node modes that a bbox of `derive_network_file` cuts. The nodes of the other
+# node modes (`sea`, `port`, `airport`) all stay. A route can then leave the bbox by
+# sea or by air, and reach a port or an airport outside it.
+LAND_MODES = ("road", "rail", "rail_terminal")
+# The source of the edges of a node mode, when it is not the source of its node ids. A
+# flight joins two airports: a file without the node mode `airport` holds no flight.
+EDGE_SOURCE_OF_MODE = {"airport": "flights"}
 # The land mask covers the roads of the region and this margin around them, in
 # degrees. A sea connector runs inside the mask.
 MARGIN_DEGREES = 2
@@ -263,15 +272,13 @@ def build(
         step1_osm_sources.get_source(files["osm"]),
         {
             "rail": {"ways": select_rail_with_class},
-            "road": {
-                "ways": select_main_roads_with_class,
-                "ferries": select_vehicle_ferries_with_class,
-            },
+            "road": {"ways": select_main_roads_with_class},
         },
         ("railway", "highway", "route"),
         max_km_between_nodes,
         folder("ways"),
         optional_modes=("rail",),
+        ferry_selects={"road": select_vehicle_ferries_with_class},
     )
     roads = network_assembly.build_graph_from_pieces(pieces["road"])
     layers = {"road": roads}
