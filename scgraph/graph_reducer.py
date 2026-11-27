@@ -718,8 +718,6 @@ class GraphReducer:
 
         return res
 
-    __run_with_reduced__ = run_with_reduced
-
     @staticmethod
     def dijkstra_on_graph(
         graph: list[dict[int, int | float]],
@@ -813,8 +811,6 @@ class GraphReducer:
             "path": path,
             "length": best_dist,
         }
-
-    __dijkstra_on_graph__ = dijkstra_on_graph
 
     def expand_path(self, path: list[int]) -> list[int]:
         """
