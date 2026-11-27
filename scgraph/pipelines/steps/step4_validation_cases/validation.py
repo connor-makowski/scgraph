@@ -107,7 +107,9 @@ def _find_closest_node(network, point, node_mode=None) -> tuple:
     wanted = node_mode_names.index(node_mode)
     return min(
         (haversine(point, node), tuple(node))
-        for node, node_mode_id in zip(network.nodes, network.node_mode_ids)
+        for node, node_mode_id in zip(
+            network.nodes, network._read_node_mode_ids()
+        )
         if node_mode_id == wanted
     )
 
@@ -289,7 +291,10 @@ def _check_hub(network, case) -> str | None:
             )["path"]
         except PathNotFoundError:
             return f"no route to the {mode} network"
-        if len(path) < 2 or names[network.node_mode_ids[path[1]]] != first_mode:
+        if (
+            len(path) < 2
+            or names[network._read_node_mode_ids()[path[1]]] != first_mode
+        ):
             return f"no connector to the {mode} network"
         # A direct flight is the shortest route between two airports: a stop
         # or a road between them is longer
