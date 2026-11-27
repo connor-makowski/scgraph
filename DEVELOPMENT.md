@@ -67,7 +67,7 @@ utils/
   pin_network_release.py         # Write scgraph/network_release.py for a published network release
   build_hub_tables.py            # Rebuild the hub tables of scgraph/pipelines/data
   validation_references/         # Scripts that built the validation cases from their published sources
-noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly)
+noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly, the layers of the imports)
 pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
 README.md, guides/, MIGRATING.md, WRITING.md # User documents: the entry page, one guide for each task (with a module that gives it a page of the site), the changes since release 3.6; how to write a text
@@ -83,7 +83,7 @@ README.md, guides/, MIGRATING.md, WRITING.md # User documents: the entry page, o
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `python3 utils/compare_versions.py BASE HEAD` | Benchmark two git refs side by side; options in `--help` |
 | `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
-| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, and the types of `scgraph` with pyrefly. `.github/workflows/tests.yml` runs this session and `tests-3.12` on every pull request |
+| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, the types of `scgraph` with pyrefly, and the imports of `scgraph` with `utils/check_import_layers.py`. `.github/workflows/tests.yml` runs this session and `tests-3.12` on every pull request |
 
 **Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`, `snap`).
 
@@ -151,7 +151,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 ## Coding Conventions
 
 - **Line length**: 80 characters (black config in `pyproject.toml`). **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
-- **Formatting and checks**: Always run `uv run utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. The rules and their reasons are in `pyproject.toml`.
+- **Formatting and checks**: Always run `uv run utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff`, `pyrefly` or `utils/check_import_layers.py` blocks a PR. The rules and their reasons are in `pyproject.toml`.
 - **Names**: A function name starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`). A function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`.
   - A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding.
   - Internal names: `_name` in Python, `name_` for C++ members. A test helper that only returns data may be named for that data (`_small_graph`).
@@ -168,7 +168,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `step_logs.log_step` (`guides/routing.md`, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium, a library that reads OpenStreetMap files), imported only when it is called
 - **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
-- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
+- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls. A rule (a check, a default value, a constant or a conversion) is written once, in the module of its notion. The other modules call that module. `utils/check_import_layers.py` gives the layer of each module. A module imports from its own layer or a lower one.
 - **Don't mutate caller-provided arguments**: Make a copy of small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 
 ## Contribution Workflow
