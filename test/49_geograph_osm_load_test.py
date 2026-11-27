@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 import pytest
+import requests
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
@@ -520,13 +521,13 @@ def planet_folder(osm_file, tmp_path_factory):
 # answer carries an ETag: the text of the file "tag" of the folder, read at
 # each request. A test changes that file to make the PBF a new file for scgraph.
 # When the folder has the file "forbid_once", the mirror removes it and answers
-# 403 Forbidden.
+# the next GET with 403 Forbidden. A HEAD request gets its normal answer.
 _MIRROR = r"""
 import http.server, pathlib, sys
 folder = pathlib.Path(sys.argv[1])
 class Mirror(http.server.BaseHTTPRequestHandler):
     def do_GET(self, body=True):
-        if (folder / "forbid_once").exists():
+        if body and (folder / "forbid_once").exists():
             (folder / "forbid_once").unlink()
             self.send_error(403)
             return
@@ -634,6 +635,19 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
 
     with pytest.raises(RuntimeError, match="Reading http"):
         build_main_roads({"roads": layout})
+
+
+# The download of the layout file reads byte ranges too: the mirror forbids
+# its first range. A new request cannot correct the answer 403.
+def test_a_pbf_that_the_server_forbids_stops_the_download_of_its_layout(
+    planet_url, planet_folder, tmp_path
+):
+    (planet_folder / "forbid_once").write_text("")
+
+    with pytest.raises(requests.HTTPError, match="403"):
+        step1_osm_sources.StreamedPbf.download(
+            planet_url, str(tmp_path / "layout.json")
+        )
 
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")
