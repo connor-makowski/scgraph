@@ -237,12 +237,17 @@ def test_load_geograph_converts_again_a_damaged_network_file(
     assert GeoGraph.load_from_scgraph(str(converted)).nodes == geo.nodes
 
 
-# The cache folder is made read-only: the network file cannot be written. The
-# load must still give the network, in the same node order.
-@pytest.mark.skipif(
+# A test that makes a folder read-only runs where the owner of a folder cannot
+# write it.
+_needs_a_read_only_folder = pytest.mark.skipif(
     not hasattr(os, "geteuid") or os.geteuid() == 0,
     reason="Only POSIX has folders that their owner cannot write, except root",
 )
+
+
+# The cache folder is made read-only: the network file cannot be written. The
+# load must still give the network, in the same node order.
+@_needs_a_read_only_folder
 def test_load_geograph_reads_the_graphjson_when_the_cache_is_read_only(
     cache_with_marnet,
 ):
@@ -254,6 +259,52 @@ def test_load_geograph_reads_the_graphjson_when_the_cache_is_read_only(
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
     assert geo.coordinate_dtype == "int32"
     assert not (cache_with_marnet / "marnet.scgraph").exists()
+
+
+# A geograph with shapes, saved after `add_coord_node`, has a node without a
+# row of shapes. Its .graphjson has two rows of shapes for three nodes.
+@_needs_a_read_only_folder
+def test_load_geograph_reads_a_graphjson_with_an_added_node_when_the_cache_is_read_only(
+    tmp_path,
+):
+    geograph = GeoGraph(
+        graph=[{1: 111.2}, {0: 111.2}],
+        nodes=[[0, 0], [0, 1]],
+        intermediate_nodes=[{1: [[0, 0.5]]}, {0: [[0, 0.5]]}],
+    )
+    geograph.add_coord_node({"latitude": 0, "longitude": 2})
+    geograph.save_as_graphjson(str(tmp_path / "marnet.graphjson"))
+    tmp_path.chmod(0o555)
+    try:
+        geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    finally:
+        tmp_path.chmod(0o755)  # The folder can be removed again.
+    assert sorted(geo.nodes) == [[0, 0], [0, 1], [0, 2]]
+
+
+# A read-only cache keeps no network file, so the load orders the nodes of the
+# .graphjson in memory. This order keeps no class: the load refuses a file
+# with classes, and does not drop them without a word.
+@_needs_a_read_only_folder
+def test_load_geograph_refuses_a_graphjson_with_classes_when_the_cache_is_read_only(
+    tmp_path,
+):
+    (tmp_path / "marnet.graphjson").write_text(
+        json.dumps(
+            {
+                "type": "GeoGraph",
+                "graph": [{"1": 1.5}, {"0": 1.5}],
+                "nodes": [[0, 0], [0, 1]],
+                "classes": [{"name": "primary", "edge_mode": "road"}],
+            }
+        )
+    )
+    tmp_path.chmod(0o555)
+    try:
+        with pytest.raises(ValueError, match="drops the classes"):
+            GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    finally:
+        tmp_path.chmod(0o755)  # The folder can be removed again.
 
 
 @pytest.fixture

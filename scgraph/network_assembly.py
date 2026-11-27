@@ -41,7 +41,8 @@ HOW A RUN GOES
    component, or each component of at least a given number of nodes. In such a
    component, every node can reach every other node. An edge between two components
    is dropped. A junction with a node in a kept component keeps all its nodes:
-   `keep_components` adds the other nodes of the junction to this component.
+   `keep_components` adds the other nodes of the junction to this component. With
+   `min_component_nodes=0`, `keep_components` keeps every node and every edge.
 3. `contract_chains` removes each pass-through node. A pass-through node has exactly
    two neighbours, and a route that enters it can only go on to the other neighbour.
    There are two cases. Either an edge joins the node to each neighbour in each
@@ -734,7 +735,7 @@ def assemble_network(
             if it has several node modes. The function empties this dict, to free it.
         max_km_between_nodes: The length in km at which `contract_chains` cuts a chain.
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component.
+            only the largest component, and 0 keeps every node and every edge.
 
     Returns:
         The arrays of the network file, as `network_file.write` takes them, and
@@ -910,15 +911,20 @@ def keep_components(
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it. The function
-            empties this dict, to free it.
+            empties this dict, to free it, unless it returns it.
         min_component_nodes: The smallest number of nodes of a kept component. None
-            keeps only the largest component.
+            keeps only the largest component. 0 keeps every node and every edge:
+            the function returns `graph`.
 
     Returns:
         The graph of the kept nodes, with the edges between two nodes of one
         component. A junction with a node in a kept component keeps all its nodes
         (`scgraph.turn_restrictions`).
     """
+    if min_component_nodes == 0:
+        # A number above 0 drops each edge between two components, also a
+        # one-way edge that is on no cycle. 0 keeps these edges too.
+        return graph
     with log_step(
         logger,
         "keep the strongly connected components",

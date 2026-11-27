@@ -150,6 +150,31 @@ def test_remove_coord_node_restores_path():
     )
 
 
+# The four nodes of the geograph come from its creation: no node was added, so
+# remove_coord_node has no node to remove.
+def test_remove_coord_node_refuses_a_node_that_add_coord_node_did_not_add():
+    g = _fresh()
+
+    with pytest.raises(ValueError, match="add_coord_node"):
+        g.remove_coord_node()
+
+
+# remove_node removes the node 3 of the network. The coord node added next takes
+# its place in `nodes`, but it is a new node: it gets the external id -1, and
+# remove_coord_node removes it.
+def test_remove_coord_node_removes_a_node_added_after_remove_node():
+    g = _fresh()
+    g.remove_node(symmetric_node=True)
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+    assert list(g.external_node_ids) == [0, 1, 2, -1]
+
+    g.remove_coord_node()
+
+    assert g.nodes == [[0, 0], [0, 1], [1, 0]]
+
+
 def test_remove_node_removes_the_point_of_the_node():
     g = _fresh()
 
@@ -262,6 +287,20 @@ def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(
 
     with pytest.raises(ValueError, match="is not in this graph"):
         change(graph)
+
+
+def test_add_node_refuses_an_edge_to_a_node_that_is_not_in_the_graph(
+    graph_class,
+):
+    # Two nodes joined both ways: only the ids 0 and 1 exist. The edge to node
+    # 0 is valid, and the edge to node 5 is not.
+    graph = graph_class([{1: 1.0}, {0: 1.0}])
+
+    with pytest.raises(ValueError, match="is not in this graph"):
+        graph.add_node({0: 1.0, 5: 1.0}, symmetric=True)
+
+    # The refusal comes before any change: node 0 gets no edge to a new node.
+    assert graph.graph == [{1: 1.0}, {0: 1.0}]
 
 
 def test_remove_node_refuses_a_graph_without_nodes(graph_class):

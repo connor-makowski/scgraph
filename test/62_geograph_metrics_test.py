@@ -90,12 +90,14 @@ KM_OF_EACH_EDGE = {
 # 240 km/h and a ship sails at 30 km/h. A lorry needs 4 minutes for 1 km of
 # an off-graph leg: the straight line between a query point and its node.
 # Each weight per km is exact in binary, so that an expected weight is exact.
-MINUTES_PER_KM = {"road": 2.0, "rail": 0.25, "sea": 2.0, "off_graph": 4.0}
+MINUTES_PER_KM = {"road": 2.0, "rail": 0.25, "sea": 2.0}
 CLASS_MINUTES_PER_KM = {"primary": 1.5, "motorway": 0.5}
-# The two dicts are the arguments of `create_metric`.
+# The two dicts and the weight per km of an off-graph leg are the arguments of
+# `create_metric`.
 MINUTES = {
     "weight_per_km": MINUTES_PER_KM,
     "class_weight_per_km": CLASS_MINUTES_PER_KM,
+    "off_graph_weight_per_km": 4.0,
 }
 # The weight per km that MINUTES gives to each class: the weight of a class
 # replaces the weight of its edge mode.
@@ -652,7 +654,9 @@ def test_a_closed_class_closes_an_edge_of_zero_km(network):
     network.add_edge(WEST_TOWN, PORT, 0.0, edge_class="open_sea")
 
     network.create_metric(
-        "minutes", weight_per_km={**MINUTES_PER_KM, "sea": None}
+        "minutes",
+        weight_per_km={**MINUTES_PER_KM, "sea": None},
+        off_graph_weight_per_km=4.0,
     )
 
     # Infinity times 0 km is not a number: the weight of the edge is infinity.
@@ -663,9 +667,12 @@ def test_a_closed_class_closes_an_edge_of_zero_km(network):
 def test_a_geograph_without_classes_takes_one_weight_per_km_for_every_edge(
     geograph_without_classes,
 ):
-    geograph_without_classes.create_metric("minutes", weight_per_km=2.0)
+    geograph_without_classes.create_metric(
+        "minutes", weight_per_km=2.0, off_graph_weight_per_km=3.0
+    )
 
-    # The one edge of 2.5 km has no class and no edge mode.
+    # The one edge of 2.5 km has no class and no edge mode. The weight of the
+    # off-graph legs does not change its weight per km.
     assert geograph_without_classes.get_edges() == [
         {
             "origin_id": 0,
@@ -770,6 +777,28 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
     ]
 
 
+# A number of weights per km and a weighted sum give the weight of 1 km of an
+# off-graph leg themselves (see the test above). `off_graph_weight_per_km`
+# replaces this weight.
+WAYS_THAT_GIVE_AN_OFF_GRAPH_WEIGHT = {
+    "a number of weights per km": {"weight_per_km": 3.0},
+    "a weighted sum": {"weighted_sum_of": {"length": 2}},
+}
+
+
+@pytest.mark.parametrize(
+    "way",
+    WAYS_THAT_GIVE_AN_OFF_GRAPH_WEIGHT.values(),
+    ids=WAYS_THAT_GIVE_AN_OFF_GRAPH_WEIGHT,
+)
+def test_off_graph_weight_per_km_gives_the_weight_of_an_off_graph_km(
+    network, way
+):
+    network.create_metric("fare", **way, off_graph_weight_per_km=0.75)
+
+    assert network.metrics[-1]["off_graph_weight_per_km"] == 0.75
+
+
 def _get_cost(edge):
     """The cost of an edge: 2 for each of its minutes, and 0.5 for each of its
     km."""
@@ -814,8 +843,8 @@ def test_an_edge_without_a_class_has_the_weight_per_km_of_an_off_graph_leg(
 
     network.create_metric("minutes", **MINUTES)
 
-    # The new road has no class, so it takes the weight per km `off_graph`:
-    # 80 km × 4 minutes = 320 minutes.
+    # The new road has no class, so it takes the weight per km of an
+    # off-graph leg: 80 km × 4 minutes = 320 minutes.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert weights[WEST_TOWN, PORT] == 320.0
 
@@ -834,16 +863,18 @@ REFUSED_METRICS = {
     # weight per km that the network needs: the error names it. The network has
     # no class and no edge mode `canal`, no node of a node mode `airport`, and
     # no edge from the junction to the port.
-    "no weight per km for off_graph": (
-        {"weight_per_km": {"road": 2.0, "rail": 0.25, "sea": 2.0}},
-        "off_graph",
-    ),
     "no weight per km for a class that has edges": (
-        {"weight_per_km": {"road": 2.0, "rail": 0.25, "off_graph": 4.0}},
+        {
+            "weight_per_km": {"road": 2.0, "rail": 0.25},
+            "off_graph_weight_per_km": 4.0,
+        },
         "open_sea",
     ),
     "a weight per km for an edge mode that the network does not have": (
-        {"weight_per_km": {**MINUTES_PER_KM, "canal": 2.0}},
+        {
+            "weight_per_km": {**MINUTES_PER_KM, "canal": 2.0},
+            "off_graph_weight_per_km": 4.0,
+        },
         "canal",
     ),
     "a weight per km for a class that the network does not have": (
@@ -927,9 +958,9 @@ REFUSED_METRICS = {
         {"weight_per_km": 2.0, "edge_weights": {(1, 2): math.nan}},
         "node 1 to node 2",
     ),
-    # A function is called for the edges only: the call gives the weight of
-    # 1 km of an off-graph leg, a finite number of zero or more. The two other
-    # ways give this weight themselves.
+    # A function and a dict of weights per km give no weight to an off-graph
+    # leg: the call gives it as `off_graph_weight_per_km`, a finite number of
+    # zero or more. A dict has no other place for this weight.
     "a function without the weight of the off-graph legs": (
         {"edge_weight_fn": _get_toll},
         "edge_weight_fn needs off_graph_weight_per_km",
@@ -938,13 +969,17 @@ REFUSED_METRICS = {
         {"edge_weight_fn": _get_toll, "off_graph_weight_per_km": -0.25},
         "off-graph leg",
     ),
-    "weights per km and the weight of the off-graph legs": (
-        {"weight_per_km": 2.0, "off_graph_weight_per_km": 4.0},
-        "off_graph_weight_per_km needs edge_weight_fn",
+    "a dict of weights per km without the weight of the off-graph legs": (
+        {"weight_per_km": MINUTES_PER_KM},
+        "needs off_graph_weight_per_km",
     ),
-    "a sum and the weight of the off-graph legs": (
-        {"weighted_sum_of": {"length": 2}, "off_graph_weight_per_km": 4.0},
-        "off_graph_weight_per_km needs edge_weight_fn",
+    "a dict of weights per km with the key off_graph": (
+        {
+            "weight_per_km": {**MINUTES_PER_KM, "off_graph": 4.0},
+            "off_graph_weight_per_km": 4.0,
+        },
+        "'off_graph': give the weight of 1 km of an off-graph leg as "
+        "off_graph_weight_per_km",
     ),
 }
 
@@ -1140,6 +1175,7 @@ def test_a_route_by_a_metric_avoids_a_class_that_the_metric_closes(
         "minutes",
         weight_per_km={**MINUTES_PER_KM, "rail": None},
         class_weight_per_km=CLASS_MINUTES_PER_KM,
+        off_graph_weight_per_km=4.0,
     )
     network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
 
@@ -1155,7 +1191,9 @@ def test_a_route_by_a_metric_avoids_a_class_that_the_metric_closes(
 
 def test_the_error_for_a_route_that_a_metric_closes_names_the_metric(network):
     network.create_metric(
-        "minutes", weight_per_km={**MINUTES_PER_KM, "sea": None}
+        "minutes",
+        weight_per_km={**MINUTES_PER_KM, "sea": None},
+        off_graph_weight_per_km=4.0,
     )
 
     # The destination snaps to the open sea node, which only sea lanes reach.
@@ -1172,8 +1210,9 @@ def test_the_error_for_a_route_that_a_metric_closes_names_the_metric(network):
 def test_off_graph_legs_of_zero_weight_do_not_make_a_route_direct(network):
     network.create_metric(
         "minutes",
-        weight_per_km={**MINUTES_PER_KM, "off_graph": 0.0},
+        weight_per_km=MINUTES_PER_KM,
         class_weight_per_km=CLASS_MINUTES_PER_KM,
+        off_graph_weight_per_km=0.0,
     )
 
     route = network.get_shortest_path(
@@ -1268,6 +1307,7 @@ def test_every_algorithm_finds_the_total_of_a_metric_that_closes_a_class(
         "minutes",
         weight_per_km={**MINUTES_PER_KM, "rail": None},
         class_weight_per_km=CLASS_MINUTES_PER_KM,
+        off_graph_weight_per_km=4.0,
     )
 
     route = network.get_shortest_path(

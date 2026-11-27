@@ -374,6 +374,9 @@ class GeoGraphUtils:
               weight of 1 km of an off-graph leg in the metric
             - Note: The total of a metric other than 'length' is not converted to
               `output_units`. An unknown name raises a ValueError
+            - Note: With a metric other than `length`, the result is the total of
+              this metric, not a length. `get_shortest_path` returns both: `length`
+              and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is
               'length' unless a loader or the caller set it)
 
@@ -615,24 +618,18 @@ class GeoGraphRouting:
                     destination,
                 ]
             ]
+        units_per_km = get_units_per_km(self.geograph_units)
         off_graph_legs = []
         for points in off_graph_paths:
-            hops = list(zip(points, points[1:]))
+            # One sum of km gives both the length and the totals of the leg.
+            # `_get_off_graph_km` computes the km of the route in the same way.
             off_graph_km = off_graph_circuity * sum(
-                haversine(start, end) for start, end in hops
+                haversine(start, end) for start, end in zip(points, points[1:])
             )
             off_graph_legs.append(
                 {
                     "edge_mode": "off_graph",
-                    "length": sum(
-                        haversine(
-                            start,
-                            end,
-                            circuity=off_graph_circuity,
-                            units=self.geograph_units,
-                        )
-                        for start, end in hops
-                    ),
+                    "length": off_graph_km * units_per_km,
                     "metric_totals": {
                         name: off_graph_km
                         * metric_record.off_graph_weight_per_km
@@ -1315,6 +1312,7 @@ class GeoGraphRouting:
         - `metric`
             - Type: str
             - What: The name of the metric to minimise, a name of `metrics`: the path between two nodes is the one with the smallest total of this metric
+            - Note: With a metric other than `length`, a value of the matrix is the total of this metric, not a length. `get_shortest_path` returns both: `length` and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it)
         - `output_metric`
             - Type: str | None

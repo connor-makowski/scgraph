@@ -320,6 +320,10 @@ std::vector<std::unordered_map<int, double>> GraphUtils::get_inverse_graph() {
 
 int GraphUtils::add_node(const std::vector<int32_t>& edge_destination_node_ids, const std::vector<double>& weights,
                          bool symmetric) {
+    // Every key is checked before the graph changes, so a wrong key leaves it whole
+    for (int32_t destination_id : edge_destination_node_ids) {
+        check_node_id(destination_id, size(), "Destination node");
+    }
     std::vector<std::pair<int, double>> edges;
     edges.reserve(edge_destination_node_ids.size());
     for (size_t i = 0; i < edge_destination_node_ids.size(); ++i) {

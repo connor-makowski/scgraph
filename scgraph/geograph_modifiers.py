@@ -93,6 +93,7 @@ class GeoGraphModifiers:
             symmetric_node=symmetric_node
         )
         self.nodes.pop()
+        self.external_node_ids.forget_removed_nodes()
         self._edge_classes.forget_node(len(self.nodes))
         self._remove_metrics()
         del self.node_mode_ids[len(self.nodes) :]
@@ -385,7 +386,13 @@ class GeoGraphModifiers:
         - Assumes that this node has symmetric flows
             - EG: If node A has a distance of 10 to node B, then node B has a distance of 10 to node A
         - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
+        - Raises a ValueError when the last node was not added by `add_coord_node`: the geograph had it at its creation or its load
         """
+        if not self.external_node_ids.has_added_nodes():
+            raise ValueError(
+                "remove_coord_node removes a node that add_coord_node added: "
+                "this geograph has no such node"
+            )
         self.remove_node(symmetric_node=True)
 
     def add_haversine_edge(
