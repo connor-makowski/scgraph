@@ -526,6 +526,17 @@ class GraphReducer:
             ch, n
         )
 
+    def _limit_transit_nodes(self, num_transit_nodes: int) -> int:
+        """Return the number of transit nodes of the TNR graph of this graph:
+        `num_transit_nodes`, or at most the number of nodes left after
+        `reduce()`. Same rule as GraphReducer::create_tnr_graph (C++)."""
+        is_reduced = getattr(self, "is_reduced", None)
+        if is_reduced is None:
+            return num_transit_nodes
+        # Transit nodes are the last contracted, and reduced nodes are
+        # contracted first: no more transit nodes than nodes left
+        return min(num_transit_nodes, max(1, is_reduced.count(False)))
+
     def run_with_reduced(
         self, func: Callable, *args, is_bidirectional: bool = False, **kwargs
     ) -> object:

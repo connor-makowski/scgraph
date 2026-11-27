@@ -378,64 +378,6 @@ class GraphUtils:
                     return False
         return True
 
-    def _get_max_edge_weight(
-        self,
-        max_edge_weight: float | None,
-    ) -> int:
-        """Infer and round up the maximum edge weight for bucket allocation. An infinite
-        weight closes its edge, so the maximum is that of the finite weights."""
-        if max_edge_weight is not None:
-            return math.ceil(max_edge_weight)
-        cached_max_edge_weight = getattr(self, "_max_edge_weight", None)
-        if cached_max_edge_weight is None:
-            graph = self.search_graph
-            max_edge_weight = max(
-                0,
-                max(
-                    (
-                        weight
-                        for edges in graph
-                        for weight in edges.values()
-                        if math.isfinite(weight)
-                    ),
-                    default=0,
-                ),
-            )
-            cached_max_edge_weight = math.ceil(max_edge_weight)
-            self._max_edge_weight = cached_max_edge_weight
-        return cached_max_edge_weight
-
-    def _get_bucket_width(
-        self,
-        bucket_width: float | None,
-        max_edge_weight: int,
-    ) -> float:
-        """Width of the buckets of the bucket algorithms: the given width, else 8 times the
-        median finite edge weight of the graph (1 if that median is 0), never so small that a
-        bucket ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width
-        (C++).
-        """
-        if bucket_width is not None:
-            if not (math.isfinite(bucket_width) and bucket_width > 0):
-                raise ValueError(
-                    "bucket_width must be a finite number greater than 0."
-                )
-            width = float(bucket_width)
-        else:
-            width = getattr(self, "_bucket_width", None)
-            if width is None:
-                weights = sorted(
-                    w
-                    for edges in self.search_graph
-                    if edges
-                    for w in edges.values()
-                    if math.isfinite(w)
-                )
-                median = weights[len(weights) // 2] if weights else 0
-                width = 8.0 * median if median > 0 else 1.0
-                self._bucket_width = width
-        return max(width, max_edge_weight / 65536)
-
     def validate(
         self,
         check_symmetry: bool = True,

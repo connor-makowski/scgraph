@@ -87,6 +87,7 @@ weights only. Example: with the weight `inf` on the edge from node 2 to node 1,
 weight -2 on the edge from node 2 to node 1, both return `[0, 2, 1, 3]` and the length 0.
 """
 
+import math
 import warnings
 from array import array
 from collections.abc import Callable
@@ -487,6 +488,64 @@ class GraphAlgorithms:
             "path": forward_path + backward_path,
             "length": best_dist,
         }
+
+    def _get_max_edge_weight(
+        self,
+        max_edge_weight: float | None,
+    ) -> int:
+        """Infer and round up the maximum edge weight for bucket allocation. An infinite
+        weight closes its edge, so the maximum is that of the finite weights."""
+        if max_edge_weight is not None:
+            return math.ceil(max_edge_weight)
+        cached_max_edge_weight = getattr(self, "_max_edge_weight", None)
+        if cached_max_edge_weight is None:
+            graph = self.search_graph
+            max_edge_weight = max(
+                0,
+                max(
+                    (
+                        weight
+                        for edges in graph
+                        for weight in edges.values()
+                        if math.isfinite(weight)
+                    ),
+                    default=0,
+                ),
+            )
+            cached_max_edge_weight = math.ceil(max_edge_weight)
+            self._max_edge_weight = cached_max_edge_weight
+        return cached_max_edge_weight
+
+    def _get_bucket_width(
+        self,
+        bucket_width: float | None,
+        max_edge_weight: int,
+    ) -> float:
+        """Width of the buckets of the bucket algorithms: the given width, else 8 times the
+        median finite edge weight of the graph (1 if that median is 0), never so small that a
+        bucket ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width
+        (C++).
+        """
+        if bucket_width is not None:
+            if not (math.isfinite(bucket_width) and bucket_width > 0):
+                raise ValueError(
+                    "bucket_width must be a finite number greater than 0."
+                )
+            width = float(bucket_width)
+        else:
+            width = getattr(self, "_bucket_width", None)
+            if width is None:
+                weights = sorted(
+                    w
+                    for edges in self.search_graph
+                    if edges
+                    for w in edges.values()
+                    if math.isfinite(w)
+                )
+                median = weights[len(weights) // 2] if weights else 0
+                width = 8.0 * median if median > 0 else 1.0
+                self._bucket_width = width
+        return max(width, max_edge_weight / 65536)
 
     @algorithm
     def dijkstra_buckets(
@@ -1432,18 +1491,11 @@ class GraphAlgorithms:
                 stacklevel=2,
             )
         if not hasattr(self, "_tnr_graph"):
-            is_reduced = getattr(self, "is_reduced", None)
-            if is_reduced is not None:
-                # Transit nodes are the last contracted, and reduced nodes are
-                # contracted first: no more transit nodes than nodes left
-                num_transit_nodes = min(
-                    num_transit_nodes, max(1, is_reduced.count(False))
-                )
             self._tnr_graph = TNRGraph(
                 graph=self.search_graph,
                 inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
-                num_transit_nodes=num_transit_nodes,
+                num_transit_nodes=self._limit_transit_nodes(num_transit_nodes),
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
             )
         return self._tnr_graph
