@@ -241,7 +241,8 @@ def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
     # `scgraph.pipelines.CLASSES`: these roads have no motorway.
     network.create_metric(
         "minutes",
-        weight_per_km={"road": 2.0, "off_graph": 4.0},
+        weight_per_km={"road": 2.0},
+        off_graph_weight_per_km=4.0,
         class_weight_per_km={"motorway": 0.5},
     )
 

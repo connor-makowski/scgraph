@@ -44,8 +44,8 @@ EXAMPLE
 
 A graph has the edges 0 -> 1, 0 -> 2 and 2 -> 0, with lengths of 10, 20 and 20 km.
 The first two edges have the class `primary` and the third the class `motorway`,
-both of the edge mode `road`. The metric `hours` has `weight_per_km={"road": 0.02,
-"off_graph": 0.05}` and `class_weight_per_km={"motorway": 0.01}`. The metric `cost`
+both of the edge mode `road`. The metric `hours` has `weight_per_km={"road": 0.02}`,
+`off_graph_weight_per_km=0.05` and `class_weight_per_km={"motorway": 0.01}`. The metric `cost`
 is the weighted sum `{"hours": 30, "length": 0.5}`:
 
     hours = [0.02 * 10, 0.02 * 20, 0.01 * 20] = [0.2, 0.4, 0.2]
@@ -158,12 +158,13 @@ def resolve_weights_per_km(
     weight_per_km: float | dict,
     class_weight_per_km: dict | None,
     weight_at_hub: dict | None,
+    off_graph_weight_per_km: float | None,
     classes: list[dict],
     node_modes: list[dict],
     edge_class_ids: array | memoryview,
 ) -> tuple[array, array, float]:
     """Return the arrays that the kernel `compute_weights_from_km` reads, from the
-    first three arguments, which `GeoGraph.create_metric` describes.
+    first four arguments, which `GeoGraph.create_metric` describes.
 
     A class takes the weight per km of its name in `class_weight_per_km`, else of
     its edge mode in `weight_per_km` (see the example of the module docstring).
@@ -177,8 +178,8 @@ def resolve_weights_per_km(
         `class_weights_per_km`, `hub_weights` and the weight of 1 km of an
         off-graph leg. The arrays have values for each of the 256 values of a
         class id. So the kernel needs no rule for an edge without a class: the
-        class id 255 has the weight per km of an off-graph leg, and no weight at
-        a hub. An id that is above the last class and below 255 has a weight per
+        class id 255 has the weight per km of an edge without a class, and no
+        weight at a hub. An id that is above the last class and below 255 has a weight per
         km that is not a number, which the kernel refuses.
 
     Raises:
@@ -202,25 +203,30 @@ def resolve_weights_per_km(
             raise ValueError(
                 "weight_per_km must be a number: this geograph has no classes"
             )
-        _refuse_unknown_edge_modes(
-            set(weight_per_km) - {"off_graph"}, "weight_per_km", edge_modes
-        )
-        if weight_per_km.get("off_graph") is None:
+        if "off_graph" in weight_per_km:
             raise ValueError(
-                "weight_per_km must give a weight for 'off_graph': the weight "
-                "of 1 km between a query point and its node"
+                "weight_per_km has the key 'off_graph': give the weight of 1 km "
+                "of an off-graph leg as off_graph_weight_per_km"
             )
-        off_graph_weight_per_km = weight_per_km["off_graph"]
+        _refuse_unknown_edge_modes(weight_per_km, "weight_per_km", edge_modes)
+        if off_graph_weight_per_km is None:
+            raise ValueError(
+                "A dict of weight_per_km needs off_graph_weight_per_km: the "
+                "weight of 1 km between a query point and its node"
+            )
         weight_per_km_of_edge_mode = weight_per_km
+        # An edge without a class takes the weight per km of the off-graph legs.
+        no_class_weight_per_km = off_graph_weight_per_km
     else:
-        off_graph_weight_per_km = weight_per_km
+        if off_graph_weight_per_km is None:
+            off_graph_weight_per_km = weight_per_km
         weight_per_km_of_edge_mode = dict.fromkeys(
             [*edge_modes, None], weight_per_km
         )
+        no_class_weight_per_km = weight_per_km
     count_edges_of_class_id = bytes(edge_class_ids).count
     class_weights_per_km = array("d", [nan] * class_id_count)
-    # An edge without a class takes the weight per km of the off-graph legs.
-    class_weights_per_km[NO_CLASS_ID] = off_graph_weight_per_km
+    class_weights_per_km[NO_CLASS_ID] = no_class_weight_per_km
     for class_id, class_row in enumerate(classes):
         class_name, edge_mode = class_row["name"], class_row["edge_mode"]
         if class_name in class_weight_per_km:
@@ -435,7 +441,7 @@ def parse_off_graph_weight_per_km(
 def build_default_description(**arguments: object) -> str:
     """Return the description of a metric that the caller did not describe:
     the text of its `create_metric` call, for example
-    `create_metric(weight_per_km={'road': 0.02, 'off_graph': 0.05},
+    `create_metric(weight_per_km={'road': 0.02}, off_graph_weight_per_km=0.05,
     edge_weights=<12 edges>)`. The text gives a function by its name."""
     texts = []
     for key, value in arguments.items():

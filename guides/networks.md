@@ -248,7 +248,7 @@ The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/sc
 # Main roads (motorway to primary, with their links); one-way streets are respected
 michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 # Minutes: 80 km/h on a road, and 110 km/h on a road of the class motorway
-michigan_roads.create_metric("minutes", weight_per_km={"road": 60 / 80, "off_graph": 60 / 30}, class_weight_per_km={"motorway": 60 / 110})
+michigan_roads.create_metric("minutes", weight_per_km={"road": 60 / 80}, off_graph_weight_per_km=60 / 30, class_weight_per_km={"motorway": 60 / 110})
 
 # Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
 # directions) or None to exclude it; only ways with one of the tag keys reach select.

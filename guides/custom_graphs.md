@@ -93,7 +93,7 @@ print(output)
 - The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea` or `air`.
 - A **metric** gives each edge a weight under a name, such as its hours.
 - A **weight per km** is the weight of 1 km of an edge in a metric.
-- An **off-graph leg** is the straight line from the origin or the destination of a query to its node. `off_graph` is its key in `weight_per_km`.
+- An **off-graph leg** is the straight line from the origin or the destination of a query to its node. `off_graph_weight_per_km` gives the weight of 1 km of an off-graph leg.
 
 A metric gives a weight per km to an edge mode, and another one to a class:
 
@@ -106,7 +106,7 @@ france = GeoGraph(
     classes=[{"name": "motorway", "edge_mode": "road"}, {"name": "main_road", "edge_mode": "road"}],
 )
 # Hours: 70 km/h by road, and 110 km/h on a motorway
-france.create_metric("hours", weight_per_km={"road": 1 / 70, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 110})
+france.create_metric("hours", weight_per_km={"road": 1 / 70}, off_graph_weight_per_km=1 / 30, class_weight_per_km={"motorway": 1 / 110})
 
 paris, lyon = {"latitude": 48.8566, "longitude": 2.3522}, {"latitude": 45.7640, "longitude": 4.8357}
 france.get_shortest_path(origin_node=paris, destination_node=lyon)["length"]  # 438: the main road, through Dijon
@@ -142,21 +142,21 @@ An edit on `graph_object`, as above, removes the metrics at the next call that r
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
-world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
+world_sea.create_metric("days", weight_per_km={"sea": 1 / 600}, off_graph_weight_per_km=1 / 100)
 
 # This edit removes the metric `days`, with a warning. The new edges have the class `sea_connector`
 world_sea.add_coord_node(coord_dict={"latitude": 43.0, "longitude": 6.0}, edge_class="sea_connector")
 
 # The new edges get the weight per km of `sea`: the edge mode of their class
-world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
+world_sea.create_metric("days", weight_per_km={"sea": 1 / 600}, off_graph_weight_per_km=1 / 100)
 ```
 
 | A new edge added by | Its class | Its weight per km in a later metric |
 |---|---|---|
 | A geograph method, with `edge_class` | That class | The weight of its class |
-| A geograph method, without `edge_class` | None: `edge_class` and `edge_mode` are `None` | The weight of `off_graph` |
+| A geograph method, without `edge_class` | None: `edge_class` and `edge_mode` are `None` | `off_graph_weight_per_km`, with a dict of `weight_per_km` |
 | `graph_object.add_edge`, between the two nodes of an existing edge | The class of the replaced edge | The weight of its class |
-| `graph_object.add_edge`, between two other nodes | None | The weight of `off_graph` |
+| `graph_object.add_edge`, between two other nodes | None | `off_graph_weight_per_km`, with a dict of `weight_per_km` |
 
 With this weight, a route by a metric can take an edge that you add without a class.
 

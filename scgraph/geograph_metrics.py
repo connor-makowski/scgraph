@@ -131,7 +131,7 @@ class GeoGraphMetrics:
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
         - Every optional argument is None by default. A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A weight is a number of zero or more. None in place of a weight closes its edges: no route by this metric takes them. An edge mode is the kind of transport of an edge: `road`, `rail`, `sea` or `air`
         - The weights are computed at the call. A metric of the same name is replaced, and no other metric changes. An edit of the network removes the metric (see `add_edge`)
-        - Example: `geograph.create_metric("hours", weight_per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 90}, weight_at_hub={"rail_terminal": {"rail": 4}}, units="h")`
+        - Example: `geograph.create_metric("hours", weight_per_km={"road": 1 / 60, "rail": 1 / 40}, off_graph_weight_per_km=1 / 30, class_weight_per_km={"motorway": 1 / 90}, weight_at_hub={"rail_terminal": {"rail": 4}}, units="h")`
 
         Required Arguments:
 
@@ -140,14 +140,16 @@ class GeoGraphMetrics:
         Optional Arguments:
 
         - `weight_per_km`: The weight of 1 km: the weight of an edge is its weight per km times its km. The lengths of the geograph must be in km
-            - A number is the weight per km of every edge, and of the off-graph legs: the straight lines between the points of a query and their nodes
-            - A dict is `{mode of a leg: weight of 1 km}`. Its keys are the edge modes (see `classes`) and `"off_graph"`, for the off-graph legs. The dict must have `"off_graph"`, and the edge mode of each class that has an edge and that `class_weight_per_km` does not name. None closes an edge mode
-            - With a dict, an edge without a class has the weight of an off-graph leg: its km times the weight of `"off_graph"`. `weight_at_hub` adds nothing to it
+            - A number is the weight per km of every edge
+            - A dict is `{edge mode: weight of 1 km}` (see `classes`). The dict must have the edge mode of each class that has an edge and that `class_weight_per_km` does not name. None closes an edge mode
+            - With a dict, an edge without a class has the weight of an off-graph leg: its km times `off_graph_weight_per_km`. `weight_at_hub` adds nothing to it
         - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
         - `weight_at_hub`: With `weight_per_km`, `{node mode of a hub: {edge mode: weight}}`. A hub is a port, an airport or a rail terminal. This is the weight that is added to an edge of this edge mode when it leaves a node of this node mode, and when it enters one. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port. A hub weight is a number of zero or more: it cannot be None
         - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of these metrics is closed in the sum. The sum keeps its weights when one of these metrics is created again
         - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
-        - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
+        - `off_graph_weight_per_km`: The weight of 1 km of an off-graph leg, a finite number of zero or more. An off-graph leg is the straight line between a point of a query and its node
+            - `edge_weight_fn` and a dict of `weight_per_km` need it
+            - When it is None, a number of `weight_per_km` gives this weight, and a sum adds the weights per km of the off-graph legs of its metrics
         - `edge_weights`: `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the weight computed above
         - `units`: The units of the weights, as free text
         - `description`: Where the weights come from, as free text; the text of this call when None
@@ -184,6 +186,7 @@ class GeoGraphMetrics:
                 class_weight_per_km,
                 weight_at_hub,
                 weighted_sum_of,
+                off_graph_weight_per_km,
             )
         else:
             weights = compute_weights_from_function(
@@ -270,16 +273,9 @@ class GeoGraphMetrics:
         edge_weight_fn: Callable | None,
         off_graph_weight_per_km: float | None,
     ) -> None:
-        """Raise a ValueError when `edge_weight_fn` and `off_graph_weight_per_km`
-        do not come together."""
-        if edge_weight_fn is None:
-            if off_graph_weight_per_km is not None:
-                raise ValueError(
-                    "off_graph_weight_per_km needs edge_weight_fn: weight_per_km "
-                    "and weighted_sum_of give the weight of 1 km of an off-graph "
-                    "leg themselves"
-                )
-        elif off_graph_weight_per_km is None:
+        """Raise a ValueError when `edge_weight_fn` comes without
+        `off_graph_weight_per_km`."""
+        if edge_weight_fn is not None and off_graph_weight_per_km is None:
             raise ValueError(
                 "edge_weight_fn needs off_graph_weight_per_km: the weight of 1 km "
                 "of an off-graph leg. The function is called for the edges only"
@@ -291,6 +287,7 @@ class GeoGraphMetrics:
         class_weight_per_km: dict | None,
         weight_at_hub: dict | None,
         weighted_sum_of: dict[str, float] | None,
+        off_graph_weight_per_km: float | None,
     ) -> tuple[array, float | None]:
         """Return the weight of each edge, by edge id, and the weight of 1 km of
         an off-graph leg, for a metric by `weight_per_km` (with
@@ -301,9 +298,14 @@ class GeoGraphMetrics:
         )
         if weighted_sum_of is not None:
             length = replace(self._read_metric("length"), weights=lengths)
-            return compute_weights_from_weighted_sum(
-                weighted_sum_of, {"length": length, **self._metrics}
+            weights, summed_off_graph_weight_per_km = (
+                compute_weights_from_weighted_sum(
+                    weighted_sum_of, {"length": length, **self._metrics}
+                )
             )
+            if off_graph_weight_per_km is None:
+                off_graph_weight_per_km = summed_off_graph_weight_per_km
+            return weights, off_graph_weight_per_km
         edge_class_ids = self._read_edge_class_ids()
         if edge_class_ids is None:
             # No edge has a class: `weight_per_km` is one weight per km for
@@ -318,6 +320,7 @@ class GeoGraphMetrics:
                 weight_per_km,
                 class_weight_per_km,
                 weight_at_hub,
+                off_graph_weight_per_km,
                 self.classes,
                 self.node_modes,
                 edge_class_ids,

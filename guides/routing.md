@@ -153,7 +153,7 @@ The two directions of a pair can differ a little: a one-way road is followed in 
 With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
 
 ```py
-north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
+north_america.create_metric("hours", weight_per_km={"road": 1 / 80}, off_graph_weight_per_km=1 / 30)
 hours = north_america.distance_matrix(cities, metric="hours")
 km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours", output_metric="length")
 ```
