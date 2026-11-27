@@ -1,7 +1,8 @@
+import pickle
 import pytest
 from copy import deepcopy
 from scgraph import GeoGraph
-from scgraph.utils import haversine
+from scgraph.utils import has_cpp, haversine
 from helpers import assert_result
 
 _NODES = [[0, 0], [0, 1], [1, 0], [1, 1]]
@@ -160,19 +161,48 @@ def test_remove_coord_node_refuses_a_node_that_add_coord_node_did_not_add():
 
 
 # remove_node removes the node 3 of the network. The coord node added next takes
-# its place in `nodes`, but it is a new node: it gets the external id -1, and
-# remove_coord_node removes it.
+# its place in `nodes`, but it is a new node: it gets the external id -1, not
+# the id 3 of the removed node.
+def test_a_coord_node_added_after_remove_node_gets_a_new_external_id():
+    g = _fresh()
+    g.remove_node(symmetric_node=True)
+
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+
+    assert list(g.external_node_ids) == [0, 1, 2, -1]
+
+
 def test_remove_coord_node_removes_a_node_added_after_remove_node():
     g = _fresh()
     g.remove_node(symmetric_node=True)
     g.add_coord_node(
         coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
     )
-    assert list(g.external_node_ids) == [0, 1, 2, -1]
 
     g.remove_coord_node()
 
     assert g.nodes == [[0, 0], [0, 1], [1, 0]]
+
+
+# A copy of a geograph keeps the nodes that add_coord_node added.
+@pytest.mark.skipif(has_cpp(), reason="a C++ graph is not picklable")
+@pytest.mark.parametrize(
+    "copy_geograph",
+    [deepcopy, lambda geograph: pickle.loads(pickle.dumps(geograph))],
+    ids=["deepcopy", "pickle"],
+)
+def test_remove_coord_node_removes_a_node_added_before_a_copy(copy_geograph):
+    g = _fresh()
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+    copied = copy_geograph(g)
+
+    copied.remove_coord_node()
+
+    assert copied.nodes == _NODES
 
 
 def test_remove_node_removes_the_point_of_the_node():

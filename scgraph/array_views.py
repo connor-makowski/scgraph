@@ -158,12 +158,13 @@ class ExternalNodeIds(Sequence):
     list.
     """
 
-    def __init__(self, ids, nodes):
+    def __init__(self, ids, nodes, id_count=None):
         # `nodes` gives the count: nodes past the first `_id_count` ids were added
         # since. `_id_count` falls when `GeoGraph.remove_node` removes a node of the
-        # ids: the ids may be a view of a mapped file, which cannot be cut.
+        # ids: the ids may be a view of a mapped file, which cannot be cut. A copy
+        # passes `id_count`, so that it keeps the added nodes of the original.
         self._ids, self._nodes, self._first_added_id = ids, nodes, None
-        self._id_count = len(ids)
+        self._id_count = len(ids) if id_count is None else id_count
 
     @staticmethod
     def get_first_added_id(lowest_id: int) -> int:
@@ -216,7 +217,9 @@ class ExternalNodeIds(Sequence):
         return repr(list(self))
 
     def __reduce__(self):
-        return ExternalNodeIds, (list(self), self._nodes)
+        # Every id, also the forgotten ones: the lowest id sets the ids of the
+        # added nodes
+        return ExternalNodeIds, (list(self._ids), self._nodes, self._id_count)
 
     def take(self, node_ids: Iterable[int]) -> array:
         """The external ids of the nodes `node_ids`, as an int64 array."""

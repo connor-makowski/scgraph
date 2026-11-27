@@ -545,13 +545,45 @@ class GeoGraphRouting:
         origin: Sequence[float],
         destination: Sequence[float],
     ) -> float:
-        # The km of the two off-graph legs of a route, without circuity. A route
-        # without a node is one off-graph leg from the origin to the destination.
-        if not path:
-            return haversine(origin, destination)
-        return haversine(origin, self.nodes[path[0]]) + haversine(
-            self.nodes[path[-1]], destination
+        # The km of the off-graph legs of a route, without circuity
+        return sum(
+            km for _, km in self._list_off_graph_legs(path, origin, destination)
         )
+
+    def _list_off_graph_legs(
+        self,
+        path: list[int],
+        origin: Sequence[float],
+        destination: Sequence[float],
+    ) -> list[tuple[list, float]]:
+        """Return the points and the km, without circuity, of each off-graph leg
+        of a route. A route with an edge has two: from `origin` to the first node
+        of `path`, and from its last node to `destination`. A route without an
+        edge has one, through the node of its path if it has one. The legs and
+        the totals of a route read their km here."""
+        if len(path) > 1:
+            off_graph_paths = [
+                [origin, self.nodes[path[0]]],
+                [self.nodes[path[-1]], destination],
+            ]
+        else:
+            off_graph_paths = [
+                [
+                    origin,
+                    *(self.nodes[node_id] for node_id in path),
+                    destination,
+                ]
+            ]
+        return [
+            (
+                points,
+                sum(
+                    haversine(start, end)
+                    for start, end in zip(points, points[1:])
+                ),
+            )
+            for points in off_graph_paths
+        ]
 
     def _get_legs(
         self,
@@ -599,33 +631,14 @@ class GeoGraphRouting:
         destination: Sequence[float],
         off_graph_circuity: float,
     ) -> list[dict]:
-        """Return the off-graph legs of a route, with the keys of a leg of
-        `_cut_legs` and a `coordinate_path` in place of `path`. A route with an
-        edge has two: from `origin` to the first node of `path`, and from its last
-        node to `destination`. A route without an edge is one off-graph leg,
-        through the node of its path if it has one. An off-graph leg has the
-        weight that `_get_metric_totals` gives it in the totals of the route."""
-        if len(path) > 1:
-            off_graph_paths = [
-                [origin, self.nodes[path[0]]],
-                [self.nodes[path[-1]], destination],
-            ]
-        else:
-            off_graph_paths = [
-                [
-                    origin,
-                    *(self.nodes[node_id] for node_id in path),
-                    destination,
-                ]
-            ]
+        """Return the off-graph legs of a route (`_list_off_graph_legs`), with
+        the keys of a leg of `_cut_legs` and a `coordinate_path` in place of
+        `path`. An off-graph leg has the weight that `_get_metric_totals` gives
+        it in the totals of the route."""
         units_per_km = get_units_per_km(self.geograph_units)
         off_graph_legs = []
-        for points in off_graph_paths:
-            # One sum of km gives both the length and the totals of the leg.
-            # `_get_off_graph_km` computes the km of the route in the same way.
-            off_graph_km = off_graph_circuity * sum(
-                haversine(start, end) for start, end in zip(points, points[1:])
-            )
+        for points, km in self._list_off_graph_legs(path, origin, destination):
+            off_graph_km = off_graph_circuity * km
             off_graph_legs.append(
                 {
                     "edge_mode": "off_graph",
