@@ -83,6 +83,56 @@ def check_node_id(node_id: int, node_count: int, name: str) -> None:
         raise ValueError(f"{name} ({node_id}) is not in this graph")
 
 
+def check_node_input(node_input: object, node_count: int, name: str) -> None:
+    """Check an origin or a destination of a search.
+
+    Args:
+        node_input: A node id, a set of node ids, or a dict of node ids and
+            start distances, as `convert_node_input` returns it.
+        node_count: The number of nodes of the graph.
+        name: "Origin" or "Destination", for the message.
+
+    Raises:
+        TypeError: `node_input`, a node id or a distance has a wrong type.
+            The C++ extension raises `TypeError` for the same arguments.
+        ValueError: A node id is not in the graph, the set or the dict is
+            empty, or a distance is negative or NaN.
+    """
+
+    def _validate_node_id(node_id):
+        if not isinstance(node_id, int):
+            raise TypeError(f"{name} node ({node_id!r}) is not an integer")
+        check_node_id(node_id, node_count, f"{name} node")
+
+    if isinstance(node_input, int):
+        _validate_node_id(node_input)
+    elif isinstance(node_input, set):
+        if len(node_input) == 0:
+            raise ValueError(f"{name} set cannot be empty")
+        for oid in node_input:
+            _validate_node_id(oid)
+    elif isinstance(node_input, dict):
+        if len(node_input) == 0:
+            raise ValueError(f"{name} dictionary cannot be empty")
+        for oid, dist in node_input.items():
+            _validate_node_id(oid)
+            # A number is a value with `__float__`, as the C++ extension
+            # takes it: an int, a float, a Decimal, a numpy number.
+            if not hasattr(dist, "__float__"):
+                raise TypeError(
+                    f"{name} distance for node ({oid}) must be a number, not {dist!r}"
+                )
+            # A NaN distance fails this test too.
+            if not dist >= 0:
+                raise ValueError(
+                    f"{name} distance for node ({oid}) must be a non-negative number"
+                )
+    else:
+        raise TypeError(
+            f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
+        )
+
+
 class GraphUtils:
     @property
     def graph(self) -> list[dict[int, int | float]]:
@@ -180,46 +230,8 @@ class GraphUtils:
 
         - None
         """
-        num_nodes = len(self.graph)
-
-        # A node id of the wrong type raises TypeError, as the C++ extension
-        # does. A node id out of range raises ValueError.
-        def _validate_node_id(node_id, name):
-            if not isinstance(node_id, int):
-                raise TypeError(f"{name} node ({node_id!r}) is not an integer")
-            check_node_id(node_id, num_nodes, f"{name} node")
-
-        def _validate_node_arg(arg, name):
-            if isinstance(arg, int):
-                _validate_node_id(arg, name)
-            elif isinstance(arg, set):
-                if len(arg) == 0:
-                    raise ValueError(f"{name} set cannot be empty")
-                for oid in arg:
-                    _validate_node_id(oid, name)
-            elif isinstance(arg, dict):
-                if len(arg) == 0:
-                    raise ValueError(f"{name} dictionary cannot be empty")
-                for oid, dist in arg.items():
-                    _validate_node_id(oid, name)
-                    # A number is a value with `__float__`, as the C++ extension
-                    # takes it: an int, a float, a Decimal, a numpy number.
-                    if not hasattr(dist, "__float__"):
-                        raise TypeError(
-                            f"{name} distance for node ({oid}) must be a number, not {dist!r}"
-                        )
-                    # A NaN distance fails this test too.
-                    if not dist >= 0:
-                        raise ValueError(
-                            f"{name} distance for node ({oid}) must be a non-negative number"
-                        )
-            else:
-                raise TypeError(
-                    f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
-                )
-
-        _validate_node_arg(origin_id, "Origin")
-        _validate_node_arg(destination_id, "Destination")
+        check_node_input(origin_id, len(self.graph), "Origin")
+        check_node_input(destination_id, len(self.graph), "Destination")
 
     def get_path_weight(self, path: list[int]) -> int | float:
         """

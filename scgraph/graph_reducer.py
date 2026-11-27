@@ -95,7 +95,8 @@ from typing import TYPE_CHECKING
 from scgraph.errors import PathNotFoundError
 from scgraph.graph_utils import (
     convert_node_input,
-    check_node_id,
+    check_node_input,
+    normalize_node_input,
     _last_search_in_thread,
 )
 
@@ -567,19 +568,12 @@ class GraphReducer:
             destination_id = args[1]
 
         # The steps below read `is_reduced` at each origin and destination node.
-        # The search checks its arguments only later, so this loop checks the
-        # node ids first. A dict gives its node ids when the loop reads it.
+        # The search checks its arguments only later, so this method checks
+        # them first. A user algorithm may take None as its destination.
         is_reduced = self.is_reduced
-        for node_input, name in (
-            (origin_id, "Origin node"),
-            (destination_id, "Destination node"),
-        ):
-            node_ids = (
-                [node_input] if isinstance(node_input, int) else node_input
-            )
-            if isinstance(node_ids, (set, list, dict)):
-                for node_id in node_ids:
-                    check_node_id(node_id, len(is_reduced), name)
+        check_node_input(origin_id, len(is_reduced), "Origin")
+        if destination_id is not None:
+            check_node_input(destination_id, len(is_reduced), "Destination")
 
         # 1. Same-chain check: solve on unreduced graph with dijkstra
         if destination_id is not None and self.is_same_chain(
@@ -599,15 +593,9 @@ class GraphReducer:
             )
 
         dest_dict = (
-            {destination_id: 0.0}
-            if isinstance(destination_id, int)
-            else (
-                {did: 0.0 for did in destination_id}
-                if isinstance(destination_id, (set, list))
-                else (
-                    destination_id if isinstance(destination_id, dict) else None
-                )
-            )
+            None
+            if destination_id is None
+            else normalize_node_input(destination_id)
         )
 
         # Bidirectional searches must start and end on non-reduced nodes: only
@@ -616,21 +604,9 @@ class GraphReducer:
         # (rows of reduced_graph); reduced destinations are replaced by their
         # boundary entry nodes for every search (step 3). One-sided searches
         # keep a reduced origin: they only read reduced_graph.
-        origin_dict = (
-            {origin_id: 0.0}
-            if isinstance(origin_id, int)
-            else (
-                {oid: 0.0 for oid in origin_id}
-                if isinstance(origin_id, (set, list))
-                else (origin_id if isinstance(origin_id, dict) else None)
-            )
-        )
+        origin_dict = normalize_node_input(origin_id)
         origin_map = {}
-        if (
-            is_bidirectional
-            and origin_dict is not None
-            and any(is_reduced[oid] for oid in origin_dict)
-        ):
+        if is_bidirectional and any(is_reduced[oid] for oid in origin_dict):
             effective_origin_dict = {}
             for oid, odist in origin_dict.items():
                 exits = (

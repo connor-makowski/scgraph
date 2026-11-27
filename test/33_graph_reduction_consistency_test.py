@@ -348,6 +348,19 @@ def test_a_search_on_a_reduced_graph_refuses_a_node_that_is_not_in_the_graph(
         g.bidirectional_dijkstra(origin_id, destination_id)
 
 
+# A search on a reduced graph refuses a list as an origin or a destination with
+# TypeError, as a search on the graph before reduce() does.
+@pytest.mark.parametrize("origin_id, destination_id", [([0], 2), (0, [2])])
+def test_a_search_on_a_reduced_graph_refuses_a_list_of_nodes(
+    graph_class, origin_id, destination_id
+):
+    g = graph_class([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+    g.reduce()
+
+    with pytest.raises(TypeError):
+        g.bidirectional_dijkstra(origin_id, destination_id)
+
+
 # Only the searches read the reduced graph, through `search_graph`.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)

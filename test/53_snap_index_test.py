@@ -242,6 +242,23 @@ def test_snap_index_refuses_an_odd_number_of_coordinates(implementation):
         implementation.from_array(array("d", [0.0, 0.0, 1.0]))
 
 
+# The constructor takes [latitude, longitude] pairs. A flat array, points of
+# three numbers and a string are not pairs. The message names from_array, which
+# reads a flat array.
+@both_snap_index_classes
+@pytest.mark.parametrize(
+    "points",
+    [
+        array("d", [0.0, 0.0, 1.0, 1.0]),
+        [[0.0, 0.0, 5.0], [1.0, 1.0, 5.0]],
+        "ab",
+    ],
+)
+def test_snap_index_refuses_points_that_are_not_pairs(implementation, points):
+    with pytest.raises(TypeError, match="from_array"):
+        implementation(points)
+
+
 @both_snap_index_classes
 @pytest.mark.parametrize("network", SCATTERED)
 def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
