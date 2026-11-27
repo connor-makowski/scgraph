@@ -352,9 +352,9 @@ class GridGraph:
         # Convert the graph matrix into the very efficient graph format as specified by the scgraph library
         ####################
         # A search visits the edges of a node in the order of its dict, and this order
-        # changes its time and its choice between two paths of the same length. The
-        # edges of a cell are written in the reverse order of conn_data. The C++
-        # extension of release 3.6.0 visited them in this order on most grids.
+        # decides between two paths of the same length. The edges of a cell are written
+        # in the reverse order of conn_data, so that the C++ extension returns the paths
+        # of release 3.6.0 on most grids.
         graph = []
         for x_data in graph_matrix:
             for connection_dict in x_data:

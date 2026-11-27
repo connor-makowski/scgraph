@@ -205,7 +205,8 @@ struct RowEdits {
         std::vector<double> weights;
         // The arrays get their final size at once. A vector that grows copies itself
         // and writes new memory, and this memory costs page faults to the first search
-        // after an edit.
+        // after an edit. The count is the count of the base graph, where each edited
+        // row replaces its old row.
         int64_t edge_count = base.edges();
         for (const auto& [u, row] : rows) {
             edge_count += static_cast<int64_t>(row.size()) - (u < base.size() ? base[u].size() : 0);
