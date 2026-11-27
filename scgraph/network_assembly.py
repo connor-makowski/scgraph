@@ -145,6 +145,7 @@ except ImportError:
     _cpp_build_csr_from_edges = None
     _cpp_contract_chains = None
 
+from scgraph.array_views import ExternalNodeIds
 from scgraph.coordinates import UNITS_PER_DEGREE
 from scgraph.helpers.components import (
     build_csr_from_adjacency_list,
@@ -641,10 +642,13 @@ def build_graph_from_pieces(
     ) = build_csr_from_edges(*columns)
     if not len(external_node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
-    # The new nodes get the ids below zero and below every id of the pieces
+    # The new nodes get the ids below zero and below every id of the pieces. The
+    # ids are sorted, so the first one is the lowest.
     split_pieces = sorted({piece[e] for e in parallel_edges})
     halves = _split_pieces(
-        pieces, split_pieces, min(0, external_node_ids[0]) - 1
+        pieces,
+        split_pieces,
+        ExternalNodeIds.get_first_added_id(external_node_ids[0]),
     )
     # The edges below this index are edges of `pieces`. The others are edges of `halves`.
     first_edge_of_halves = len(piece)

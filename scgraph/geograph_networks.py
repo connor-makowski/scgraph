@@ -11,7 +11,8 @@ also holds four other things:
 
 - `RELEASED_GEOGRAPHS`, the names of the released networks. `scgraph.network_release`
   lists them, with what the network release says of each one;
-- `BUILDABLE_NETWORKS`, the names of the networks that scgraph can build;
+- `BUILDABLE_NETWORKS`, the names of the networks that scgraph can build. Its public
+  name is `scgraph.pipelines.BUILDABLE_NETWORKS`;
 - `get_released_file_name`, which gives the name of a file of a network release;
 - `fetch_released_file`, which downloads the file of a released network into the
   cache directory.

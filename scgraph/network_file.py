@@ -562,13 +562,11 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
         selected["external_node_ids"] = array("q", positions)
-    if "edge_class_ids" in arrays:
-        # `_check` does not read the class ids of a mapped file. `translate`
-        # deletes the valid ids in one pass in C: a byte that is left is no id of a
-        # class and not NO_CLASS_ID.
-        valid = bytes([*range(len(metadata["classes"])), NO_CLASS_ID])
-        if bytes(selected["edge_class_ids"]).translate(None, valid):
-            raise ValueError(f"{filename}: invalid edge classes")
+    # `_check` does not read the class ids of a mapped file
+    if "edge_class_ids" in arrays and not _has_valid_class_ids(
+        selected["edge_class_ids"], len(metadata["classes"])
+    ):
+        raise ValueError(f"{filename}: invalid edge classes")
     return selected
 
 
@@ -704,8 +702,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         # A mapped read does not check the values: it does not read the arrays
         require(
             not should_check_values
-            or max(set(arrays["edge_class_ids"]) - {NO_CLASS_ID}, default=-1)
-            < len(rows),
+            or _has_valid_class_ids(arrays["edge_class_ids"], len(rows)),
             "invalid edge classes",
         )
     require(
@@ -727,6 +724,15 @@ def _check(filename, arrays, metadata, should_check_values=True):
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
     )
+
+
+def _has_valid_class_ids(edge_class_ids, class_count):
+    """Whether each value of `edge_class_ids` is the id of one of `class_count`
+    classes, or NO_CLASS_ID. `translate` deletes the valid ids in one pass in C: a
+    byte that is left is not valid. `_check` refuses more than NO_CLASS_ID
+    classes after this check, so the valid ids here stop at NO_CLASS_ID."""
+    valid = bytes([*range(min(class_count, NO_CLASS_ID)), NO_CLASS_ID])
+    return not bytes(edge_class_ids).translate(None, valid)
 
 
 def _is_weights_array(name):

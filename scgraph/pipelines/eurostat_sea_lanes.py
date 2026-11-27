@@ -20,9 +20,9 @@ from array import array
 
 from scgraph import network_assembly
 from scgraph.coordinates import encode_coordinate
+from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
-from scgraph.pipelines import CLASS_IDS, CLASSES
 
 PIPELINE_VERSION = 4
 

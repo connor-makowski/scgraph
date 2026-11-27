@@ -46,7 +46,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.coordinates import UNITS_PER_DEGREE, decode_coordinate
-from scgraph.pipelines import CLASS_IDS
+from scgraph.edge_classes import CLASS_IDS
 from scgraph.helpers.near_nodes import NearNodes
 from scgraph.helpers.polylines import PieceArrays
 from scgraph.network_assembly import (
