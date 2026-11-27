@@ -86,7 +86,7 @@ jobs:
           mkdir previous
           gh release download "${{ steps.previous.outputs.tag }}" --dir previous \
             --pattern 'world_multimodal.scgraph*'
-          if [ -f previous/world_multimodal.scgraph.gz ]; then gunzip previous/world_multimodal.scgraph.gz; fi
+          gunzip previous/world_multimodal.scgraph.gz
           uv run python - <<'PYTHON'
           import os
           from scgraph import GeoGraph

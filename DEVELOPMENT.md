@@ -53,11 +53,11 @@ scgraph/
     osm.py                       # The ways and the turn restrictions of an OpenStreetMap file, and the pieces of its ways, for load_from_osm and the pipelines. Public: get_way_direction, select_main_roads, select_main_roads_with_class
     components.py                # Strongly connected components, and the choice of the ones to keep, for load_from_osm and the pipelines
     hilbert.py, snap_index.py    # Hilbert-curve order of nodes; snapping index, pure-Python version of cpp/src/snap_index.cpp
-    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum)
+    edge_selection.py, metric_weights.py, second_edges.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file), cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum) and cpp/src/second_edges.hpp (the shape of a two-way road stored once in a file)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, coordinates and float4 (headers), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
-    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes, edge selection, metric weights), pipelines_bindings.cpp
+    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, coordinates, float4 and second_edges (headers), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
+    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes and their second edges, edge selection, metric weights), pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
   bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
