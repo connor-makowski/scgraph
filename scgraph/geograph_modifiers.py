@@ -12,6 +12,7 @@ from scgraph import array_views
 from copy import deepcopy
 from typing import TYPE_CHECKING
 from scgraph import Graph
+from scgraph.graph_utils import check_node_id
 
 if TYPE_CHECKING:  # Only for annotations.
     from scgraph.geograph import GeoGraph
@@ -47,8 +48,7 @@ class GeoGraphModifiers:
         Raises:
 
         - `TypeError`: A node id is not an integer, or the distance is not a number
-        - `IndexError`: The origin id or the destination id is not in the geograph
-        - `ValueError`: The distance is NaN, or `edge_class` is not a name of `classes`
+        - `ValueError`: The origin id or the destination id is not in the geograph, the distance is NaN, or `edge_class` is not a name of `classes`
         """
         self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
@@ -432,10 +432,8 @@ class GeoGraphModifiers:
             - What: The name of the class of the new edge (see `add_edge`)
             - Default: None (no class: a metric made from weights per km gives the new edge the weight of an off-graph leg)
         """
-        if not (origin_idx < len(self.graph_object.graph)):
-            raise ValueError("Origin node does not exist")
-        if not (destination_idx < len(self.graph_object.graph)):
-            raise ValueError("Destination node does not exist")
+        check_node_id(origin_idx, len(self.nodes), "Origin node")
+        check_node_id(destination_idx, len(self.nodes), "Destination node")
         self.add_edge(
             origin_id=origin_idx,
             destination_id=destination_idx,

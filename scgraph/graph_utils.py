@@ -68,6 +68,21 @@ def convert_node_input(node_input: object) -> object:
     return _as_int(node_input)
 
 
+def check_node_id(node_id: int, node_count: int, name: str) -> None:
+    """Check that a node id is the id of a node of a graph.
+
+    Args:
+        node_id: The node id to check.
+        node_count: The number of nodes of the graph.
+        name: The name of the node in the message, such as "Origin node".
+
+    Raises:
+        ValueError: `node_id` is negative, or not below `node_count`.
+    """
+    if not 0 <= node_id < node_count:
+        raise ValueError(f"{name} ({node_id}) is not in this graph")
+
+
 class GraphUtils:
     @property
     def graph(self) -> list[dict[int, int | float]]:
@@ -172,10 +187,7 @@ class GraphUtils:
         def _validate_node_id(node_id, name):
             if not isinstance(node_id, int):
                 raise TypeError(f"{name} node ({node_id!r}) is not an integer")
-            if not (0 <= node_id < num_nodes):
-                raise ValueError(
-                    f"{name} node ({node_id}) is not in this graph"
-                )
+            check_node_id(node_id, num_nodes, f"{name} node")
 
         def _validate_node_arg(arg, name):
             if isinstance(arg, int):
@@ -566,10 +578,9 @@ class GraphUtils:
 
         Raises:
 
-        - IndexError if `idx` is not the id of a node of the graph
+        - ValueError if `idx` is not the id of a node of the graph
         """
-        if not 0 <= idx < len(self._graph):
-            raise IndexError("Index out of range")
+        check_node_id(idx, len(self._graph), "Node")
         return self._graph[idx]
 
 
@@ -649,8 +660,7 @@ class GraphModifiers:
         Raises:
 
         - `TypeError`: A node id is not an integer, or the distance is not a number
-        - `IndexError`: The origin id or the destination id is not in the graph
-        - `ValueError`: The distance is NaN
+        - `ValueError`: The origin id or the destination id is not in the graph, or the distance is NaN
         """
         try:
             origin_id = operator.index(origin_id)
@@ -664,14 +674,8 @@ class GraphModifiers:
         if not isinstance(distance, (int, float)):
             # A Decimal or a numpy number: the searches add floats to it
             distance = float(distance)
-        if origin_id < 0 or origin_id >= len(self._graph):
-            raise IndexError(
-                f"Origin node id ({origin_id}) is not in the graph"
-            )
-        if destination_id < 0 or destination_id >= len(self._graph):
-            raise IndexError(
-                f"Destination node id ({destination_id}) is not in the graph"
-            )
+        check_node_id(origin_id, len(self._graph), "Origin node")
+        check_node_id(destination_id, len(self._graph), "Destination node")
         if math.isnan(distance):
             raise ValueError("distance must not be NaN")
         if origin_id == destination_id:
@@ -751,12 +755,10 @@ class GraphModifiers:
 
         Raises:
 
-        - `IndexError`: The origin id or the destination id is not in the graph
+        - `ValueError`: The origin id or the destination id is not in the graph
         """
-        if origin_id < 0 or origin_id >= len(self._graph):
-            raise IndexError("Origin node id is not in the graph")
-        if destination_id < 0 or destination_id >= len(self._graph):
-            raise IndexError("Destination node id is not in the graph")
+        check_node_id(origin_id, len(self._graph), "Origin node")
+        check_node_id(destination_id, len(self._graph), "Destination node")
         if symmetric:
             self._graph[destination_id].pop(origin_id, None)
         res = self._graph[origin_id].pop(destination_id, None)

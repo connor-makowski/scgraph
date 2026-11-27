@@ -260,7 +260,7 @@ def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(
     # Two nodes joined both ways: only the ids 0 and 1 exist.
     graph = graph_class([{1: 1.0}, {0: 1.0}])
 
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError, match="is not in this graph"):
         change(graph)
 
 

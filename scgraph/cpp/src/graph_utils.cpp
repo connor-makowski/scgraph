@@ -61,6 +61,12 @@ bool origin_id_contains(const NodeIdVariant& origin_id, int node_id) {
     return node_variant_contains(origin_id, node_id);
 }
 
+void check_node_id(int node_id, int node_count, const std::string& name) {
+    if (node_id < 0 || node_id >= node_count) {
+        throw std::invalid_argument(name + " (" + std::to_string(node_id) + ") is not in this graph");
+    }
+}
+
 std::vector<std::vector<std::pair<int, double>>> GraphUtils::serialize_graph(
     const std::vector<std::unordered_map<int, double>>& input_graph) {
     std::vector<std::vector<std::pair<int, double>>> serialized;
@@ -79,9 +85,7 @@ std::vector<std::vector<std::pair<int, double>>> GraphUtils::serialize_graph(
 }
 
 std::unordered_map<int, double> GraphUtils::get_adjacency_dict(int idx) const {
-    if (idx < 0 || idx >= size()) {
-        throw std::out_of_range("Index out of range");
-    }
+    check_node_id(idx, size(), "Node");
 
     std::unordered_map<int, double> result;
     for (const auto& [dest, dist] : graph()[idx]) {
@@ -96,10 +100,9 @@ void GraphUtils::input_check(const NodeIdVariant& origin_id, const NodeIdVariant
         if (entries.empty()) {
             throw std::invalid_argument(name + " must not be empty");
         }
+        const std::string node_name = name + " node";
         for (const auto& [node, dist] : entries) {
-            if (node < 0 || node >= size()) {
-                throw std::invalid_argument(name + " node (" + std::to_string(node) + ") is not in this graph");
-            }
+            check_node_id(node, size(), node_name);
             if (!(dist >= 0.0)) {
                 throw std::invalid_argument(name + " distance for node (" + std::to_string(node) + ") must be a non-negative number");
             }
@@ -342,12 +345,8 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
 }
 
 void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bool symmetric) {
-    if (origin_id < 0 || origin_id >= size()) {
-        throw std::out_of_range("Origin node id (" + std::to_string(origin_id) + ") is not in the graph");
-    }
-    if (destination_id < 0 || destination_id >= size()) {
-        throw std::out_of_range("Destination node id (" + std::to_string(destination_id) + ") is not in the graph");
-    }
+    check_node_id(origin_id, size(), "Origin node");
+    check_node_id(destination_id, size(), "Destination node");
     if (std::isnan(distance)) {
         throw std::invalid_argument("distance must not be NaN");
     }
@@ -434,12 +433,8 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
 }
 
 std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id, bool symmetric) {
-    if (origin_id < 0 || origin_id >= size()) {
-        throw std::out_of_range("Origin node id is not in the graph");
-    }
-    if (destination_id < 0 || destination_id >= size()) {
-        throw std::out_of_range("Destination node id is not in the graph");
-    }
+    check_node_id(origin_id, size(), "Origin node");
+    check_node_id(destination_id, size(), "Destination node");
     auto graph = rows_to_edit();
 
     std::optional<double> result;

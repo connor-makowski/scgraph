@@ -91,7 +91,11 @@ from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
 from scgraph.errors import PathNotFoundError
-from scgraph.graph_utils import convert_node_input, _last_search_in_thread
+from scgraph.graph_utils import (
+    convert_node_input,
+    check_node_id,
+    _last_search_in_thread,
+)
 
 if TYPE_CHECKING:  # annotations only
     from scgraph.contraction_hierarchies import CHGraph
@@ -551,6 +555,21 @@ class GraphReducer:
         if destination_id is None and len(args) > 1:
             destination_id = args[1]
 
+        # The steps below read `is_reduced` at each origin and destination node.
+        # The search checks its arguments only later, so this loop checks the
+        # node ids first. A dict gives its node ids when the loop reads it.
+        is_reduced = self.is_reduced
+        for node_input, name in (
+            (origin_id, "Origin node"),
+            (destination_id, "Destination node"),
+        ):
+            node_ids = (
+                [node_input] if isinstance(node_input, int) else node_input
+            )
+            if isinstance(node_ids, (set, list, dict)):
+                for node_id in node_ids:
+                    check_node_id(node_id, len(is_reduced), name)
+
         # 1. Same-chain check: solve on unreduced graph with dijkstra
         if destination_id is not None and self.is_same_chain(
             origin_id, destination_id
@@ -568,8 +587,6 @@ class GraphReducer:
             if length_only:
                 res["path"] = []
             return res
-
-        is_reduced = self.is_reduced
 
         # 2. Contraction Hierarchies and Transit Node Routing search their own graph
         if func.__name__ in ("contraction_hierarchy", "tnr"):
