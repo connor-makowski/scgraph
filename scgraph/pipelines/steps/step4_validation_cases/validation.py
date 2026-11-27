@@ -161,15 +161,12 @@ def _check_coverage(network, case) -> str | None:
     km, _ = _find_closest_node(network, case["origin"])
     if km > 5.0:
         return f"the closest road is {km:.1f} km away"
-    # All the cities of a landmass have the same main city. Its shortest path
-    # tree is computed once and serves them all. The tree of the previous landmass is
-    # dropped first: on a world network, one tree takes about 150 MB.
-    main_city = case["destination"]
-    if getattr(network, "main_city_of_the_kept_tree", None) != main_city:
-        network.graph_object.reset_cache()
-        network.main_city_of_the_kept_tree = main_city
+    # The tree of the main city is kept between the cities of one landmass
+    # (`validate_network`).
     if (
-        _find_path_km(network, case, main_city, case["origin"], from_tree=True)
+        _find_path_km(
+            network, case, case["destination"], case["origin"], from_tree=True
+        )
         is None
     ):
         return "no road route to the main city of the landmass"
@@ -456,7 +453,18 @@ def validate_network(
         loaded = None  # the previous network is released before the next load
         loaded = _load_on_node_modes(network, node_modes)
         failures = []
+        main_city_of_the_kept_tree = None
         for case in cases_on_modes:
+            # All the cities of a landmass have the same main city. Its shortest
+            # path tree is computed once and serves them all. The tree of the
+            # previous landmass is dropped first: on a world network, one tree
+            # takes about 150 MB.
+            if (
+                case["kind"] == "coverage"
+                and case["destination"] != main_city_of_the_kept_tree
+            ):
+                loaded.graph_object.reset_cache()
+                main_city_of_the_kept_tree = case["destination"]
             reason = RULES[case["kind"]][1](loaded, case)
             if reason:
                 failures.append(

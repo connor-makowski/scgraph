@@ -347,7 +347,7 @@ flowchart TD
 `contract_chains` works on the CSR arrays of a build:
 * It takes `(node_first_edge_ids, edge_destination_node_ids, weights, node_mode_ids, max_km_between_nodes, edge_class_ids, kept_node_flags)` and returns a `ContractedGraph` namedtuple:
   * `kept`: the ids of the kept nodes.
-  * `origins`, `edge_destination_node_ids`, `weights`: the contracted edges.
+  * `node_first_edge_ids`, `edge_destination_node_ids`, `weights`: the contracted edges, as CSR arrays of the kept nodes.
   * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
 * `edge_class_ids` is optional: the class of each edge. The header of `scgraph/network_assembly.py` gives its rule.
@@ -432,6 +432,8 @@ An edit drops `inverse_graph`, and the next read builds it again.
 | `graph`, the original graph (`_graph`) | At the first read of `graph` | By an assignment to `graph`. An edit of `graph_object` does not drop it |
 | `geokdtree` (`_geokdtree`) | At the first read of `geokdtree` | With `snap_index`, when its setter gets `None` |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
+
+**Of the validation cases.** `_read_all_cases`, in `step4_validation_cases/validation.py`, reads the files `cases/*.csv` once in a process and keeps their cases.
 
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)
 

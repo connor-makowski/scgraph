@@ -201,9 +201,6 @@ class CHGraphPreprocessing:
             self._shortcuts_cache_table
         ):
             self._shortcuts_cache_table[node_id] = found_shortcuts
-        else:
-            self._shortcuts_cache_node = node_id
-            self._shortcuts_cache = found_shortcuts
 
         in_edges = len(contracting_inverse_graph[node_id])
         out_edges = len(contracting_graph[node_id])
@@ -416,8 +413,6 @@ class CHGraphPreprocessing:
 
         - None
         """
-        self._shortcuts_cache_node = -1
-        self._shortcuts_cache = []
         # None: `default_heuristic` has not counted the shortcuts of the node
         self._shortcuts_cache_table = [None] * self.nodes_count
         self._witness_distances = [float("inf")] * self.nodes_count
@@ -477,8 +472,6 @@ class CHGraphPreprocessing:
                 and self._shortcuts_cache_table[node_id] is not None
             ):
                 found_shortcuts = self._shortcuts_cache_table[node_id]
-            elif evaluated_now and self._shortcuts_cache_node == node_id:
-                found_shortcuts = self._shortcuts_cache
             else:
                 _, found_shortcuts = self._count_shortcuts(node_id)
 

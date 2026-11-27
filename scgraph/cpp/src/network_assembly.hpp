@@ -284,7 +284,7 @@ inline Components find_strongly_connected_components(const int32_t* node_first_e
 }
 
 struct Contracted {
-    std::vector<int32_t> kept, origins, edge_destination_node_ids, member_offsets, members;
+    std::vector<int32_t> kept, node_first_edge_ids, edge_destination_node_ids, member_offsets, members;
     std::vector<double> weights;
 };
 
@@ -430,13 +430,17 @@ inline Contracted contract_chains(const int32_t* node_first_edge_ids, const int3
         result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
     }
     std::vector<int32_t>().swap(pool);
-    result.origins.reserve(edges.size()), result.edge_destination_node_ids.reserve(edges.size()),
-        result.weights.reserve(edges.size());
+    // The edges are sorted by origin: each kept node counts its edges, and the sums
+    // of the counts give the first edge of each node.
+    result.node_first_edge_ids.assign(result.kept.size() + 1, 0);
+    result.edge_destination_node_ids.reserve(edges.size()), result.weights.reserve(edges.size());
     for (const Edge& x : edges) {
-        result.origins.push_back(position[x.u]);
+        ++result.node_first_edge_ids[position[x.u] + 1];
         result.edge_destination_node_ids.push_back(position[x.v]);
         result.weights.push_back(x.km);
     }
+    for (size_t i = 1; i < result.node_first_edge_ids.size(); ++i)
+        result.node_first_edge_ids[i] += result.node_first_edge_ids[i - 1];
     return result;
 }
 

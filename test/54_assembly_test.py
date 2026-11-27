@@ -833,9 +833,10 @@ def test_contracted_edges_replace_the_chains_of_the_graph(
     node_first_edge_ids, edge_destination_node_ids, weights = graph
     origin_of = _origin_of_each_edge(node_first_edge_ids)
 
-    kept, origins, ends, km, member_offsets, members = backend.contract_chains(
-        *graph, node_mode_ids, max_km
+    kept, first_edge_ids, ends, km, member_offsets, members = (
+        backend.contract_chains(*graph, node_mode_ids, max_km)
     )
+    origins = _origin_of_each_edge(first_edge_ids)
 
     # Every edge is a member of exactly one contracted edge
     assert sorted(members) == list(range(len(edge_destination_node_ids)))

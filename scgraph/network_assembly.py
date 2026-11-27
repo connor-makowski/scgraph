@@ -281,7 +281,8 @@ class ContractedGraph(NamedTuple):
 
     Attributes:
         kept: The nodes of the input graph that stay, in rising order.
-        origins: The origin of each contracted edge, as a position in `kept`.
+        node_first_edge_ids: For each kept node, the id of its first contracted
+            edge, and one more value at the end: the count of the contracted edges.
         edge_destination_node_ids: The destination id of each contracted edge, as a position in `kept`.
         weights: The length of each contracted edge in km: the sum of its members.
         member_offsets: Where the members of each contracted edge start in `members`.
@@ -291,7 +292,7 @@ class ContractedGraph(NamedTuple):
     """
 
     kept: array | memoryview
-    origins: array | memoryview
+    node_first_edge_ids: array | memoryview
     edge_destination_node_ids: array | memoryview
     weights: array | memoryview
     member_offsets: array | memoryview
@@ -435,9 +436,12 @@ def contract_chains_python(
     kept = array("i", (v for v in range(n) if keep[v]))
     position = {v: i for i, v in enumerate(kept)}
     edges.sort(key=lambda edge_: edge_[:2])
+    edge_counts = [0] * len(kept)
+    for edge_ in edges:
+        edge_counts[position[edge_[0]]] += 1
     return ContractedGraph(
         kept,
-        array("i", (position[edge_[0]] for edge_ in edges)),
+        array("i", accumulate(edge_counts, initial=0)),
         array("i", (position[edge_[1]] for edge_ in edges)),
         array("d", (edge_[2] for edge_ in edges)),
         array("i", accumulate((len(edge_[3]) for edge_ in edges), initial=0)),
@@ -744,7 +748,7 @@ def assemble_network(
         )
         (
             kept,
-            origins,
+            node_first_edge_ids,
             edge_destination_node_ids,
             weights,
             member_offsets,
@@ -761,11 +765,8 @@ def assemble_network(
         points, edge_first_shape_point_ids = build_chain_shapes(
             graph, member_offsets, members
         )
-        node_first_edge_ids = array("i", bytes(4 * (len(kept) + 1)))
-        for u in origins:  # rows by origin, as contract_chains sorts them
-            node_first_edge_ids[u + 1] += 1
         graph = {  # the graph before contraction is freed
-            "node_first_edge_ids": array("i", accumulate(node_first_edge_ids)),
+            "node_first_edge_ids": node_first_edge_ids,
             "edge_destination_node_ids": edge_destination_node_ids,
             "metric_length": weights,
             "edge_first_shape_point_ids": edge_first_shape_point_ids,

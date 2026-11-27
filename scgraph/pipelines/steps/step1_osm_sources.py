@@ -30,7 +30,6 @@ import requests
 
 from scgraph import files
 from scgraph.helpers.osm import (
-    MAIN_ROADS as MAIN_ROADS,
     MAX_KM_BETWEEN_NODES as MAX_KM_BETWEEN_NODES,
     require_osmium,
 )

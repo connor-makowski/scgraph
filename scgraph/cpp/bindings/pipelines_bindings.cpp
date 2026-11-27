@@ -53,7 +53,7 @@ void bind_pipelines(nb::module_& m) {
                                            (int64_t)edge_destination_node_ids.shape(0), max_km_between_nodes,
                                            edge_class_ids ? edge_class_ids->data() : nullptr,
                                            kept_node_flags ? kept_node_flags->data() : nullptr);
-        return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
+        return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.node_first_edge_ids)),
                               owned_view(std::move(c.edge_destination_node_ids)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
     }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"),
