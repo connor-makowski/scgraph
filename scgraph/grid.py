@@ -351,13 +351,17 @@ class GridGraph:
         ####################
         # Convert the graph matrix into the very efficient graph format as specified by the scgraph library
         ####################
+        # A search visits the edges of a node in the order of its dict, and this order
+        # changes its time and its choice between two paths of the same length. The
+        # edges of a cell are written in the reverse order of conn_data. The C++
+        # extension of release 3.6.0 visited them in this order on most grids.
         graph = []
         for x_data in graph_matrix:
             for connection_dict in x_data:
                 graph.append(
                     {
                         self._get_idx(x, y): dist
-                        for (x, y), dist in connection_dict.items()
+                        for (x, y), dist in reversed(connection_dict.items())
                     }
                 )
 
