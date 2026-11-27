@@ -4,7 +4,9 @@
 a higher layer.
 The script reads every `import` of every module under `scgraph/` with `ast`, at the top
 of the file and inside functions. It prints each import that goes to a higher layer, and
-exits with 1 if one of them is not in `ALLOWED`.
+exits with 1 if one of them is not in `ALLOWED`. A module that is not in `LAYERS` is a
+failure too: add its layer there. The script does not check an import under
+`TYPE_CHECKING`, nor an import of `scgraph.cpp`.
 
 Run it from the root of the repository: `python utils/check_import_layers.py`.
 """

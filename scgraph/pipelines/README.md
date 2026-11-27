@@ -74,8 +74,9 @@ another cache directory. The option `--work-dir` gives the work folder and keeps
 ### Build Steps
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
-read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
-validate (`step4_…`). A module name gives the group of a step, not its number:
+read the sources (`step1_…`), join the networks (`step2_…`), assemble the network
+(`scgraph/network_assembly.py`, which `load_from_osm` uses too) and validate (`step4_…`). A
+module name gives the group of a step, not its number:
 `step2_land_mask` does step 4.
 
 ```mermaid
@@ -346,15 +347,15 @@ output folder must exist. The command writes two files and prints their paths:
 Without a name, the command writes the files of the ten derived networks, and the world file
 without shapes. The workflow of Part 3 runs the command in this way.
 
-The numbers below come from one derivation of `oceania` on 2026-11-26, on Linux, with the C++
+The numbers below come from one derivation of `oceania` on 2026-11-27, on Linux, with the C++
 extension. The parent file is the `world_multimodal` of the network release
 `networks-2026.11.27-dev.1` (313.1 MB).
 
 | Step | Nodes | Edges |
 |---|---|---|
-| the parent file | 4,143,454 | 7,403,938 |
-| select the nodes and remove the other edges | 147,843 | 367,582 |
-| keep the components of at least 10 nodes | 147,794 | 367,546 |
+| the parent file | 4,143,455 | 7,403,940 |
+| select the nodes and remove the other edges | 147,844 | 367,584 |
+| keep the components of at least 10 nodes | 147,795 | 367,548 |
 
 - **Select the nodes.** The bbox of `oceania` is `(-50, 110, 0, 180)`. It selects the roads,
   the railways and the rail terminals inside it. The sea lanes, the ports and the airports of
@@ -363,7 +364,7 @@ extension. The parent file is the `world_multimodal` of the network release
   connected components of fewer than 10 nodes. `derive_network_file` removes them. It does not
   contract the chains again: a junction that lost a road stays as a node.
 
-The derivation took 1.5 s. The derived file is 15.7 MB, and 7.7 MB without the shapes. Its
+The derivation took 1.8 s. The derived file is 15.7 MB, and 7.7 MB without the shapes. Its
 header records the node modes, the bbox and the `content_sha256` of the parent file.
 
 The **`content_sha256`** of a network file is the SHA-256 digest of its bytes from byte 40 to
@@ -449,7 +450,8 @@ The times come from the run of the network release `networks-2026.11.27-dev.1`.
   nothing.
 
 `PIPELINE_VERSION` is a number in a pipeline. It has one use: `build_geograph` builds again a
-network of the cache that another `PIPELINE_VERSION` built. The workflow does not read it.
+network of the cache that another `PIPELINE_VERSION` built, or that it cannot read. With
+`local_files_only`, it warns and loads the file. The workflow does not read the number.
 
 ### Contents of a Network Release
 
@@ -542,11 +544,12 @@ where scgraph keeps network files on the machine of a user.
    request, and does not check the file again.
    - The cache is not compressed. With the C++ extension, and without `node_modes`, scgraph
      maps the file and does not copy it into memory.
-5. **Read.** The load reads 147,794 nodes and 367,546 edges. When the caller passes a
+5. **Read.** The load reads 147,795 nodes and 367,548 edges. When the caller passes a
    `content_sha256`, the load fails if the file of the cache has another one.
 
-scgraph deletes a file that fails a check. The file does not enter the cache, and the load
-raises a `ValueError`.
+scgraph deletes a download that fails step 2 or 3. The file does not enter the cache, and the
+load raises a `ValueError`. A file of the cache that has another `content_sha256` than the one
+of the caller (step 5) stays: it is a whole file of the network release.
 
 The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
 extension. The first load took 2.7 s, download included, and the later load 0.01 s. The
