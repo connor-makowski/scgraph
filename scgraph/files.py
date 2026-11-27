@@ -94,6 +94,20 @@ def create_retry_session() -> requests.Session:
     return session
 
 
+def should_retry_request(error: Exception) -> bool:
+    """Return True when a new request may succeed after `error`.
+
+    A network error, and an answer 429 (Too Many Requests) or 5xx, may pass on a
+    new try. A new request gets the same answer 4xx from the server.
+
+    Args:
+        error: The exception of a request: a `requests.RequestException`, an
+            `OSError` or a `TimeoutError`.
+    """
+    status_code = getattr(getattr(error, "response", None), "status_code", None)
+    return status_code is None or status_code == 429 or status_code >= 500
+
+
 def check_byte_range_answer(
     response: requests.Response, tag: str, size: int
 ) -> None:

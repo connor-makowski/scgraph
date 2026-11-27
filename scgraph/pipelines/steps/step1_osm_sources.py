@@ -138,8 +138,15 @@ class StreamedPbf:
                     answer.raise_for_status()
                     content = answer.content
                     break
-                except (requests.RequestException, OSError, TimeoutError):
-                    if attempt == files.MAX_RETRIES:
+                except (
+                    requests.RequestException,
+                    OSError,
+                    TimeoutError,
+                ) as error:
+                    if (
+                        attempt == files.MAX_RETRIES
+                        or not files.should_retry_request(error)
+                    ):
                         raise
                     time.sleep(min(60, 2**attempt))
             files.check_byte_range_answer(answer, tag, size)

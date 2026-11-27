@@ -2,6 +2,7 @@
 
 It downloads byte ranges of an OSM PBF file and writes them to its standard output.
 After a network error, it asks again from the first byte that it did not write.
+An answer 4xx other than 429 stops it at once: a new request gets the same answer.
 """
 
 import json
@@ -15,6 +16,7 @@ from scgraph.files import (
     MAX_RETRIES,
     check_byte_range_answer,
     create_retry_session,
+    should_retry_request,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,9 @@ class PbfRangeStreamer:
             ranges: Pairs `[start, end]` of byte offsets. `end` is not included.
 
         Raises:
-            ValueError: The tag or the size of the file changed on the server.
+            ValueError: The tag or the size of the file changed on the server, or
+                the server ignores byte ranges.
+            requests.HTTPError: The server answered 4xx other than 429.
             requests.RequestException: A range failed more than `MAX_RETRIES` times in a
                 row.
         """
@@ -88,7 +92,9 @@ class PbfRangeStreamer:
                         TimeoutError,
                     ) as error:
                         failures += 1
-                        if failures > MAX_RETRIES:
+                        if failures > MAX_RETRIES or not should_retry_request(
+                            error
+                        ):
                             raise
                         logger.warning(
                             "Transient read error at byte offset %d: %r. Retrying...",
