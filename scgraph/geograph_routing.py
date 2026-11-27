@@ -615,24 +615,18 @@ class GeoGraphRouting:
                     destination,
                 ]
             ]
+        units_per_km = get_units_per_km(self.geograph_units)
         off_graph_legs = []
         for points in off_graph_paths:
-            hops = list(zip(points, points[1:]))
+            # One sum of km gives both the length and the totals of the leg.
+            # `_get_off_graph_km` computes the km of the route in the same way.
             off_graph_km = off_graph_circuity * sum(
-                haversine(start, end) for start, end in hops
+                haversine(start, end) for start, end in zip(points, points[1:])
             )
             off_graph_legs.append(
                 {
                     "edge_mode": "off_graph",
-                    "length": sum(
-                        haversine(
-                            start,
-                            end,
-                            circuity=off_graph_circuity,
-                            units=self.geograph_units,
-                        )
-                        for start, end in hops
-                    ),
+                    "length": off_graph_km * units_per_km,
                     "metric_totals": {
                         name: off_graph_km
                         * metric_record.off_graph_weight_per_km
