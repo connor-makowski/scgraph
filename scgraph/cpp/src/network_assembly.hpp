@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include "coordinates.hpp"
 
 // Functions that assemble a network file from raw edges, for a network too large for
 // Python (the roads of the planet). Read the header of
@@ -450,7 +451,7 @@ inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const 
     if (!(tolerance_meters >= 0)) throw std::invalid_argument("tolerance_meters must be >= 0");
     check_first_ids(edge_first_shape_point_ids, shape_count, point_count);
     constexpr double PI = 3.141592653589793;
-    constexpr double METRES = 6371000.0 * PI / 1.8e9;  // per 1e-7 degree of latitude
+    constexpr double METRES = 6371000.0 * PI / (180 * UNITS_PER_DEGREE);  // per 1e-7 degree of latitude
     const double tolerance2 = tolerance_meters * tolerance_meters;
     Shapes result;
     result.edge_first_shape_point_ids.push_back(0);
@@ -462,7 +463,7 @@ inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const 
         // Point i of the polyline is at base + 2 * i.
         const int64_t base = 2 * (static_cast<int64_t>(edge_first_shape_point_ids[s]) - 1);
         const int64_t last = edge_first_shape_point_ids[s + 1] - edge_first_shape_point_ids[s] + 1;
-        const double kx = METRES * std::cos(end[0] * PI / 1.8e9);
+        const double kx = METRES * std::cos(end[0] * PI / (180 * UNITS_PER_DEGREE));
         x.resize(last + 1);
         y.resize(last + 1);
         // Local metres from the edge's origin, longitudes across the antimeridian unwrapped

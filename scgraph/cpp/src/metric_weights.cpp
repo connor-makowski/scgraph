@@ -1,8 +1,33 @@
 // The two kernels that compute a metric are explained in metric_weights.hpp. Read it first.
 #include "metric_weights.hpp"
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <string>
+
+// The one message of a refused weight, for the two kernels that refuse one
+[[noreturn]] static void throw_refused_weight(int64_t origin_id, int64_t destination_id) {
+    throw std::invalid_argument("The weight of the edge from node " + std::to_string(origin_id) +
+                                " to node " + std::to_string(destination_id) +
+                                " is below zero or not a number");
+}
+
+void check_edge_weights(std::span<const int32_t> node_first_edge_ids,
+                        std::span<const int32_t> edge_destination_node_ids,
+                        std::span<const double> weights) {
+    if (weights.size() != edge_destination_node_ids.size()) {
+        throw std::invalid_argument("expected one weight per edge");
+    }
+    for (size_t edge_id = 0; edge_id < weights.size(); ++edge_id) {
+        if (is_refused_weight(weights[edge_id])) {
+            // The origin is the last node whose first edge id is not above edge_id
+            const int64_t origin_id =
+                std::upper_bound(node_first_edge_ids.begin(), node_first_edge_ids.end(), (int64_t)edge_id) -
+                node_first_edge_ids.begin() - 1;
+            throw_refused_weight(origin_id, edge_destination_node_ids[edge_id]);
+        }
+    }
+}
 
 std::vector<double> compute_weights_from_km(
     std::span<const int32_t> node_first_edge_ids, std::span<const int32_t> edge_destination_node_ids, std::span<const double> lengths_km,
@@ -47,12 +72,8 @@ std::vector<double> compute_weights_from_km(
             // 3. The weight of the hub that the edge enters
             const double weight_entering_hub = hub_weights[node_mode_ids[destination_id] * class_count + class_id];
             if (weight_entering_hub != 0.0) weight += weight_entering_hub;
-            // 4. A comparison with a value that is not a number is false
-            if (!(weight >= 0.0)) {
-                throw std::invalid_argument("The weight of the edge from node " + std::to_string(origin_id) +
-                                            " to node " + std::to_string(destination_id) +
-                                            " is below zero or not a number");
-            }
+            // 4. A weight below zero or not a number
+            if (is_refused_weight(weight)) throw_refused_weight(origin_id, destination_id);
             weights[edge_id] = weight;
         }
     }

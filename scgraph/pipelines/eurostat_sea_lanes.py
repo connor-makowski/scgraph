@@ -19,6 +19,7 @@ import struct
 from array import array
 
 from scgraph import network_assembly
+from scgraph.coordinates import encode_coordinate
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_IDS, CLASSES
@@ -129,7 +130,7 @@ def build(files: dict[str, str]) -> GeoGraph:
 
 def _convert_to_e7_degrees(point):
     # A [latitude, longitude] point, in units of 1e-7 degree
-    return round(point[0] * 1e7), round(point[1] * 1e7)
+    return encode_coordinate(point[0]), encode_coordinate(point[1])
 
 
 def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:

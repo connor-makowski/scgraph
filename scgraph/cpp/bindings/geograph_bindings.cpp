@@ -14,19 +14,13 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include "../src/coordinates.hpp"
 #include "../src/snap_index.hpp"
 #include "../src/edge_selection.hpp"
 #include "../src/metric_weights.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
-
-// Coordinates as network files store them: int32 in 1e-7 degree (OSM's) or float64 degrees
-template <typename T>
-using CoordinateArray = nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
-// The same division as the Python reader, so that both read a stored value back exactly
-static inline double degrees(int32_t units) { return units / 1e7; }
-static inline double degrees(double value) { return value; }
 
 // Returns the points of the nodes in `ids`, as a list of [latitude, longitude] in
 // degrees. One C loop builds the list, for NodePoints.take. `node_points` holds the
@@ -211,6 +205,15 @@ void bind_geograph(nb::module_& m) {
        "The weight of each edge from a weight per km for each class and the weight added to it at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weights_from_km");
+
+    m.def("check_edge_weights", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray weights) {
+        check_edge_weights({node_first_edge_ids.data(), node_first_edge_ids.shape(0)},
+                           {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)},
+                           {weights.data(), weights.shape(0)});
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"),
+       "Raise ValueError when a weight is below zero or not a number; explained in "
+       "scgraph/cpp/src/metric_weights.hpp, same result as "
+       "scgraph.helpers.metric_weights.check_edge_weights");
 
     m.def("compute_weighted_sum", [](std::vector<DoubleArray> weights_of_metrics, DoubleArray coefficients) {
         std::vector<std::span<const double>> weights;

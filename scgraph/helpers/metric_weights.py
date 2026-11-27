@@ -1,6 +1,7 @@
 """
 Pure-Python version of the two C++ kernels that compute the weight of each edge in a
-metric: `compute_weights_from_km` and `compute_weighted_sum`. This module is internal.
+metric: `compute_weights_from_km` and `compute_weighted_sum`, and of the kernel
+`check_edge_weights`, which checks the weights of a metric. This module is internal.
 `scgraph/cpp/src/metric_weights.hpp` explains the kernels, their parameters and their
 steps. Read it first.
 
@@ -113,17 +114,46 @@ def compute_weights_from_km(
             "an edge has a class without a weight per km, or a node has a node mode without hub weights"
         ) from None
 
-    # 4. `0.0 <= weight` is false for a weight that is not a number.
-    if not all(map((0.0).__le__, weights)):
-        edge_id = next(
-            i for i, weight in enumerate(weights) if not weight >= 0.0
-        )
-        origin_id = bisect_right(node_first_edge_ids, edge_id) - 1
-        raise ValueError(
-            f"The weight of the edge from node {origin_id} to node "
-            f"{edge_destination_node_ids[edge_id]} is below zero or not a number"
-        )
+    # 4. A weight below zero or not a number
+    check_edge_weights(node_first_edge_ids, edge_destination_node_ids, weights)
     return weights
+
+
+def is_refused_weight(weight: float) -> bool:
+    """Return True for a weight below zero or not a number. A search needs weights
+    of zero or more. Infinity is allowed: it closes an edge. A comparison with a value
+    that is not a number is false, so the test also refuses it."""
+    return not weight >= 0.0
+
+
+def check_edge_weights(
+    node_first_edge_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
+    weights: array | memoryview,
+) -> None:
+    """
+    Raise a ValueError when a weight is below zero or not a number.
+
+    Raises:
+        ValueError: The arrays do not have one weight per edge, or a weight is
+            refused. The message names the two nodes of the first such edge.
+    """
+    if len(weights) != len(edge_destination_node_ids):
+        raise ValueError("expected one weight per edge")
+    # `0.0 <= weight` is `not is_refused_weight(weight)`, in a loop that runs in C
+    if all(map((0.0).__le__, weights)):
+        return
+    edge_id = next(
+        edge_id
+        for edge_id, weight in enumerate(weights)
+        if is_refused_weight(weight)
+    )
+    # The origin is the last node whose first edge id is not above edge_id
+    origin_id = bisect_right(node_first_edge_ids, edge_id) - 1
+    raise ValueError(
+        f"The weight of the edge from node {origin_id} to node "
+        f"{edge_destination_node_ids[edge_id]} is below zero or not a number"
+    )
 
 
 def compute_weighted_sum(

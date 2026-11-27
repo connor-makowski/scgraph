@@ -69,8 +69,8 @@
 //      a length, because infinity times 0 km is not a number.
 //   2. Add hub_weights[node_mode_ids[u] * C + c], if it is not zero: the edge leaves a hub.
 //   3. Add hub_weights[node_mode_ids[v] * C + c], if it is not zero: the edge enters a hub.
-//   4. Refuse a weight that is below zero or not a number: a search needs weights of zero or
-//      more. The kernel throws std::invalid_argument, and the message names u and v.
+//   4. Refuse a weight that is below zero or not a number (is_refused_weight below). The
+//      kernel throws std::invalid_argument, and the message names u and v.
 //   Example: the edge 0 -> 1 is a road connector of 3 km. Step 1 gives 0.02 * 3 = 0.06.
 //   Step 2 adds nothing: the node 0 is a road node. Step 3 adds hub_weights[1 * 2 + 0] = 2.
 //   The weight is 2.06 hours. The edge 1 -> 2 is a sea connector of 5 km: 0.04 * 5 = 0.2,
@@ -86,7 +86,7 @@
 //   30 * 2.06 + 0.5 * 3 = 61.8 + 1.5 = 63.3.
 //
 // WHY BOTH BUILDS GIVE THE SAME WEIGHTS
-//   scgraph.helpers.metric_weights holds the pure-Python version of the two kernels. Both
+//   scgraph.helpers.metric_weights holds the pure-Python version of the kernels. Both
 //   versions compute each weight in float64, with the same operations in the same order:
 //   the steps 1, 2 and 3 above, and the sum in the order of the metrics. This file is
 //   compiled without fused multiply-add (CMakeLists.txt), because a fused product and sum
@@ -95,6 +95,23 @@
 //   The arrays may come from a mapped file that nothing has checked. Each value is checked
 //   before it is used as an id, so a damaged file throws std::invalid_argument and no memory
 //   outside the arrays is read.
+//
+// THE RULE OF A WEIGHT
+//   A search needs weights of zero or more. A weight below zero, or that is not a number,
+//   is refused. Infinity is allowed: it closes an edge. compute_weights_from_km checks
+//   each weight in its own loop. check_edge_weights checks the weights of a metric that a
+//   network file holds: the loader calls it, because no kernel computed these weights.
+//   Example: the weights [2.06, 2.06, 6.2, -6.2] of the four edges above are refused at
+//   the edge 2 -> 1, and the message names the nodes 2 and 1.
+
+// A comparison with a value that is not a number is false, so this test also refuses it.
+inline bool is_refused_weight(double weight) { return !(weight >= 0.0); }
+
+// Throws std::invalid_argument when a weight is refused. The message names the two nodes
+// of the first such edge, as the message of compute_weights_from_km does.
+void check_edge_weights(std::span<const int32_t> node_first_edge_ids,
+                        std::span<const int32_t> edge_destination_node_ids,
+                        std::span<const double> weights);
 
 std::vector<double> compute_weights_from_km(
     std::span<const int32_t> node_first_edge_ids, std::span<const int32_t> edge_destination_node_ids,

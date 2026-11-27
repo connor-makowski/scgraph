@@ -25,6 +25,7 @@ LAYERS = {
     "utils": 0,
     "errors": 0,
     "files": 0,
+    "coordinates": 0,
     "helpers": 1,
     "network_file": 1,
     "array_views": 1,

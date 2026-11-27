@@ -7,7 +7,7 @@ from array import array
 
 import pytest
 
-from scgraph import GeoGraph, network_file
+from scgraph import GeoGraph, coordinates, network_file
 from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.utils import has_cpp
 
@@ -686,6 +686,23 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     assert loaded.node_modes == ROAD_AND_PORT
 
 
+# A search needs weights of zero or more. `network_file.write` does not check
+# the weights, so a file may hold a toll below zero.
+def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):
+    path = str(tmp_path / "arrays.scgraph")
+    arrays = _two_road_nodes_and_a_port() | {
+        "metric_toll": array("d", [2.5, -2.5])
+    }
+    network_file.write(
+        path, arrays, ROAD_AND_PORT_HEADER | {"metrics": [LENGTH_IN_KM, TOLL]}
+    )
+
+    with pytest.raises(
+        ValueError, match="node 1 to node 0 .*, in the metric 'toll'"
+    ):
+        GeoGraph.load_from_scgraph(path)
+
+
 # `network_file.write` must refuse arrays that do not fit together, and name
 # what is wrong. Each case below replaces or adds arrays of the valid network
 # above.
@@ -1111,6 +1128,17 @@ def test_loading_some_modes_keeps_the_dtype_of_the_coordinates(
     roads = GeoGraph.load_from_scgraph(path, node_modes="road")
 
     assert roads.coordinate_dtype == coordinate_dtype
+
+
+# An int32 coordinate is in units of 1e-7 degree. The decoding divides by 1e7:
+# the product -1222909963 * 1e-7 gives -122.29099629999999, another float.
+def test_a_stored_coordinate_is_decoded_to_its_degrees_and_encoded_back():
+    degrees = coordinates.decode_coordinate(-1222909963)
+
+    assert degrees == -122.2909963
+    assert list(coordinates.encode_coordinates([[degrees]], "int32")[0]) == [
+        -1222909963
+    ]
 
 
 def test_loading_some_node_modes_of_a_file_without_external_node_ids_gives_the_node_ids_of_the_file(

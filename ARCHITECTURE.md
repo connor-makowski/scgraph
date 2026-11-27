@@ -182,7 +182,7 @@ Two docstrings explain this code with an example:
 * **The array of the class ids**: A network file and the weights per km of `create_metric` need a `uint8` array by edge id: the class id of each edge. The geograph keeps this array beside the arrays of the edges.
 * **The metrics**: Each metric is one record, with a `float64` array of weights by edge id and the weight per km of the off-graph legs (`off_graph_weight_per_km`). The record of `length` has no array: its weights are those of `graph_object`. The geograph builds this record without a read of the edges, and builds it again when `graph_object` or `geograph_units` changes.
 * **An edge without a class**: Its class id is 255. `create_metric` gives this class id the weight per km of the off-graph legs, and no weight at a hub.
-* **The kernels**: The two kernels of the weights have a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`).
+* **The kernels**: The kernels of the weights have a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`).
 * **The default metric**: `default_metric` names the metric of a query that names no metric. It is `length`, until a loader or the caller sets it. For example, `load_from_osmnx_graph` sets it to `travel_time` with `weight_key="travel_time"`, and the `length` of this geograph is still in km.
   * A query raises a `ValueError` while the geograph does not have its default metric, for example after an edit.
 * **One `Graph` for each metric**: For `length`, `get_graph_object(metric)` returns `graph_object`. For another metric, it builds a `Graph` from `node_first_edge_ids`, `edge_destination_node_ids` and the weights of the metric, at the first query by this metric.
@@ -586,7 +586,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 
 * **Weights**: `read` refuses weights of another dtype than `float64`.
 * **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
-* **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8.
+* **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8. `scgraph/coordinates.py` converts between the two forms, and `scgraph/cpp/src/coordinates.hpp` is its C++ version.
 * **`external_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id, except the nodes of one junction, in a node mode with `has_turn_restrictions`; `read` does not check it.
 
 The arrays of the example, weights rounded (count of values in parentheses):
@@ -638,7 +638,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 
 A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads.
 
-`read` does not check the weights: `create_metric` refuses a weight below zero or not a number. Nor does it check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
+`read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
 ### Node Mode Counts and Edge Class Ids
 

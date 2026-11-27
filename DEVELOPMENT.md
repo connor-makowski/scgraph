@@ -26,7 +26,7 @@ scgraph/
   __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
-  errors.py, files.py, array_views.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; list-like views of the arrays of a network file
+  errors.py, files.py, coordinates.py, array_views.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; a coordinate in degrees and in units of 1e-7 degree; list-like views of the arrays of a network file
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
   geograph_io.py, geograph_networks.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save of files; load, build, list and clear of the networks of scgraph, and the files of the released networks in the cache; edits; edges and their classes; metrics; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
@@ -56,7 +56,7 @@ scgraph/
     edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
+    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, coordinates and float4 (headers), bmssp (template header), network_assembly (header); pipelines/ (land_mask)
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp (graph classes), geograph_bindings.cpp (snapping, node points, edge shapes, edge selection, metric weights), pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/

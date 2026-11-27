@@ -45,6 +45,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
+from scgraph.coordinates import UNITS_PER_DEGREE, decode_coordinate
 from scgraph.pipelines import CLASS_IDS
 from scgraph.helpers.near_nodes import NearNodes
 from scgraph.helpers.polylines import PieceArrays
@@ -220,7 +221,10 @@ class _Network:
         self.network = None
 
     def point(self, u: int) -> list[float]:
-        return [self.latitudes[u] * 1e-7, self.longitudes[u] * 1e-7]
+        return [
+            decode_coordinate(self.latitudes[u]),
+            decode_coordinate(self.longitudes[u]),
+        ]
 
     def edges(self) -> Iterator[tuple[int, int, float, list, int | None]]:
         """(origin, destination, km, shape, class id) of each edge. The points of the
@@ -239,7 +243,7 @@ class _Network:
             ):
                 points = line[2 * starts[a] : 2 * starts[a + 1]]
                 shape = [
-                    [x * 1e-7, y * 1e-7]
+                    [x / UNITS_PER_DEGREE, y / UNITS_PER_DEGREE]
                     for x, y in zip(points[::2], points[1::2])
                 ]
                 yield u, self.edge_destination_node_ids[a], weights[
@@ -387,7 +391,7 @@ def _build_land_connector(
         layer.node_first_edge_ids, layer.edge_destination_node_ids
     )
     components = array("i", (sizes[label] for label in labels))
-    near = NearNodes(layer.latitudes, layer.longitudes, scale=1e-7)
+    near = NearNodes(layer.latitudes, layer.longitudes)
 
     def connect(hub):
         water_km = ROADSTEAD_WATER_KM if hub.open_roadstead else WATER_KM

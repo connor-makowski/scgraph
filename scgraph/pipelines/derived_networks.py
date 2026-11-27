@@ -106,6 +106,7 @@ from array import array
 from collections.abc import Sequence
 
 from scgraph import network_assembly, network_file, pipelines
+from scgraph.coordinates import encode_coordinate
 from scgraph.pipelines.steps.step4_validation_cases import (
     RULES,
     load_validation_cases,
@@ -212,7 +213,7 @@ def derive_network_file(
         node_modes = [node_modes]
     # The bbox takes the unit of the node points: 1e-7 degree
     south, west, north, east = (
-        round(degrees * 1e7) for degrees in bbox or _WHOLE_GLOBE
+        encode_coordinate(degrees) for degrees in bbox or _WHOLE_GLOBE
     )
     if south > north or west > east:
         raise ValueError(

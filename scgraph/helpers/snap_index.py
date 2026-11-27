@@ -21,6 +21,8 @@ from collections.abc import Sequence
 from math import cos, inf, isfinite, radians, sin
 from operator import mul
 
+from scgraph.coordinates import decode_coordinates
+
 # Same values as the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32
 FANOUT = 8
@@ -113,10 +115,8 @@ class SnapIndex:
         # One view holds the latitudes and another the longitudes, without a copy
         latitudes, longitudes = node_points[0::2], node_points[1::2]
         if node_points.format == "i":
-            # units / 1e7, the network file's division, in a loop that runs in C
             latitudes, longitudes = (
-                array("d", map((1e7).__rtruediv__, values))
-                for values in (latitudes, longitudes)
+                decode_coordinates(values) for values in (latitudes, longitudes)
             )
         index = cls.__new__(cls)
         index._build(latitudes, longitudes)

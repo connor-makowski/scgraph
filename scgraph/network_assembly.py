@@ -145,6 +145,7 @@ except ImportError:
     _cpp_build_csr_from_edges = None
     _cpp_contract_chains = None
 
+from scgraph.coordinates import UNITS_PER_DEGREE
 from scgraph.helpers.components import (
     build_csr_from_adjacency_list,
     find_strongly_connected_components as find_strongly_connected_components,
@@ -562,7 +563,7 @@ def _split_pieces(pieces, split_pieces, first_new_id):
         # The points of the piece in degrees: its origin, its shape points, its
         # destination
         line = [
-            [latitude * 1e-7, longitude * 1e-7]
+            [latitude / UNITS_PER_DEGREE, longitude / UNITS_PER_DEGREE]
             for latitude, longitude in zip(units[0::2], units[1::2])
         ]
         if len(line) == 2:
@@ -948,7 +949,9 @@ def order_nodes(graph: dict[str, array | memoryview]) -> dict[str, array]:
     node_mode_ids = graph.get("node_mode_ids") or bytes(node_count)
 
     def key(u):  # node mode, Hilbert key (below 4^CURVE_ORDER), index: one int
-        curve = hilbert_key(latitudes[u] * 1e-7, longitudes[u] * 1e-7)
+        curve = hilbert_key(
+            latitudes[u] / UNITS_PER_DEGREE, longitudes[u] / UNITS_PER_DEGREE
+        )
         return (node_mode_ids[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
     # One int per node, not a list; the sorted ints are freed before renumber_nodes
