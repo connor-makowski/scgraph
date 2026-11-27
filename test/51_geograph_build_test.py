@@ -28,6 +28,7 @@ from helpers import build_main_roads, great_circle_km
 from scgraph import GeoGraph, network_assembly, network_file, pipelines
 from scgraph.helpers import osm
 from scgraph.helpers.hilbert import get_hilbert_order
+from scgraph.node_modes import build_node_mode_ids
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
 from scgraph.pipelines.steps import step1_osm_sources
@@ -1581,7 +1582,7 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
 
     node_modes = [
         metadata["node_modes"][row]["name"]
-        for row in network_file.build_node_mode_ids(metadata["node_modes"])
+        for row in build_node_mode_ids(metadata["node_modes"])
     ]
     classes = {}  # the modes of the two ends of an edge -> the classes found
     for u, mode in enumerate(node_modes):

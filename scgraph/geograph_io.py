@@ -15,6 +15,7 @@ from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric, check_weights
 from scgraph.coordinates import encode_coordinates
+from scgraph.node_modes import build_node_mode_ids, get_default_node_modes
 from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, network_file
 import json
@@ -908,9 +909,7 @@ class GeoGraphIO:
             geograph_units=metadata["metrics"][0]["unit"],
             external_node_ids=arrays.get("external_node_ids"),
             node_mode_ids=(
-                network_file.build_node_mode_ids(
-                    metadata["node_modes"], node_modes
-                )
+                build_node_mode_ids(metadata["node_modes"], node_modes)
                 if "node_modes" in metadata
                 else None
             ),
@@ -921,7 +920,8 @@ class GeoGraphIO:
                     for key, value in row.items()
                     if key != "node_count"
                 }
-                for row in metadata.get("node_modes", [{"name": None}])
+                for row in metadata.get("node_modes")
+                or get_default_node_modes()
             ],
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
             classes=metadata["classes"] if "edge_class_ids" in arrays else None,

@@ -153,7 +153,7 @@ A `GeoGraph` adds these attributes to its `Graph`:
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
 * **`external_node_ids`**: The id that each node has outside this network: in its data source (for example its 64-bit OpenStreetMap id), or in the file of release 3.6.0. A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node. A junction is one crossing of roads. In a network that follows turn restrictions, the node mode and the id name a junction, and a junction may have several nodes.
 * **Turn restrictions**: A network that follows the turn restrictions of its source gives some junctions more than one node. [`turn_restrictions.py`](scgraph/turn_restrictions.py) explains the method, with diagrams. The nodes of a junction follow each other. They have the same point, the same external id and the same node mode. The row of this node mode in `node_modes` has `has_turn_restrictions`.
-* **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0.
+* **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0. [`node_modes.py`](scgraph/node_modes.py) holds the rules of the table `node_modes`: the table of one node mode without a name, the names of the node modes, and the node mode ids of a network file.
 * **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
 * **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. This curve is one line that visits every cell of a square grid, so that cells close on the line are close on the grid. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids: a search reads nearby parts of memory, and the snapping index is faster.
 
@@ -617,7 +617,7 @@ shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 4
 
 `select_edges` writes new `node_first_edge_ids`, `edge_destination_node_ids` and `edge_first_shape_point_ids`. The other arrays keep their values: a kept edge keeps its class and weights. In a mapped read, such an array is a view of the file when its kept values are consecutive in the file, and a new array otherwise.
 
-A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `edge_destination_node_ids` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` keeps the counts of the whole file, and `metadata.classes` stays whole. `build_node_mode_ids` gives the kept nodes the ids `[0, 0, 0, 2]`.
+A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `edge_destination_node_ids` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` keeps the counts of the whole file, and `metadata.classes` stays whole. `node_modes.build_node_mode_ids` gives the kept nodes the ids `[0, 0, 0, 2]`.
 
 #### Validation on Read
 

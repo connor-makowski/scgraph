@@ -83,6 +83,7 @@ from typing import TYPE_CHECKING
 from scgraph import array_views
 from scgraph.step_logs import log_step
 from scgraph.helpers.hilbert import get_hilbert_order
+from scgraph.node_modes import list_node_mode_names
 from scgraph.utils import haversine
 
 try:
@@ -252,12 +253,16 @@ class SnapIndexes:
                 return LazyEveryNodeSnapIndex(geograph)
             indexes += self._list_indexes(geograph, [None])
         else:
-            node_mode_names = [mode.get("name") for mode in geograph.node_modes]
-            if not set(snap_to_node_modes) <= set(node_mode_names) - {None}:
-                raise ValueError(
-                    "snap_to_node_modes must be a list of node modes of this geograph, "
-                    f"which are {node_mode_names}: got {snap_to_node_modes!r}"
-                )
+            # A query cannot name the node mode without a name
+            list_node_mode_names(
+                [
+                    row
+                    for row in geograph.node_modes
+                    if row.get("name") is not None
+                ],
+                snap_to_node_modes,
+                "snap_to_node_modes",
+            )
             indexes = self._list_indexes(geograph, snap_to_node_modes)
             if not indexes:
                 raise ValueError(

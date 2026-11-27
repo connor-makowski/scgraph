@@ -113,6 +113,7 @@ from typing import TYPE_CHECKING
 
 from scgraph import network_assembly
 from scgraph.coordinates import decode_coordinate
+from scgraph.node_modes import list_node_mode_names
 from scgraph.helpers.osm import (
     build_way_pieces,
     read_turn_restrictions,
@@ -333,7 +334,7 @@ def build(
             {**layers, "sea": sea},
             region_hubs,
             mask,
-            [mode["name"] for mode in MODES],
+            list_node_mode_names(MODES),
             flights=step2_hub_connectors.read_flights(files["flights"]),
             work_dir=folder("hubs"),
         )
@@ -342,7 +343,7 @@ def build(
     # a junction that still has one node, and each added node gets the connectors
     # of its junction. A rail node or a hub may have the external id of a road node,
     # so only the road nodes are looked up.
-    road_mode_id = [mode["name"] for mode in MODES].index("road")
+    road_mode_id = list_node_mode_names(MODES).index("road")
     external_ids_of_turns = {
         external_id for turn in forbidden_turns for external_id in turn
     }

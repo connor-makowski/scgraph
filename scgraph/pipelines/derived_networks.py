@@ -107,6 +107,7 @@ from collections.abc import Sequence
 
 from scgraph import network_assembly, network_file, pipelines
 from scgraph.coordinates import encode_coordinate
+from scgraph.node_modes import build_node_mode_ids, list_node_mode_names
 from scgraph.pipelines.steps.step4_validation_cases import (
     RULES,
     load_validation_cases,
@@ -230,14 +231,15 @@ def derive_network_file(
             f"{parent_file} has one node mode, no edge shapes or float64 coordinates: "
             "a parent file needs several node modes, edge shapes and int32 coordinates"
         )
-    node_mode_names = [mode["name"] for mode in parent_metadata["node_modes"]]
+    node_mode_names = list_node_mode_names(
+        parent_metadata["node_modes"],
+        node_modes or (),
+        f"{parent_file}: node_modes",
+    )
     # The graphs of the pipelines hold the node mode id of each node
-    parent_arrays["node_mode_ids"] = network_file.build_node_mode_ids(
+    parent_arrays["node_mode_ids"] = build_node_mode_ids(
         parent_metadata["node_modes"]
     )
-    unknown = sorted(set(node_modes or ()) - set(node_mode_names))
-    if unknown:
-        raise ValueError(f"{parent_file} has no node mode named {unknown}")
     # The ids of the node modes of the parent file that the derived file keeps
     kept_node_mode_ids = [
         node_mode_id
