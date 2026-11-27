@@ -277,7 +277,7 @@ class GeoGraph(
         # Built at the first snap, not here: a GeoGraph that never snaps never pays for it
         self.snap_index = None
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
-        self.__original_graph_length__ = len(self.nodes)
+        self._original_graph_length = len(self.nodes)
 
     @classmethod
     def _build_from_edge_arrays(
@@ -524,7 +524,7 @@ class GeoGraph(
                 "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
             )
 
-    def __get_node_addition_type__(self, node_addition_type):
+    def _get_node_addition_type(self, node_addition_type):
         if node_addition_type in ("kdclosest", "kdquadrant"):
             current = node_addition_type.removeprefix("kd")
             warnings.warn(

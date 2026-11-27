@@ -35,8 +35,8 @@ def test_no_recompute(graph_class):
     )
     # Verify the cached CH hierarchy was reused and not recomputed
     ch_after = geo.graph_object.create_contraction_hierarchy()
-    if hasattr(geo.graph_object, "__ch_graph__"):
-        assert geo.graph_object.__ch_graph__ is ch_before
+    if hasattr(geo.graph_object, "_ch_graph"):
+        assert geo.graph_object._ch_graph is ch_before
     assert ch_after is ch_before
 
     # 2. Test Transit Node Routing (TNR)
@@ -46,8 +46,8 @@ def test_no_recompute(graph_class):
     res_tnr = geo.get_shortest_path(origin, destination, algorithm_fn="tnr")
     # Verify the cached TNR hierarchy was reused and not recomputed
     tnr_after = geo.graph_object.create_tnr_hierarchy(num_transit_nodes=20)
-    if hasattr(geo.graph_object, "__tnr_graph__"):
-        assert geo.graph_object.__tnr_graph__ is tnr_before
+    if hasattr(geo.graph_object, "_tnr_graph"):
+        assert geo.graph_object._tnr_graph is tnr_before
     assert tnr_after is tnr_before
 
     # Verify correctness

@@ -151,7 +151,7 @@ class TNRGraphIO:
 
 
 class TNRGraphPreprocessing:
-    def __compute_access_nodes__(
+    def _compute_access_nodes(
         self,
         node_id: int,
         forward: bool,
@@ -202,7 +202,7 @@ class TNRGraphPreprocessing:
                     heappush(open_leaves, (new_dist, neighbor_id))
         return access_nodes
 
-    def __preprocess_tnr__(self, num_transit_nodes: int):
+    def _preprocess_tnr(self, num_transit_nodes: int):
         """
         Function:
         - Perform TNR preprocessing on top of an existing CH
@@ -224,7 +224,7 @@ class TNRGraphPreprocessing:
         self.forward_access_nodes = []
         for i in range(self.nodes_count):
             self.forward_access_nodes.append(
-                self.__compute_access_nodes__(i, True, distances, visited)
+                self._compute_access_nodes(i, True, distances, visited)
             )
             for v in visited:
                 distances[v] = float("inf")
@@ -233,7 +233,7 @@ class TNRGraphPreprocessing:
         self.backward_access_nodes = []
         for i in range(self.nodes_count):
             self.backward_access_nodes.append(
-                self.__compute_access_nodes__(i, False, distances, visited)
+                self._compute_access_nodes(i, False, distances, visited)
             )
             for v in visited:
                 distances[v] = float("inf")
@@ -271,7 +271,7 @@ class TNRGraphPreprocessing:
 
 
 class TNRGraphAlgorithms:
-    def __local_search__(
+    def _local_search(
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
@@ -341,12 +341,12 @@ class TNRGraphAlgorithms:
                                     )
                                     meeting_node = neighbor_id
                     else:
-                        current_rank = self.__get_rank__(current_id)
+                        current_rank = self._get_rank(current_id)
                         for neighbor_id, weight in self.original_graph[
                             current_id
                         ].items():
                             if (
-                                self.__get_rank__(neighbor_id) <= current_rank
+                                self._get_rank(neighbor_id) <= current_rank
                                 and neighbor_id < self.nodes_count
                             ):
                                 continue
@@ -406,12 +406,12 @@ class TNRGraphAlgorithms:
                                     )
                                     meeting_node = neighbor_id
                     else:
-                        current_rank = self.__get_rank__(current_id)
+                        current_rank = self._get_rank(current_id)
                         for neighbor_id, weight in self.original_graph[
                             current_id
                         ].items():
                             if (
-                                self.__get_rank__(neighbor_id) <= current_rank
+                                self._get_rank(neighbor_id) <= current_rank
                                 and neighbor_id < self.nodes_count
                             ):
                                 continue
@@ -456,7 +456,7 @@ class TNRGraphAlgorithms:
             return {"path": [], "length": best_dist}
 
         if meeting_node != -1:
-            path = self.__reconstruct_ch_path__(
+            path = self._reconstruct_ch_path(
                 origin_id,
                 destination_id,
                 meeting_node,
@@ -487,7 +487,7 @@ class TNRGraphAlgorithms:
             if s < self.nodes_count:
                 s_access = self.forward_access_nodes[s]
             else:
-                s_access = self.__compute_access_nodes__(
+                s_access = self._compute_access_nodes(
                     s, True, [float("inf")] * self.nodes_count, []
                 )
             for t_f, d_f in s_access.items():
@@ -500,7 +500,7 @@ class TNRGraphAlgorithms:
             if t < self.nodes_count:
                 t_access = self.backward_access_nodes[t]
             else:
-                t_access = self.__compute_access_nodes__(
+                t_access = self._compute_access_nodes(
                     t, False, [float("inf")] * self.nodes_count, []
                 )
             for t_b, d_b in t_access.items():
@@ -526,11 +526,11 @@ class TNRGraphAlgorithms:
 
         # Locality Filter / Correctness Check
         if length_only:
-            return self.__local_search__(
+            return self._local_search(
                 origin_dict, destination_dict, best_dist, True
             ) or {"path": [], "length": best_dist}
 
-        local_res = self.__local_search__(
+        local_res = self._local_search(
             origin_dict, destination_dict, best_dist, False
         )
         if local_res is not None:
@@ -601,7 +601,7 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
                 inverse_graph=inverse_graph,
                 **kwargs,
             )
-            self.__preprocess_tnr__(num_transit_nodes)
+            self._preprocess_tnr(num_transit_nodes)
 
     def get_shortest_path(
         self,

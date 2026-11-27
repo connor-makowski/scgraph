@@ -43,7 +43,7 @@ logger = logging.getLogger("scgraph.geograph")
 
 
 class GeoGraphIO:
-    def __get_edge_coordinates__(
+    def _get_edge_coordinates(
         self,
         origin_idx: int,
         destination_idx: int,
@@ -62,7 +62,7 @@ class GeoGraphIO:
 
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             coordinates.extend(
-                self.__get_intermediate_nodes__(
+                self._get_intermediate_nodes(
                     origin_idx=origin_idx,
                     destination_idx=destination_idx,
                     sequence=sequence,
@@ -110,7 +110,7 @@ class GeoGraphIO:
             for origin_idx, destinations in enumerate(graph):
                 for destination_idx in destinations:
                     multiline.append(
-                        self.__get_edge_coordinates__(
+                        self._get_edge_coordinates(
                             origin_idx,
                             destination_idx,
                             "lon_lat",
@@ -141,7 +141,7 @@ class GeoGraphIO:
                             },
                             "geometry": {
                                 "type": "LineString",
-                                "coordinates": self.__get_edge_coordinates__(
+                                "coordinates": self._get_edge_coordinates(
                                     origin_idx,
                                     destination_idx,
                                     "lon_lat",

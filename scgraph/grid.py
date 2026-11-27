@@ -113,11 +113,11 @@ class GridGraph:
         else:
             self.conn_data = conn_data
 
-        self.graph = self.__create_graph__()
-        self.nodes = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
+        self.graph = self._create_graph()
+        self.nodes = [self._get_x_y(idx) for idx in range(len(self.graph))]
         self.graph_object = Graph(self.graph)
 
-    def __get_idx__(self, x: int, y: int):
+    def _get_idx(self, x: int, y: int):
         """
         Function:
         - Get the index of a cell in a 2D grid given its x and y coordinates
@@ -139,7 +139,7 @@ class GridGraph:
         """
         return x + y * self.x_size
 
-    def __get_x_y__(self, idx: int):
+    def _get_x_y(self, idx: int):
         """
         Function:
         - Get the x and y coordinates of a cell in a 2D grid given its index
@@ -209,7 +209,7 @@ class GridGraph:
             raise ValueError("idx is out of bounds")
         return idx % self.x_size, idx // self.x_size
 
-    def __get_relative_shape_offsets__(
+    def _get_relative_shape_offsets(
         self,
         shape: list[tuple[int | float, int | float]],
         x_off: int,
@@ -285,7 +285,7 @@ class GridGraph:
         # Return the list of offsets
         return list(result)
 
-    def __create_graph__(
+    def _create_graph(
         self,
     ):
         """
@@ -325,7 +325,7 @@ class GridGraph:
 
         # Create a set of offsets that will be used to help remove connections relative to each blocked cell
         delta_offsets = {
-            (x_delta, y_delta): self.__get_relative_shape_offsets__(
+            (x_delta, y_delta): self._get_relative_shape_offsets(
                 self.shape, x_delta, y_delta
             )
             for x_delta, y_delta, _ in self.conn_data
@@ -356,7 +356,7 @@ class GridGraph:
             for connection_dict in x_data:
                 graph.append(
                     {
-                        self.__get_idx__(x, y): dist
+                        self._get_idx(x, y): dist
                         for (x, y), dist in connection_dict.items()
                     }
                 )
@@ -391,7 +391,7 @@ class GridGraph:
             + (origin_location[1] - destination_location[1]) ** 2
         ) ** 0.5
 
-    def __get_closest_node_with_connections__(
+    def _get_closest_node_with_connections(
         self,
         x: float,
         y: float,
@@ -588,11 +588,11 @@ class GridGraph:
         else:
             raise ValueError("algorithm_fn must be a string or callable")
 
-        origin_id, origin_distance = self.__get_closest_node_with_connections__(
+        origin_id, origin_distance = self._get_closest_node_with_connections(
             **origin_node
         )
         destination_id, destination_distance = (
-            self.__get_closest_node_with_connections__(**destination_node)
+            self._get_closest_node_with_connections(**destination_node)
         )
 
         if self.graph[origin_id] == {}:
@@ -608,7 +608,7 @@ class GridGraph:
             destination_id=destination_id,
             **algorithm_kwargs,
         )
-        output["coordinate_path"] = self.__get_coordinate_path__(
+        output["coordinate_path"] = self._get_coordinate_path(
             output["path"], output_coordinate_path
         )
         if origin_distance > 0:
@@ -627,7 +627,7 @@ class GridGraph:
             del output["path"]
         return output
 
-    def __get_coordinate_path__(
+    def _get_coordinate_path(
         self, path: list[int], output_coordinate_path: str = "list_of_dicts"
     ) -> list[dict[str, int]]:
         """
@@ -658,7 +658,7 @@ class GridGraph:
             - Type: list
             - What: A list of dictionaries with keys 'x' and 'y' in the order they are visited
         """
-        output = [self.__get_x_y__(idx) for idx in path]
+        output = [self._get_x_y(idx) for idx in path]
         if output_coordinate_path == "list_of_tuples":
             return output
         elif output_coordinate_path == "list_of_lists":
@@ -776,7 +776,7 @@ class GridGraph:
                 f"Incompatible export version {import_data['export_version']}. The current version is 1"
             )
         # Create a new basic GridGraph object and overwrite the attributes with the imported data
-        # This is done as the init method calls the __create_graph__ method which is not needed here
+        # This is done as the init method calls the _create_graph method which is not needed here
         grid_graph = GridGraph(
             x_size=1, y_size=1, blocks=[], add_exterior_walls=False
         )

@@ -123,8 +123,8 @@ def algorithm(
                 self, fn, *args, is_bidirectional=bidirectional, **kwargs
             )
 
-        wrapper.__is_graph_algorithm__ = True
-        wrapper.__bidirectional__ = bidirectional
+        wrapper._is_graph_algorithm = True
+        wrapper._bidirectional = bidirectional
 
         if name is not None:
             import scgraph.graph as _graph_mod
@@ -271,11 +271,11 @@ class GraphReducer:
         if iterations == 0:
             return
 
-        self.__ensure_inverse_graph__()
+        self._ensure_inverse_graph()
 
         # 1. Identify pass-through nodes iteratively
-        graph = self.__graph__
-        inverse_graph = self.__inverse_graph__
+        graph = self._graph
+        inverse_graph = self._inverse_graph
         n = len(graph)
         is_reduced = [False] * n
 
@@ -588,7 +588,7 @@ class GraphReducer:
         # keep a reduced origin: they only read reduced_graph.
         is_bidirectional = (
             is_bidirectional
-            or getattr(func, "__bidirectional__", False)
+            or getattr(func, "_bidirectional", False)
             or func.__name__
             in ("bidirectional_dijkstra", "bidirectional_buckets")
         )
@@ -708,8 +708,6 @@ class GraphReducer:
 
         return res
 
-    __run_with_reduced__ = run_with_reduced
-
     @staticmethod
     def dijkstra_on_graph(
         graph: list[dict[int, int | float]],
@@ -803,8 +801,6 @@ class GraphReducer:
             "path": path,
             "length": best_dist,
         }
-
-    __dijkstra_on_graph__ = dijkstra_on_graph
 
     def expand_path(self, path: list[int]) -> list[int]:
         """

@@ -283,7 +283,7 @@ class GeoGraphModifiers:
             - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `temp_node`
             - Type: bool
-            - What: If True, the node is considered temporary and will not be used to increase the __original_graph_length__ value
+            - What: If True, the node is considered temporary and will not be used to increase the _original_graph_length value
             - Default: False
         - `node_mode`
             - Type: str | None
@@ -328,7 +328,7 @@ class GeoGraphModifiers:
                 raise ValueError(
                     f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
                 )
-            node_addition_type = self.__get_node_addition_type__(
+            node_addition_type = self._get_node_addition_type(
                 node_addition_type
             )
             if not (isinstance(lat_lon_bound, (int, float))):
@@ -338,7 +338,7 @@ class GeoGraphModifiers:
             # Get the distances to all relevant nodes
             node_dict = connect_to_nodes_of_junctions(
                 self,
-                self.__get_node_distances__(
+                self._get_node_distances(
                     node=node,
                     circuity=circuity,
                     node_addition_type=node_addition_type,
@@ -350,7 +350,7 @@ class GeoGraphModifiers:
             node_dict = {}
 
         if not temp_node:
-            self.__original_graph_length__ += 1
+            self._original_graph_length += 1
 
         node_mode_id = self._get_node_mode_id(
             node_mode
