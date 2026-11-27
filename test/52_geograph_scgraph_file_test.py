@@ -700,20 +700,25 @@ def test_a_load_then_a_save_keeps_the_description_of_the_lengths(tmp_path):
     assert GeoGraph.get_scgraph_info(saved)["metrics"] == [length]
 
 
-# scgraph writes one coordinate system and one order of the nodes. Another value
-# comes from a file that scgraph cannot read rightly.
+# scgraph writes one coordinate system and one order of the nodes. A file of
+# another tool may name another one: its distances would be wrong.
 @pytest.mark.parametrize(
-    "key, value", [("crs", "EPSG:3857"), ("node_order", "none")]
+    "written, other",
+    [(b"EPSG:4326", b"EPSG:3857"), (b"hilbert", b"shuffle")],
 )
-def test_a_file_with_another_crs_or_node_order_is_refused(tmp_path, key, value):
-    path = str(tmp_path / "arrays.scgraph")
+def test_a_file_with_another_crs_or_node_order_is_refused_at_load(
+    tmp_path, written, other
+):
+    path = tmp_path / "arrays.scgraph"
+    header = ROAD_AND_PORT_HEADER | {
+        "crs": "EPSG:4326",
+        "node_order": "hilbert",
+    }
+    network_file.write(str(path), _two_road_nodes_and_a_port(), header)
+    path.write_bytes(path.read_bytes().replace(written, other))
 
-    with pytest.raises(ValueError, match="crs must be 'EPSG:4326'"):
-        network_file.write(
-            path,
-            _two_road_nodes_and_a_port(),
-            ROAD_AND_PORT_HEADER | {key: value},
-        )
+    with pytest.raises(ValueError, match=f"not '{other.decode()}'"):
+        GeoGraph.load_from_scgraph(str(path))
 
 
 # A search needs weights of zero or more. `network_file.write` does not check

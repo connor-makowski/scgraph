@@ -613,14 +613,14 @@ def _check(filename, arrays, metadata, should_check_values=True):
         n >= 0 and node_first_edge_ids[0] == 0 and node_first_edge_ids[-1] == m,
         "invalid node_first_edge_ids",
     )
-    # A file in another coordinate system would give wrong distances, and the
-    # index of a file in another order of the nodes would be slow. A header without
-    # one of the two keys has the value that scgraph writes.
-    require(
-        metadata.get("crs", CRS) == CRS
-        and metadata.get("node_order", NODE_ORDER) == NODE_ORDER,
-        f"crs must be {CRS!r} and node_order must be {NODE_ORDER!r}",
-    )
+    # scgraph writes one coordinate system and one order of the nodes. In another
+    # coordinate system, the distances would be wrong. A header without one of
+    # the two keys has the value that scgraph writes.
+    for key, value in (("crs", CRS), ("node_order", NODE_ORDER)):
+        require(
+            metadata.get(key, value) == value,
+            f"{key} must be {value!r}, not {metadata.get(key)!r}",
+        )
     # Each metric has its info in the header and one array of weights
     metrics = metadata["metrics"]
     require(

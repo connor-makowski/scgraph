@@ -146,7 +146,7 @@ A geograph lists its node modes, classes, metrics, nodes and edges:
 ```py
 europe.node_modes  # [{'name': 'road', ...}, ...]: the node modes
 europe.classes  # [{'name': 'motorway', 'edge_mode': 'road'}, ...]: each class with its edge mode
-europe.metrics  # [{'name': 'length', 'unit': 'km'}, {'name': 'hours', 'unit': 'h', ...}, ...]
+europe.metrics  # [{'name': 'length', 'unit': 'km', ...}, {'name': 'hours', 'unit': 'h', ...}, ...]
 
 # The airports around Paris: bbox is (south, west, north, east) in degrees
 europe.get_nodes(node_mode="airport", bbox=(48, 1, 50, 4))
