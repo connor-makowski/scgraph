@@ -24,7 +24,7 @@ from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 
-PIPELINE_VERSION = 4
+PIPELINE_VERSION = 1
 
 SOURCES = {
     "sea_lanes": {

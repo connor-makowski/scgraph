@@ -487,7 +487,7 @@ All multi-byte integers are **little-endian**:
 | next | 0 to 63 | Zeros, up to a multiple of 64 bytes |
 | array section | variable | The arrays, each starting at a multiple of 64 bytes |
 
-In the example, the header of 1,590 bytes ends at byte 1,637, so the arrays start at byte 1,664. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
+In the example, the header of 1,714 bytes ends at byte 1,761, so the arrays start at byte 1,792. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
 
 ### Header JSON Schema
 
@@ -504,7 +504,8 @@ The header of the example, one line for each row:
     "node_points": {"dtype": "int32", "offset": 448, "shape": [6, 2]},
     "external_node_ids": {"dtype": "int32", "offset": 512, "shape": [6]},
     "edge_first_shape_point_ids": {"dtype": "int32", "offset": 576, "shape": [11]},
-    "shape_points": {"dtype": "int32", "offset": 640, "shape": [4, 2]}
+    "edge_has_reversed_shape": {"dtype": "uint8", "offset": 640, "shape": [10]},
+    "shape_points": {"dtype": "int32", "offset": 704, "shape": [2, 2]}
   },
   "format_version": 1,
   "metadata": {
@@ -517,8 +518,8 @@ The header of the example, one line for each row:
     ],
     "crs": "EPSG:4326",
     "metrics": [
-      {"name": "length", "unit": "km"},
-      {"description": "Travel time.", "name": "hours", "off_graph_weight_per_km": 0.03333333333333333, "unit": "h"}
+      {"name": "length", "units": "km"},
+      {"description": "Travel time.", "name": "hours", "off_graph_weight_per_km": 0.03333333333333333, "units": "h"}
     ],
     "node_modes": [
       {"name": "road", "node_count": 3, "source": "osm"},
@@ -544,9 +545,9 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | :--- | :--- | :--- |
 | `format_version` | `int` | `1` (see *Compatibility Between Versions*). |
 | `arrays` | `dict` | Each array's `dtype`, `shape`, and byte `offset` in the array section. |
-| `metadata.crs` | `str` | `EPSG:4326`. |
+| `metadata.crs` | `str` | `EPSG:4326`. `read` and `write` refuse another value, and a header without this key. |
 | `metadata.metrics` | `list[dict]` | One row for each metric, `length` first. |
-| `metadata.node_order` | `str` | `"hilbert"`. |
+| `metadata.node_order` | `str` | `"hilbert"`. `read` and `write` refuse another value, and a header without this key. |
 | `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. A row has `"has_turn_restrictions": true` when the node mode follows turn restrictions: a junction may then have several nodes (`scgraph/turn_restrictions.py`). |
 | `metadata.classes` | `list[dict]` | Only with `edge_class_ids`: one row for each class, its `name` and `edge_mode`. 255 rows at most. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: `name`, `region`, and `PIPELINE_VERSION` as `version`. |
@@ -555,7 +556,7 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | `metadata.description` | `str` | Optional. A text about the network. |
 | `metadata.derivation` | `dict` | Only in a file of `scgraph.pipelines.derived_networks`: `parent_content_sha256`, `node_modes`, `bbox`, `min_component_nodes`. Such a file has no `description`. |
 
-**A row of `metrics`.** It has the `name` of the metric (small letters, digits and `_`, starting with a letter), and may have a free-text `unit` and `description`. The row of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`, zero or more: the weight of 1 km of an off-graph leg.
+**A row of `metrics`.** It has the `name` of the metric (small letters, digits and `_`, starting with a letter), and may have a free-text `units` and `description`. The row of `length` has its `units`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`, zero or more: the weight of 1 km of an off-graph leg.
 
 **The node order.** The nodes are sorted by node mode, in the order of the rows of `metadata.node_modes`: this sort is a rule of the format. The nodes of the first row have the ids `0` to `node_count - 1`, and the next rows follow. `"hilbert"` orders the nodes of one node mode along a 2D Hilbert curve.
 
@@ -566,7 +567,9 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 * **point**: one `[latitude, longitude]` pair, its two coordinates.
 * **node**: a vertex of the graph, from `0` to $N - 1$, at a point.
 * **edge id**: the position of an edge in `edge_destination_node_ids`, from `0` to $M - 1$.
-* **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`).
+* **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`). The shape of an edge is the list of its shape points.
+* **reverse edge**: the reverse edge of an edge $u \to v$ is the edge $v \to u$.
+* **edge with a reversed shape**: an edge $v \to u$ with at least one shape point, whose shape is the shape of its reverse edge $u \to v$ in the reverse order. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for an edge with a reversed shape. A reader reads the points of its reverse edge backwards.
 
 The edges are stored by origin node, in Compressed Sparse Row (CSR) arrays. The edges of a node are consecutive, in the order that a search visits them.
 
@@ -576,12 +579,13 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | :--- | :--- | :--- | :--- | :--- |
 | `node_first_edge_ids` | `int32` | $N + 1$ | node, and one more | The id of its first edge: the edges of node $u$ are `node_first_edge_ids[u]` to `node_first_edge_ids[u+1] - 1`. |
 | `edge_destination_node_ids` | `int32` | $M$ | edge | Its end node. |
-| `metric_length` | `float64` | $M$ | edge | Its length, in the `unit` of `length`. |
+| `metric_length` | `float64` | $M$ | edge | Its length, in the `units` of `length`. |
 | `metric_<name>` *(opt)* | `float64` | $M$ | edge | Its weight in the metric `<name>`, infinity if closed, never below zero or NaN. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | edge | Its class id: a row of `metadata.classes`, or 255 for no class. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
 | `external_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id outside this network, such as a 64-bit OpenStreetMap id. |
 | `edge_first_shape_point_ids` *(opt)* | `int32` | $M + 1$ | edge, and one more | The id of its first shape point: edge $e$ has points `edge_first_shape_point_ids[e]` to `edge_first_shape_point_ids[e+1] - 1`. |
+| `edge_has_reversed_shape` *(opt)* | `uint8` | $M$ | edge | 1 for an edge with a reversed shape, 0 for any other edge. |
 | `shape_points` *(opt)* | as `node_points` | $K \times 2$ | shape point | Its latitude, then its longitude. |
 
 * **Weights**: `read` refuses weights of another dtype than `float64`.
@@ -599,8 +603,9 @@ metric_hours (10): [0.15, 0.67, 0.15, 0.02, 0.67, 3.23, 0.58, 3.23, 0.02, 0.58]
 edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 node_points (12): [494190000, 2330000, 494944000, 1079000, 494431000, 10993000, 502000000, -10000000, 495500000, -1000000, 494833000, 1167000]
 external_node_ids (6): [103, 102, 101, 1, 0, 35840]
-edge_first_shape_point_ids (11): [0, 0, 2, 2, 2, 4, 4, 4, 4, 4, 4]
-shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 495300000, 4500000]
+edge_first_shape_point_ids (11): [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+edge_has_reversed_shape (10): [0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+shape_points (4): [495300000, 4500000, 495200000, 8000000]
 ```
 
 ### Lookup Examples
@@ -609,7 +614,9 @@ shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 4
 
 **A class.** The edges of node 5 are `node_first_edge_ids[5]` = 8 to `node_first_edge_ids[6] - 1` = 9. Edge 8 goes to `edge_destination_node_ids[8]` = 1, Le Havre. Its class id `edge_class_ids[8]` = 2 is the row `road_connector`, of edge mode `road`. Edge 9 goes to node 4, with class id 3 (`sea_connector`, edge mode `sea`), 17.3 km and 0.58 hour.
 
-**A shape.** Edge 1, the motorway from Le Havre to Rouen, has the shape points `edge_first_shape_point_ids[1]` = 0 to `edge_first_shape_point_ids[2] - 1` = 1: (49.53, 0.45), then (49.52, 0.80). Edge 4, from Rouen, has them in reverse order. The other edges have no shape point.
+**A shape.** Edge 1, the motorway from Le Havre to Rouen, has the shape points `edge_first_shape_point_ids[1]` = 0 to `edge_first_shape_point_ids[2] - 1` = 1: (49.53, 0.45), then (49.52, 0.80). The other edges have no shape point of their own.
+
+**The shape of an edge with a reversed shape.** Edge 4 goes from Rouen, node 2, to Le Havre, node 1. Its value in `edge_has_reversed_shape` is 1, so it has a reversed shape. A reader visits the edges of node 1, edges 1 to 3, and stops at the first edge to node 2: edge 1, its reverse edge. Edge 4 reads the points of edge 1 backwards: (49.52, 0.80), then (49.53, 0.45). `scgraph/cpp/src/reversed_shapes.hpp` explains how `write` finds the edges with a reversed shape.
 
 ### How scgraph Reads a File
 
@@ -629,14 +636,14 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 2. `format_version` is `1`; otherwise the message gives the version of the file.
 3. Each name given in `node_modes` is in `metadata.node_modes`.
 4. Each known array, `metric_<name>` included, has a dtype of the table, and lies inside the file from a multiple of 64 bytes.
-5. Every array not marked *(opt)* is there, both shape arrays or neither, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
-6. The first metric is `length`, with a `unit`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
+5. Every array not marked *(opt)* is there, the three shape arrays or none, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
+6. The first metric is `length`, with its `units`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
 7. The point arrays have one dtype.
 8. `metadata.node_modes` has 256 rows at most, whose `node_count` values sum to $N$.
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.
 10. A read that copies the whole file checks the values: the node_first_edge_ids do not decrease, each destination id is a node, and each class id is a row of `classes`, or 255.
 
-A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads.
+A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape checks each edge with a reversed shape: it must have no shape point of its own, and its reverse edge must have some. Otherwise the read raises a `ValueError`.
 
 `read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
@@ -647,6 +654,8 @@ A mapped read does not check the values; the C++ graph checks node_first_edge_id
 **The edges.** The file stores the edges by origin node, for the search, so it cannot also group them by class. The class of each edge is one byte in `edge_class_ids`.
 
 ### Compatibility Between Versions
+
+`format_version` is `1` for the format of release 4.0, the first release that writes a network file. The rules of this section hold from that release on.
 
 A later version can add an optional array or a metadata key and keep `format_version` at `1`. An earlier version still reads such a file:
 

@@ -331,7 +331,7 @@ def test_reading_a_node_mode_a_class_a_node_or_an_edge_that_the_network_does_not
 def test_the_other_edges_keep_their_classes_when_the_graph_object_removes_an_edge(
     network,
 ):
-    # The motorway is the second edge of each town: the next edges change ids.
+    # The edges after the motorway change ids.
     network.graph_object.remove_edge(WEST_TOWN, EAST_TOWN, symmetric=True)
 
     assert _get_class_of_each_edge(network) == {
@@ -733,7 +733,7 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
     network.create_metric(
         "minutes",
         weight_per_km=3.0,
-        unit="min",
+        units="min",
         description="Three minutes per km.",
     )
     network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
@@ -750,10 +750,10 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
         "create_metric(edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25)"
     )
     assert network.metrics == [
-        {"name": "length", "unit": "km"},
+        {"name": "length", "units": "km"},
         {
             "name": "minutes",
-            "unit": "min",
+            "units": "min",
             "description": "Three minutes per km.",
             "off_graph_weight_per_km": 3.0,
         },
@@ -1026,7 +1026,7 @@ def test_an_edit_removes_the_metrics_and_warns_with_their_names(
         edit(network_read_with_minutes, ferry)
 
     assert network_read_with_minutes.metrics == [
-        {"name": "length", "unit": "km"}
+        {"name": "length", "units": "km"}
     ]
 
 
@@ -1038,7 +1038,7 @@ def test_an_edit_made_on_the_graph_object_removes_the_metrics_at_their_next_read
     # The geograph detects the edit when it reads its metrics.
     with pytest.warns(UserWarning, match="'minutes'.*create_metric"):
         metrics = network_with_minutes.metrics
-    assert metrics == [{"name": "length", "unit": "km"}]
+    assert metrics == [{"name": "length", "units": "km"}]
 
 
 def test_create_metric_refuses_an_edge_written_into_the_graph_list():

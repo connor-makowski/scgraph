@@ -227,6 +227,8 @@ class GeoGraph(
         self._metrics = {}
         # The record of `length`, as `_read_metric("length")` last built it
         self._length_metric = None
+        # The description of the lengths in the network file of the geograph
+        self._length_description = None
         # The arrays of the edges of `graph_object`
         # (`Graph._get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
         # `edge_destination_node_ids` and the lengths. The id of an edge is its position in `edge_destination_node_ids`.

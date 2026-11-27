@@ -19,6 +19,7 @@ from operator import eq, index
 from types import MappingProxyType
 
 from scgraph.coordinates import get_units_per_degree
+from scgraph.helpers.reversed_shapes import find_shape_of_reverse_edge
 
 # The C++ kernels take typed buffers only, so each call chooses its kernel.
 try:
@@ -33,7 +34,8 @@ class EdgeShapes(Sequence):
     The `intermediate_nodes` of a GeoGraph read from a network file: for each origin, a
     read-only mapping {destination: shape}, read from the file's arrays when asked for
     instead of one Python list per point. A shape is a new list of [latitude, longitude]
-    each time.
+    each time. An edge with a reversed shape reads the shape of its
+    reverse edge backwards (`scgraph/cpp/src/reversed_shapes.hpp`).
     """
 
     def __init__(self, arrays):
@@ -45,6 +47,10 @@ class EdgeShapes(Sequence):
             arrays["edge_first_shape_point_ids"],
             arrays["shape_points"],
         )
+        # `load_from_osm` builds shapes without flags: no edge has a reversed shape
+        self._has_reversed_shape = arrays.get(
+            "edge_has_reversed_shape"
+        ) or bytes(len(self._edge_destination_node_ids))
         self._scale = get_units_per_degree(self._points)
 
     def __len__(self):
@@ -58,33 +64,44 @@ class EdgeShapes(Sequence):
             origin += len(self)
         if not 0 <= origin < len(self):
             raise IndexError("node index out of range")
-        edge_destination_node_ids, starts = (
+        edge_destination_node_ids, starts, has_reversed_shape = (
             self._edge_destination_node_ids,
             self._starts,
+            self._has_reversed_shape,
         )
         return MappingProxyType(
             {
-                edge_destination_node_ids[edge]: self._read_shape(
-                    starts[edge], starts[edge + 1]
-                )
+                edge_destination_node_ids[edge]: self._read_shape(origin, edge)
                 for edge in range(
                     self._node_first_edge_ids[origin],
                     self._node_first_edge_ids[origin + 1],
                 )
-                if starts[edge + 1] != starts[edge]
+                if starts[edge + 1] != starts[edge] or has_reversed_shape[edge]
             }
         )
 
-    def _read_shape(self, first, last):
+    def _read_shape(self, origin_id, edge_id):
+        first, last = self._starts[edge_id], self._starts[edge_id + 1]
+        if self._has_reversed_shape[edge_id]:
+            first, last = find_shape_of_reverse_edge(
+                self._node_first_edge_ids,
+                self._edge_destination_node_ids,
+                self._starts,
+                origin_id,
+                edge_id,
+            )
         # A mapped file's `edge_first_shape_point_ids` are checked here, where they are
         # read
         if not 0 <= first <= last <= len(self._points) // 2:
             raise ValueError("invalid edge_first_shape_point_ids")
         flat, scale = self._points[2 * first : 2 * last].tolist(), self._scale
-        return [
+        shape = [
             [flat[i] / scale, flat[i + 1] / scale]
             for i in range(0, len(flat), 2)
         ]
+        if self._has_reversed_shape[edge_id]:
+            shape.reverse()
+        return shape
 
     def coordinate_path(
         self, path: Sequence[int], coordinates: list[list[float]]
@@ -96,6 +113,7 @@ class EdgeShapes(Sequence):
                 self._node_first_edge_ids,
                 self._edge_destination_node_ids,
                 self._starts,
+                self._has_reversed_shape,
                 self._points,
                 path if type(path) is list else list(path),
                 coordinates,
@@ -105,7 +123,7 @@ class EdgeShapes(Sequence):
             self._edge_destination_node_ids,
             len(self),
         )
-        starts, result = self._starts, [coordinates[0]]
+        result = [coordinates[0]]
         for i in range(len(path) - 1):
             origin, destination = path[i], path[i + 1]
             # Nodes added after loading (add_coord_node) have no shapes
@@ -114,9 +132,7 @@ class EdgeShapes(Sequence):
                     node_first_edge_ids[origin], node_first_edge_ids[origin + 1]
                 ):
                     if edge_destination_node_ids[edge] == destination:
-                        result += self._read_shape(
-                            starts[edge], starts[edge + 1]
-                        )
+                        result += self._read_shape(origin, edge)
                         break
             result.append(coordinates[i + 1])
         return result

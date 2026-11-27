@@ -474,6 +474,74 @@ def test_a_route_on_a_loaded_network_passes_the_points_of_the_shapes(
     assert route == _route_0_to_1(_small())
 
 
+# A road goes both ways between node 0 and node 1, and bends at two points. The
+# edge 1 -> 0 passes the bend points in the reverse order. A file stores the
+# points of the edge 0 -> 1 only, because the edge 1 -> 0 has the higher
+# origin id. The edge 1 -> 0 reads them backwards.
+TWO_WAY_ROAD = [{1: 1.2}, {0: 1.2}]
+TWO_WAY_ROAD_NODES = [[0.0, 0.0], [0.0, 0.01]]
+BEND = [[0.002, 0.003], [0.002, 0.007]]
+TWO_WAY_ROAD_SHAPES = [{1: BEND}, {0: BEND[::-1]}]
+
+
+def _two_way_road(shapes):
+    return GeoGraph(
+        graph=[dict(row) for row in TWO_WAY_ROAD],
+        nodes=[list(node) for node in TWO_WAY_ROAD_NODES],
+        intermediate_nodes=shapes,
+    )
+
+
+def _route_1_to_0(geograph):
+    # Through the edge 1 -> 0, which reads the points of its reverse edge
+    return geograph.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0.01},
+        destination_node={"latitude": 0, "longitude": 0},
+    )["coordinate_path"]
+
+
+@both_coordinate_dtypes
+def test_a_two_way_road_is_read_with_its_shape_both_ways_and_stored_once(
+    tmp_path, coordinate_dtype
+):
+    path = str(tmp_path / "road.scgraph")
+    _two_way_road(TWO_WAY_ROAD_SHAPES).save_as_scgraph(
+        path, coordinate_dtype=coordinate_dtype
+    )
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert loaded.intermediate_nodes == TWO_WAY_ROAD_SHAPES
+    # A latitude and a longitude for each of the 2 bend points
+    assert len(network_file.read(path)[0]["shape_points"]) == 4
+
+
+def test_a_route_over_a_two_way_road_passes_the_bend_points_in_its_direction(
+    tmp_path,
+):
+    path = str(tmp_path / "road.scgraph")
+    _two_way_road(TWO_WAY_ROAD_SHAPES).save_as_scgraph(path)
+
+    route = _route_1_to_0(GeoGraph.load_from_scgraph(path))
+
+    assert route == _route_1_to_0(_two_way_road(TWO_WAY_ROAD_SHAPES))
+
+
+# Two roads join node 0 and node 1, one road in each direction. The road from
+# node 1 to node 0 passes south of the bend, so the two shapes differ.
+def test_two_roads_of_different_shapes_between_two_nodes_keep_both_shapes(
+    tmp_path,
+):
+    south_bend = [[-0.002, 0.007], [-0.002, 0.003]]
+    shapes = [{1: BEND}, {0: south_bend}]
+    path = str(tmp_path / "roads.scgraph")
+    _two_way_road(shapes).save_as_scgraph(path)
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert loaded.intermediate_nodes == shapes
+
+
 @pytest.mark.parametrize(
     "coordinates, message",
     [
@@ -560,7 +628,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     info = GeoGraph.get_scgraph_info(path)
 
     assert (info["nodes"], info["edges"]) == (4, 3)
-    assert info["metrics"] == [{"name": "length", "unit": "mi"}]
+    assert info["metrics"] == [{"name": "length", "units": "mi"}]
     assert info["coordinate_dtype"] == "int32"
     assert info["has_intermediate_nodes"] is True
     # The ids of the small network are the positions: the file stores none.
@@ -641,8 +709,10 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
 # edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]].
 # The header names the metrics of the file: the length first. Another metric
 # gives its weight for 1 km between a query point and its node: here, no toll.
-LENGTH_IN_KM = {"name": "length", "unit": "km"}
-TOLL = {"name": "toll", "unit": "EUR", "off_graph_weight_per_km": 0.0}
+# Every header names the coordinate system and the order of the nodes.
+CRS_AND_NODE_ORDER = {"crs": "EPSG:4326", "node_order": "hilbert"}
+LENGTH_IN_KM = {"name": "length", "units": "km"}
+TOLL = {"name": "toll", "units": "EUR", "off_graph_weight_per_km": 0.0}
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
@@ -653,7 +723,7 @@ ROAD_AND_PORT_IN_A_FILE = [
     {"name": "road", "source": "roads", "node_count": 2},
     {"name": "port", "source": "ports", "node_count": 1},
 ]
-ROAD_AND_PORT_HEADER = {
+ROAD_AND_PORT_HEADER = CRS_AND_NODE_ORDER | {
     "metrics": [LENGTH_IN_KM],
     "node_modes": ROAD_AND_PORT_IN_A_FILE,
 }
@@ -684,6 +754,62 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     assert list(loaded.external_node_ids) == [2**40, 7, -1]
     assert list(loaded.node_mode_ids) == [0, 0, 1]
     assert loaded.node_modes == ROAD_AND_PORT
+
+
+# A pipeline says in the header what its lengths measure.
+def test_a_load_then_a_save_keeps_the_description_of_the_lengths(tmp_path):
+    length = LENGTH_IN_KM | {"description": "Length along the road."}
+    path = str(tmp_path / "arrays.scgraph")
+    saved = str(tmp_path / "saved.scgraph")
+    network_file.write(
+        path,
+        _two_road_nodes_and_a_port(),
+        CRS_AND_NODE_ORDER | {"metrics": [length]},
+    )
+
+    GeoGraph.load_from_scgraph(path).save_as_scgraph(saved)
+
+    assert GeoGraph.get_scgraph_info(saved)["metrics"] == [length]
+
+
+# scgraph writes one coordinate system and one order of the nodes. A file of
+# another tool may name another one: its distances would be wrong.
+@pytest.mark.parametrize(
+    "written, other",
+    [(b"EPSG:4326", b"EPSG:3857"), (b"hilbert", b"shuffle")],
+)
+def test_a_file_with_another_crs_or_node_order_is_refused_at_load(
+    tmp_path, written, other
+):
+    path = tmp_path / "arrays.scgraph"
+    network_file.write(
+        str(path), _two_road_nodes_and_a_port(), ROAD_AND_PORT_HEADER
+    )
+    path.write_bytes(path.read_bytes().replace(written, other))
+
+    with pytest.raises(ValueError, match=f"not '{other.decode()}'"):
+        GeoGraph.load_from_scgraph(str(path))
+
+
+# A file holds the three arrays of the shapes, or none of them. Here the file
+# gives another name to its array of flags, so a reader does not find it.
+def test_a_file_with_shapes_and_without_their_flags_is_refused_at_load(
+    tmp_path,
+):
+    path = tmp_path / "arrays.scgraph"
+    arrays = _two_road_nodes_and_a_port() | {
+        "edge_first_shape_point_ids": array("i", [0, 0, 0]),
+        "shape_points": array("d"),
+    }
+    network_file.write(str(path), arrays, ROAD_AND_PORT_HEADER)
+    path.write_bytes(
+        path.read_bytes().replace(
+            b"edge_has_reversed_shape", b"edge_has_reversed_shapX"
+        )
+    )
+
+    with pytest.raises(ValueError, match="missing shape arrays"):
+        GeoGraph.load_from_scgraph(str(path))
 
 
 # A search needs weights of zero or more. `network_file.write` does not check
@@ -726,6 +852,15 @@ def test_a_file_with_a_weight_below_zero_is_refused_at_load(tmp_path):
             {"edge_class_ids": array("B", [0])},
             "one edge class per edge",
             id="fewer edge classes than edges",
+        ),
+        pytest.param(
+            {
+                "edge_first_shape_point_ids": array("i", [0, 0, 0]),
+                "edge_has_reversed_shape": array("B", [0]),
+                "shape_points": array("d"),
+            },
+            "one edge_has_reversed_shape value per edge",
+            id="fewer flags of a reversed shape than edges",
         ),
     ],
 )
@@ -777,7 +912,7 @@ def test_writing_class_ids_or_classes_alone_is_refused(
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
 # header.
-ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
+ROAD_AND_PORT_HEADER_WITH_A_TOLL = CRS_AND_NODE_ORDER | {
     "metrics": [LENGTH_IN_KM, TOLL],
     "node_modes": ROAD_AND_PORT_IN_A_FILE,
     "classes": [MOTORWAY],
@@ -794,10 +929,15 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
             id="the toll before the length",
         ),
         pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"crs": None},
+            "crs must be 'EPSG:4326'",
+            id="a header without its coordinate system",
+        ),
+        pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
             | {"metrics": [{"name": "length"}, TOLL]},
-            "length, with its unit",
-            id="a length without its unit",
+            "length, with its units",
+            id="a length without its units",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"metrics": [LENGTH_IN_KM]},
@@ -904,7 +1044,7 @@ def _replace_array(data, array_name, values):
         ),
         pytest.param(
             {
-                # The second edge now goes to the port: a load of the road
+                # The edge 1 now goes to the port: a load of the road
                 # reads `edge_first_shape_point_ids` for the first edge only.
                 "edge_destination_node_ids": array("i", [1, 2]),
                 "edge_first_shape_point_ids": array("i", [0, 1, 1]),
@@ -1011,7 +1151,7 @@ def _write_road_port_and_sea(
         {"name": "port", "node_count": 1},
         {"name": "sea", "node_count": 2},
     ]
-    metadata = {
+    metadata = CRS_AND_NODE_ORDER | {
         "metrics": [LENGTH_IN_KM, TOLL],
         "node_modes": names,
         "classes": EDGE_CLASSES,
@@ -1218,7 +1358,9 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     }
 
     with pytest.raises(TypeError):
-        network_file.write(str(path), arrays, {"metrics": [LENGTH_IN_KM]})
+        network_file.write(
+            str(path), arrays, CRS_AND_NODE_ORDER | {"metrics": [LENGTH_IN_KM]}
+        )
 
     assert path.read_bytes() == previous_bytes
     assert [file.name for file in tmp_path.iterdir()] == ["small.scgraph"]
@@ -1600,6 +1742,28 @@ def test_reading_a_shape_refuses_edge_first_shape_point_ids_that_go_past_the_sha
             GeoGraph.load_from_scgraph(str(file_to_damage)).intermediate_nodes[
                 0
             ]
+        )
+
+
+# Another tool may write a file that flags an edge with shape points of its
+# own. A route over that edge must refuse the file, and not read the points of
+# the reverse edge in their place.
+def test_a_route_refuses_a_flagged_edge_with_shape_points_of_its_own(tmp_path):
+    path = str(tmp_path / "arrays.scgraph")
+    # The edges 0 -> 1 and 1 -> 0 have one shape point each, and the edge
+    # 1 -> 0 is flagged as an edge with a reversed shape.
+    arrays = _two_road_nodes_and_a_port() | {
+        "edge_first_shape_point_ids": array("i", [0, 1, 2]),
+        "edge_has_reversed_shape": array("B", [0, 1]),
+        "shape_points": array("d", [0.1, 0.5, -0.1, 0.5]),
+    }
+    network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
+    road = GeoGraph.load_from_scgraph(path)
+
+    with pytest.raises(ValueError, match="invalid edge_has_reversed_shape"):
+        road.get_shortest_path(
+            origin_node={"latitude": 0, "longitude": 1},
+            destination_node={"latitude": 0, "longitude": 0},
         )
 
 
