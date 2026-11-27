@@ -266,6 +266,8 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
+Two notebooks show complete loads: [The Motorways of a Country](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/motorways_of_a_country.ipynb) loads every motorway of Brazil, and [The Streets of a City](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/streets_of_a_city.ipynb) loads the streets of Boston.
+
 Each edge has the class that `select` gives to its way. The default `select` gives the `highway` value of the way. A `select` that returns directions alone, as the railway example above, gives a geograph without classes.
 
 A **weight per km** is the weight of 1 km of an edge in a metric. A metric can give a weight per km to each class of road, as `minutes` above.
