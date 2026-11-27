@@ -339,7 +339,6 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
         }
     }
 
-    inverse_graph_computed = false;
     reset_cache();
     return new_node_id;
 }
@@ -381,7 +380,6 @@ void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bo
         }
     }
 
-    inverse_graph_computed = false;
     reset_cache();
 }
 
@@ -426,7 +424,6 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
     }
 
     graph.pop_back();
-    inverse_graph_computed = false;
     reset_cache();
 
     return removed_dict;
@@ -435,6 +432,12 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
 std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id, bool symmetric) {
     check_node_id(origin_id, size(), "Origin node");
     check_node_id(destination_id, size(), "Destination node");
+    // A removal of an edge that does not exist leaves the graph unchanged: it
+    // does not count as an edit.
+    if (!edits.has_edge(packed_graph, origin_id, destination_id) &&
+        !(symmetric && edits.has_edge(packed_graph, destination_id, origin_id))) {
+        return std::nullopt;
+    }
     auto graph = rows_to_edit();
 
     std::optional<double> result;
@@ -459,7 +462,6 @@ std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id,
         );
     }
 
-    inverse_graph_computed = false;
     reset_cache();
     return result;
 }

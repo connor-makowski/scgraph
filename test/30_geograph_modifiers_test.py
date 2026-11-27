@@ -270,3 +270,15 @@ def test_remove_node_refuses_a_graph_without_nodes(graph_class):
 
     with pytest.raises(RuntimeError):
         graph.remove_node()
+
+
+# A removal of an edge that does not exist leaves the graph unchanged, so the
+# graph keeps what it computed from its edges, such as its reduced graph.
+def test_remove_edge_of_a_missing_edge_keeps_the_reduced_graph(graph_class):
+    # A line of three nodes: node 0 has no edge to node 2.
+    graph = graph_class([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+    graph.reduce()
+
+    graph.remove_edge(0, 2, symmetric=True)
+
+    assert graph.reduced_graph is not None

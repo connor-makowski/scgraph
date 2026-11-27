@@ -534,6 +534,13 @@ class GraphModifiers:
         graph was edited. An assignment into `graph` does not change it."""
         return getattr(self, "_edit_counter", 0)
 
+    def _record_edit(self) -> None:
+        """Count one more edit, and forget the inverse graph and the cached
+        trees. Each edit method calls it after it changed the graph."""
+        self._inverse_graph = None
+        self._edit_counter = self._edit_count + 1
+        self.reset_cache()
+
     def add_node(
         self,
         node_dict: dict[int, int | float] | None = None,
@@ -566,9 +573,7 @@ class GraphModifiers:
         if symmetric:
             for dest_id, distance in node_dict.items():
                 self._graph[dest_id][new_node_id] = distance
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
         return new_node_id
 
     def add_edge(
@@ -625,9 +630,7 @@ class GraphModifiers:
         self._graph[origin_id][destination_id] = distance
         if symmetric:
             self._graph[destination_id][origin_id] = distance
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
 
     def remove_node(
         self, symmetric_node: bool = False
@@ -665,9 +668,7 @@ class GraphModifiers:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
         removed_node = self._graph.pop()
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
         return removed_node
 
     def remove_edge(
@@ -701,10 +702,13 @@ class GraphModifiers:
         """
         check_node_id(origin_id, len(self._graph), "Origin node")
         check_node_id(destination_id, len(self._graph), "Destination node")
-        if symmetric:
+        reverse_weight = (
             self._graph[destination_id].pop(origin_id, None)
+            if symmetric
+            else None
+        )
         res = self._graph[origin_id].pop(destination_id, None)
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        # A removal of an edge that does not exist leaves the graph unchanged.
+        if res is not None or reverse_weight is not None:
+            self._record_edit()
         return res
