@@ -295,6 +295,24 @@ def test_contraction_order_with_a_heuristic_that_calls_default_heuristic():
     _assert_ch_matches_dijkstra(PythonGraph, data, g)
 
 
+# --- Two paths of the same length ---
+# The ring 0 - 1 - 2 - 3 - 0 has two paths of length 2 from node 0 to node 2: through
+# node 1 and through node 3. The query keeps the meeting node of smallest id, so it
+# returns the path through node 1. Without this rule, the path depends on the order
+# in which each build reads the edges of a node, and the builds can differ.
+_RING = [{1: 1, 3: 1}, {0: 1, 2: 1}, {1: 1, 3: 1}, {2: 1, 0: 1}]
+
+
+def test_ch_meets_at_the_node_of_smallest_id(ch_class):
+    ch = ch_class([dict(d) for d in _RING])
+    assert ch.search(0, 2) == {"path": [0, 1, 2], "length": 2}
+
+
+def test_tnr_meets_at_the_node_of_smallest_id(tnr_class):
+    tnr = tnr_class([dict(d) for d in _RING], num_transit_nodes=1)
+    assert tnr.search(0, 2) == {"path": [0, 1, 2], "length": 2}
+
+
 # Node 3 is added next to node 0, and node 4 next to node 3. The path from node 2
 # to node 4 goes through the two added nodes.
 def test_tnr_path_to_a_node_added_next_to_an_added_node(tnr_class):

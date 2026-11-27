@@ -327,7 +327,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
 
     for (const auto& [oid, odist] : origin_entries) {
         for (const auto& [did, ddist] : dest_entries) {
-            if (oid == did && odist + ddist < best_dist) {
+            if (oid == did && is_better_meeting(odist + ddist, oid, best_dist, meeting_node)) {
                 best_dist = odist + ddist;
                 meeting_node = oid;
             }
@@ -357,7 +357,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
                             query_f_distances[neighbor_id] = new_dist;
                             query_f_parents[neighbor_id] = current_id;
                             forward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_b_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
                                 best_dist = new_dist + query_b_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -380,7 +380,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
                             query_f_distances[neighbor_id] = new_dist;
                             query_f_parents[neighbor_id] = current_id;
                             forward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_b_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
                                 best_dist = new_dist + query_b_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -414,7 +414,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
                             query_b_distances[neighbor_id] = new_dist;
                             query_b_parents[neighbor_id] = current_id;
                             backward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_f_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
                                 best_dist = new_dist + query_f_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -437,7 +437,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
                             query_b_distances[neighbor_id] = new_dist;
                             query_b_parents[neighbor_id] = current_id;
                             backward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_f_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
                                 best_dist = new_dist + query_f_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }

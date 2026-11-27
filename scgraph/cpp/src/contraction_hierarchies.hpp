@@ -9,6 +9,13 @@
 #include <queue>
 #include "graph_utils.hpp"
 
+// A query keeps the candidate meeting node of smallest id among those of the best
+// length. The order of the edges of a node then sets no choice, so the pure-Python
+// query, which reads the edges in another order, returns the same path.
+inline bool is_better_meeting(double length, int node_id, double best_dist, int meeting_node) {
+    return length < best_dist || (length == best_dist && node_id < meeting_node);
+}
+
 class CHGraph {
 protected:
     int nodes_count;

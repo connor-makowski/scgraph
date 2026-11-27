@@ -49,10 +49,12 @@ Query. `search` runs two Dijkstra searches that only go up in rank. The forward 
 starts at the origin and reads `forward_graph`. The backward search starts at the
 destination and reads `backward_graph`. They take one step each in turn. When one side
 lowers the distance of a node that the other side has reached, the sum of the two
-distances is a candidate length. A side stops when the distance it takes from its queue
-is above the best length. `_unpack_shortcut` then replaces each shortcut from u to w
-by the edges from u to v and from v to w, with v = `shortcuts[(u, w)]`, and repeats this
-on the two edges.
+distances is a candidate length. A candidate equal to the best length replaces it only
+if its node has a smaller id than the meeting node. So the path does not depend on the
+order of the edges of a node, and both builds return the same path. A side stops when
+the distance it takes from its queue is above the best length. `_unpack_shortcut` then
+replaces each shortcut from u to w by the edges from u to v and from v to w, with
+v = `shortcuts[(u, w)]`, and repeats this on the two edges.
 
 Example: every node starts with the key 4, and node 0 comes first by its id. Its value
 is 2 shortcuts - 2 edges in - 2 edges out = -2. This value is not above the next key, 4,
@@ -634,7 +636,9 @@ class CHGraphAlgorithms:
         if overlap:
             for node in overlap:
                 dist = origin_dict[node] + destination_dict[node]
-                if dist < best_dist:
+                if dist < best_dist or (
+                    dist == best_dist and node < meeting_node
+                ):
                     best_dist = dist
                     meeting_node = node
 
@@ -678,17 +682,17 @@ class CHGraphAlgorithms:
                                 heappush(
                                     forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                if (
-                                    neighbor_id in backward_distances
-                                    and new_dist
-                                    + backward_distances[neighbor_id]
-                                    < best_dist
-                                ):
-                                    best_dist = (
+                                if neighbor_id in backward_distances:
+                                    total = (
                                         new_dist
                                         + backward_distances[neighbor_id]
                                     )
-                                    meeting_node = neighbor_id
+                                    if total < best_dist or (
+                                        total == best_dist
+                                        and neighbor_id < meeting_node
+                                    ):
+                                        best_dist = total
+                                        meeting_node = neighbor_id
                     else:
                         for neighbor_id, weight in self.original_graph[
                             current_id
@@ -702,17 +706,17 @@ class CHGraphAlgorithms:
                                 heappush(
                                     forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                if (
-                                    neighbor_id in backward_distances
-                                    and new_dist
-                                    + backward_distances[neighbor_id]
-                                    < best_dist
-                                ):
-                                    best_dist = (
+                                if neighbor_id in backward_distances:
+                                    total = (
                                         new_dist
                                         + backward_distances[neighbor_id]
                                     )
-                                    meeting_node = neighbor_id
+                                    if total < best_dist or (
+                                        total == best_dist
+                                        and neighbor_id < meeting_node
+                                    ):
+                                        best_dist = total
+                                        meeting_node = neighbor_id
 
             # Backward step
             if backward_open_leaves:
@@ -736,17 +740,17 @@ class CHGraphAlgorithms:
                                     backward_open_leaves,
                                     (new_dist, neighbor_id),
                                 )
-                                if (
-                                    neighbor_id in forward_distances
-                                    and new_dist
-                                    + forward_distances[neighbor_id]
-                                    < best_dist
-                                ):
-                                    best_dist = (
+                                if neighbor_id in forward_distances:
+                                    total = (
                                         new_dist
                                         + forward_distances[neighbor_id]
                                     )
-                                    meeting_node = neighbor_id
+                                    if total < best_dist or (
+                                        total == best_dist
+                                        and neighbor_id < meeting_node
+                                    ):
+                                        best_dist = total
+                                        meeting_node = neighbor_id
                     else:
                         for neighbor_id, weight in self.original_graph[
                             current_id
@@ -761,17 +765,17 @@ class CHGraphAlgorithms:
                                     backward_open_leaves,
                                     (new_dist, neighbor_id),
                                 )
-                                if (
-                                    neighbor_id in forward_distances
-                                    and new_dist
-                                    + forward_distances[neighbor_id]
-                                    < best_dist
-                                ):
-                                    best_dist = (
+                                if neighbor_id in forward_distances:
+                                    total = (
                                         new_dist
                                         + forward_distances[neighbor_id]
                                     )
-                                    meeting_node = neighbor_id
+                                    if total < best_dist or (
+                                        total == best_dist
+                                        and neighbor_id < meeting_node
+                                    ):
+                                        best_dist = total
+                                        meeting_node = neighbor_id
 
             forward_min = (
                 forward_open_leaves[0][0]
