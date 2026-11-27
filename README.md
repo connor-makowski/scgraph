@@ -166,7 +166,7 @@ These notebooks open in Google Colab:
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb): read the legs of a route, route by road only and by hours, draw the routes on a map.
 - [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): try several coefficients of a weighted sum of two metrics, find several of the best trade-offs, draw them.
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb): build Denmark from the newest OpenStreetMap extract, read its sources, check it.
-- [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve (a line that visits every cell of a square grid), compare `SnapIndex` (the snapping index of scgraph) with `GeoKDTree` (the k-d tree of the library `geokdtree`).
+- [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve (a line that visits every cell of a square grid), compare `OrderedSnapIndex` (the snapping index of scgraph) with `GeoKDTree` (the k-d tree of the library `geokdtree`).
 
 ## Public API
 
@@ -181,7 +181,7 @@ The public names of scgraph are the names of the table below. They keep working 
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |
 | Network files | `scgraph.network_file`: `read`, `write`, `get_scgraph_info`, `check_content`, `build_header_metadata`; `scgraph.node_modes.build_node_mode_ids` |
 | Building a network | `scgraph.pipelines` and its three pipeline modules, `pipelines.network_builder.build_network_file`, `pipelines.derived_networks.derive_network_file`, `pipelines.steps.step1_osm_sources`, `pipelines.steps.step4_validation_cases`, `scgraph.helpers.osm` (`get_way_direction`, `select_main_roads`, `select_main_roads_with_class`) |
-| Snapping and node order | `scgraph.node_snapping`: `SnapIndex`, `NodeOrderError`; `scgraph.helpers.hilbert.get_hilbert_order` |
+| Snapping and node order | `scgraph.node_snapping`: `OrderedSnapIndex`, `NodeOrderError`; `scgraph.helpers.hilbert.get_hilbert_order` |
 
 In these modules, `__all__` lists the public names. Every other module and name is internal: it can change in any release.
 

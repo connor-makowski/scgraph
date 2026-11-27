@@ -53,7 +53,7 @@ flowchart LR
 `scgraph` separates the graph algorithms from the geographic logic and from the grid logic:
 
 * **`Graph`**: A graph of node ids, with no coordinates. It holds the search algorithms (Dijkstra, Bidirectional Dijkstra, A\*, Bellman-Ford, BMSSP) and graph reduction. [guides/routing.md](guides/routing.md#choosing-an-algorithm) lists every algorithm with its use.
-* **`GeoGraph`**: A `GeoGraph` holds a `Graph` (attribute `graph_object`) and one point for each node (WGS84 latitude and longitude). It snaps a point to the network with a `SnapIndex`, computes distances, and handles networks with several node modes. It also holds the class of each edge and the metrics of the network, with one `Graph` for each metric.
+* **`GeoGraph`**: A `GeoGraph` holds a `Graph` (attribute `graph_object`) and one point for each node (WGS84 latitude and longitude). It snaps a point to the network with a `OrderedSnapIndex`, computes distances, and handles networks with several node modes. It also holds the class of each edge and the metrics of the network, with one `Graph` for each metric.
 * **`LazyGeoGraph`**: A `LazyGeoGraph` downloads and loads its network at the first query.
 * **`GridGraph`**: A 2D grid with obstacles, with 4 or 8 directions of movement.
 * **`CHGraph` / `TNRGraph`**: Two hierarchies that a `Graph` builds on demand to answer queries faster: Contraction Hierarchies and Transit Node Routing.
@@ -240,7 +240,7 @@ Three algorithms of `Graph` prepare a structure once and then answer queries fro
 
 ```mermaid
 flowchart TD
-    A["1. Input Coordinates<br/>Origin & Destination (lat, lon)"] --> B["2. Network Snapping<br/>Find candidate node(s) of the chosen node modes via SnapIndex"]
+    A["1. Input Coordinates<br/>Origin & Destination (lat, lon)"] --> B["2. Network Snapping<br/>Find candidate node(s) of the chosen node modes via OrderedSnapIndex"]
     B --> C["3. Shortest Path Search<br/>Run graph algorithm on the graph of the metric"]
     C --> D["4. Path Expansion<br/>Restore compressed chain nodes if reduced"]
     D --> E["5. Output Assembly<br/>Length, totals of the metrics, legs, geometry and units"]
@@ -249,14 +249,14 @@ flowchart TD
 ### 1. Input Coordinates
 The origin and the destination are dictionaries with `latitude` and `longitude` in degrees.
 
-### 2. Network Snapping (`SnapIndex`)
-A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box.
+### 2. Network Snapping (`OrderedSnapIndex`)
+An `OrderedSnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box.
 
 **The node modes.** By default, a query point snaps to its closest road node when the geograph has roads, and to its closest node otherwise. A geograph has roads when one of its nodes has the node mode `road`. With roads, a query point also snaps to a node of the node mode `None`: a node that `add_coord_node` added without `node_mode`. So a default query can start at a node that the user added.
 
 `snap_to_node_modes` lists the node modes that a query point may snap to, in place of this default.
 
-**The indexes.** The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each node mode, at the first query that snaps to this node mode. A query point snaps to the closest node among the indexes of its node modes. The nodes of a network file are sorted by node mode, so the index of a node mode reads the points of its nodes in the file.
+**The indexes.** The geograph has one `OrderedSnapIndex` of all its nodes. It builds one more `OrderedSnapIndex` for each node mode, at the first query that snaps to this node mode. A query point snaps to the closest node among the indexes of its node modes. The nodes of a network file are sorted by node mode, so the index of a node mode reads the points of its nodes in the file.
 
 `scgraph/node_snapping.py` holds these indexes and gives the index of a query. Its docstring gives an example with real values.
 
@@ -395,7 +395,7 @@ flowchart TD
         H["Hierarchical Indices<br/>CHGraph / TNRGraph"]
     end
     subgraph GEO["In-Memory Caches of a GeoGraph"]
-        S["SnapIndex of all nodes, one SnapIndex per node mode,<br/>Radian Coordinates"]
+        S["OrderedSnapIndex of all nodes, one OrderedSnapIndex per node mode,<br/>Radian Coordinates"]
         W["The class id of each edge,<br/>one Graph for each metric"]
     end
     subgraph Triggers["Invalidation Triggers"]

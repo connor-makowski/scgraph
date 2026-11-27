@@ -41,8 +41,8 @@ Subsets (--only) and the changes that need them:
     hierarchy  contraction hierarchies and TNR
     misc       distance matrix, cached shortest path, a metric and a query by it,
                Visvalingam
-    snap       SnapIndex against GeoKDTree on world_highways: build, memory, and
-               1,000 queries of three kinds (cpp/src/snap_index.*,
+    snap       OrderedSnapIndex against GeoKDTree on world_highways: build, memory,
+               and 1,000 queries of three kinds (cpp/src/snap_index.*,
                cpp/src/float4.hpp, helpers/snap_index.py, helpers/hilbert.py)
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
@@ -57,7 +57,7 @@ only): "Peak" is the peak RSS of the process during load and first query, "Added
 peak during reduce(), or during the build of a snapping index, minus the RSS before it
 (the peak is reset through /proc/self/clear_refs). Before an index build, the script
 asks glibc to give its free memory back (malloc_trim), so that the build cannot reuse
-it; Python's own free blocks stay. SnapIndex is built as a load builds it, from the
+it; Python's own free blocks stay. OrderedSnapIndex is built as a load builds it, from the
 coordinates of the network, and GeoKDTree from plain lists, as in 3.6.0. Rows run in
 sequence in one process, so a row's time and memory depend on the rows before it:
 compare runs of the same --only and --networks. Reduction states are explicit
@@ -605,7 +605,7 @@ def bench_misc(results):
 
 
 def bench_snap(results):
-    """SnapIndex against GeoKDTree on one network: build, memory, three kinds of query."""
+    """OrderedSnapIndex against GeoKDTree on one network: build, memory, three kinds of query."""
     import ctypes
     import random
 
@@ -626,7 +626,7 @@ def bench_snap(results):
         # the build that is measured. Reading the attribute builds the index again,
         # from the coordinates of the network, as at a load
         geo.snap_index = None
-        builds["SnapIndex"] = lambda: geo.snap_index
+        builds["OrderedSnapIndex"] = lambda: geo.snap_index
 
     indexes = {}
     for label, build in builds.items():
@@ -771,7 +771,7 @@ TABLES = {
 
 
 def against(reference, value, unit):
-    """How a value of SnapIndex compares with the value of GeoKDTree, as a factor."""
+    """How a value of OrderedSnapIndex compares with the value of GeoKDTree, as a factor."""
     if not reference or not value:
         return "–"
     better, worse = ("less", "more") if unit == "MiB" else ("faster", "slower")
@@ -784,26 +784,26 @@ def against(reference, value, unit):
 
 
 def snap_table(rows, geokdtree_version):
-    """The snap table of one run: GeoKDTree as the reference, then SnapIndex and the
-    factor between the two. A version without SnapIndex gets the reference alone.
+    """The snap table of one run: GeoKDTree as the reference, then OrderedSnapIndex and the
+    factor between the two. A version without OrderedSnapIndex gets the reference alone.
     """
-    with_snap_index = any("SnapIndex" in values for values in rows.values())
+    with_snap_index = any("OrderedSnapIndex" in values for values in rows.values())
     headers = ["Measure", f"GeoKDTree {geokdtree_version}"]
     if with_snap_index:
-        headers += ["SnapIndex", "SnapIndex against GeoKDTree"]
+        headers += ["OrderedSnapIndex", "OrderedSnapIndex against GeoKDTree"]
     lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
     for (measure,), values in rows.items():
         reference = values["GeoKDTree"]
         out = [f"{measure} ({reference['unit']})"]
         for c in [reference] + (
-            [values["SnapIndex"]] if with_snap_index else []
+            [values["OrderedSnapIndex"]] if with_snap_index else []
         ):
             text = fmt(c["value"], c["unit"])
             out.append(
                 text + (f" ({c['failed']} failed)" if c["failed"] else "")
             )
         if with_snap_index:
-            c = values["SnapIndex"]
+            c = values["OrderedSnapIndex"]
             out.append(against(reference["value"], c["value"], c["unit"]))
         lines.append("| " + " | ".join(out) + " |")
     return lines
@@ -1062,7 +1062,7 @@ def side_by_side(base, head, labels):
                     elif text != "–":
                         text = "≈"
                 measure = [] if single else [f"{column} ({unit})"]
-                # A row that one version lacks (SnapIndex in 3.6.0) reads –, not failed
+                # A row that one version lacks (OrderedSnapIndex in 3.6.0) reads –, not failed
                 b_text, h_text = (
                     fmt(v, unit) if unit != "ms" or cell in times else "–"
                     for v, times in ((b, times_b), (h, times_h))
@@ -1085,9 +1085,9 @@ def side_by_side(base, head, labels):
 
 
 def snap_comparison(units, times, memory, labels, geokdtree_versions):
-    """The snap table of two versions: GeoKDTree as the reference, SnapIndex in each
+    """The snap table of two versions: GeoKDTree as the reference, OrderedSnapIndex in each
     version with its change, and the factor between the second version and GeoKDTree.
-    A first version without SnapIndex, such as 3.6.0, gets no column.
+    A first version without OrderedSnapIndex, such as 3.6.0, gets no column.
 
     - `units`: the unit of each row, by row
     - `times`, `memory`: for each version, the run times and the median memory by cell
@@ -1100,21 +1100,21 @@ def snap_comparison(units, times, memory, labels, geokdtree_versions):
             return min(times[version].get(cell) or [], default=None)
         return memory[version].get(cell)
 
-    in_both = any(best(0, row, "SnapIndex") is not None for row in units)
+    in_both = any(best(0, row, "OrderedSnapIndex") is not None for row in units)
     headers = ["Measure", f"GeoKDTree {geokdtree_versions[1]}"]
     if in_both:
-        headers.append(f"SnapIndex, {labels[0]}")
-    headers.append(f"SnapIndex, {labels[1]}")
+        headers.append(f"OrderedSnapIndex, {labels[0]}")
+    headers.append(f"OrderedSnapIndex, {labels[1]}")
     if in_both:
         headers.append("Change")
     headers.append(f"{labels[1]} against GeoKDTree")
     lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
     for row, unit in units.items():
         reference = best(1, row, "GeoKDTree") or best(0, row, "GeoKDTree")
-        b, h = best(0, row, "SnapIndex"), best(1, row, "SnapIndex")
+        b, h = best(0, row, "OrderedSnapIndex"), best(1, row, "OrderedSnapIndex")
         change = "–"
         if b and h and unit == "ms":
-            cell = ("snap", row, "SnapIndex")
+            cell = ("snap", row, "OrderedSnapIndex")
             factor = (
                 f"×{b / h:.2f} faster" if b >= h else f"×{h / b:.2f} slower"
             )

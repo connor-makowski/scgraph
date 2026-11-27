@@ -48,7 +48,7 @@ HOW THE PIECES BECOME A GRAPH
        shape and its class. Among edges of equal length, it keeps the first one.
     4. Each node gets an "index": its position in the lists that describe the graph,
        from 0. The indexes follow a Hilbert curve (`scgraph.helpers.hilbert`). Nodes
-       that are close on the globe then get close indexes. `SnapIndex`, which finds the
+       that are close on the globe then get close indexes. `OrderedSnapIndex`, which finds the
        node closest to a point, needs this order. Two nodes at the same position on the
        curve are ordered by their point, then by their id. Thus the indexes do not
        depend on the order of the polylines.

@@ -5,7 +5,7 @@
 #include <vector>
 #include "coordinates.hpp"
 
-// SnapIndex finds the node of a network that is closest to a point of the globe. GeoGraph
+// OrderedSnapIndex finds the node of a network that is closest to a point of the globe. GeoGraph
 // uses it to snap the origin and the destination of a route to the network.
 //
 // WHAT IT ANSWERS
@@ -128,7 +128,7 @@ struct node_order_error : std::invalid_argument {
     using std::invalid_argument::invalid_argument;
 };
 
-class SnapIndex {
+class OrderedSnapIndex {
 public:
     // A view of the points of the nodes, read in place. It is built from a pointer to
     // float64 degrees or to int32 units of 1e-7 degree. The type of the pointer tells
@@ -151,7 +151,7 @@ public:
     // `points` holds the latitude and the longitude of nodes 0 to node_count - 1. The index
     // reads them for as long as it lives and keeps `owner`, which keeps them alive.
     // Throws node_order_error if the nodes are scattered (see above)
-    SnapIndex(Points points, int node_count, std::shared_ptr<const void> owner);
+    OrderedSnapIndex(Points points, int node_count, std::shared_ptr<const void> owner);
 
     // Id of the node closest to the point (latitude and longitude in degrees)
     int closest_idx(double latitude, double longitude) const;

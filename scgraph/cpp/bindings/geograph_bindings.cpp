@@ -119,15 +119,15 @@ static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_des
     return result;
 }
 
-// Builds a SnapIndex on the points of the nodes, without a copy. The points are float64
+// Builds an OrderedSnapIndex on the points of the nodes, without a copy. The points are float64
 // degrees or int32 units of 1e-7 degree. The index keeps a reference to the array, so
 // the array lives as long as the index.
 template <typename T>
-static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_points) {
+static std::unique_ptr<OrderedSnapIndex> snap_index_from_array(CoordinateArray<T> node_points) {
     if (node_points.shape(0) % 2)
         throw std::invalid_argument("node_points must hold a latitude and a longitude per node");
     auto owner = std::make_shared<decltype(node_points)>(node_points);
-    return std::make_unique<SnapIndex>(node_points.data(), int(node_points.shape(0) / 2), owner);
+    return std::make_unique<OrderedSnapIndex>(node_points.data(), int(node_points.shape(0) / 2), owner);
 }
 
 // A [latitude, longitude] pair read without nanobind's generic conversion (snapping is called
@@ -232,11 +232,11 @@ void bind_geograph(nb::module_& m) {
           "(shape points int32 in 1e-7 degree or float64 degrees) and one [latitude, longitude] per path "
           "node; for EdgeShapes.coordinate_path");
 
-    // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
+    // Raised by OrderedSnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
-    nb::class_<SnapIndex>(m, "SnapIndex",
+    nb::class_<OrderedSnapIndex>(m, "OrderedSnapIndex",
         "Closest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
-        .def("__init__", [](SnapIndex* self, nb::handle points) {
+        .def("__init__", [](OrderedSnapIndex* self, nb::handle points) {
             auto owned = std::make_shared<std::vector<double>>();
             nb::sequence seq = nb::borrow<nb::sequence>(points);
             size_t count = nb::len(seq);
@@ -246,7 +246,7 @@ void bind_geograph(nb::module_& m) {
                 owned->push_back(la);
                 owned->push_back(lo);
             }
-            new (self) SnapIndex(owned->data(), int(count), owned);
+            new (self) OrderedSnapIndex(owned->data(), int(count), owned);
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
         // float64 first: a numpy array of another dtype is then converted to degrees
         .def_static("from_array", &snap_index_from_array<double>, nb::arg("node_points"))
@@ -255,11 +255,11 @@ void bind_geograph(nb::module_& m) {
            "float64 degrees, or int32 units of 1e-7 degree as network files store them. The index "
            "reads it in place and keeps it while it lives: changing its values afterwards gives "
            "wrong answers (build a new index)")
-        .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
+        .def("closest_idx", [](const OrderedSnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);
         }, nb::arg("point"), "Id of the indexed point closest to point; point is a [latitude, longitude] pair")
-        .def("closest_idx_per_quadrant", [](const SnapIndex& self, nb::handle point) {
+        .def("closest_idx_per_quadrant", [](const OrderedSnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             int out[4];
             self.closest_idx_per_quadrant(la, lo, out);

@@ -44,7 +44,7 @@ constexpr int MAX_LEVELS = 10;
 constexpr const char* SORT_HINT =
     "Sort them along a Hilbert curve and map the answers back: "
     "order = scgraph.helpers.hilbert.get_hilbert_order(nodes); "
-    "index = SnapIndex([nodes[i] for i in order]); "
+    "index = OrderedSnapIndex([nodes[i] for i in order]); "
     "node = order[index.closest_idx(point)]";
 
 struct UnitVector {
@@ -96,7 +96,7 @@ inline int quadrants_of_node(double latitude, double longitude, double query_lat
 }  // namespace
 
 // The point of a search, in the forms that the search needs
-struct SnapIndex::Query {
+struct OrderedSnapIndex::Query {
     double latitude, longitude;  // for the rule that decides the quadrants of a node
     UnitVector unit_vector;      // for the comparison of candidates in double
     float x, y, z;               // the unit vector in float
@@ -144,7 +144,7 @@ struct SnapIndex::Query {
 //   are rounded outward, and both values are computed by the same float operations. The
 //   third margin is for a compiler that would not round both in the same way.
 // A larger factor makes a search visit more boxes and candidates, with the same answers
-struct SnapIndex::Closest {
+struct OrderedSnapIndex::Closest {
     struct Candidate {
         float squared_chord;
         int node;
@@ -192,7 +192,7 @@ struct SnapIndex::Closest {
 };
 
 // A visit that a search has still to make: the box of a group or of a leaf, to open
-struct SnapIndex::Visit {
+struct OrderedSnapIndex::Visit {
     float lower_bound;  // squared chord from the query point to the box
     int level;          // level of the group, or LEAF_LEVEL
     int position;       // position of the group in its level, or of the leaf
@@ -208,7 +208,7 @@ struct SnapIndex::Visit {
     }
 };
 
-SnapIndex::SnapIndex(Points points, int node_count, std::shared_ptr<const void> owner)
+OrderedSnapIndex::OrderedSnapIndex(Points points, int node_count, std::shared_ptr<const void> owner)
     : points_(points), owner_(std::move(owner)) {
     static_assert(LEAF % 4 == 0 && LEAF <= 32 && FANOUT % 4 == 0,
                   "a leaf is read 4 slots at a time, and a set of its slots is 32 bits");
@@ -308,7 +308,7 @@ SnapIndex::SnapIndex(Points points, int node_count, std::shared_ptr<const void> 
 
 // ---- closest node ---------------------------------------------------------------------
 
-int SnapIndex::closest_idx(double latitude, double longitude) const {
+int OrderedSnapIndex::closest_idx(double latitude, double longitude) const {
     const Query query(latitude, longitude);
     Closest closest;
     // The visits still to make, the next one on top. The first descent leaves at most
@@ -380,7 +380,7 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
 }
 
 // Looks at the nodes of a leaf: keeps as candidates those within reach of the best node
-void SnapIndex::scan_leaf(int leaf, const Query& query, Closest& closest) const {
+void OrderedSnapIndex::scan_leaf(int leaf, const Query& query, Closest& closest) const {
     const Leaf& vectors = leaves_[leaf];
     float squared_chords[LEAF];
     Float4 lowest4_so_far = fill4(UNUSED);
@@ -407,7 +407,7 @@ void SnapIndex::scan_leaf(int leaf, const Query& query, Closest& closest) const 
 
 // The answer of a search: the candidate with the lowest squared chord in double, and the
 // lowest id among equal ones. Returns -1 if the search found no node
-int SnapIndex::confirm_closest(const Query& query, const Closest& closest) const {
+int OrderedSnapIndex::confirm_closest(const Query& query, const Closest& closest) const {
     auto exact = [&](int node) {
         return squared_chord(query.unit_vector,
                              to_unit_vector(points_.latitude(node), points_.longitude(node)));
@@ -439,7 +439,7 @@ int SnapIndex::confirm_closest(const Query& query, const Closest& closest) const
 
 // ---- closest node per quadrant --------------------------------------------------------
 
-void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int out[4]) const {
+void OrderedSnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int out[4]) const {
     const Query query(latitude, longitude);
     // The east value q.x * y - q.y * x grows with y if q.x is positive, and falls as x
     // grows if q.y is positive. So its highest value in a box is at one corner: y is the
@@ -512,7 +512,7 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
 
 // Looks at the nodes of a leaf for the quadrants in `wanted_quadrants` (bits): for each
 // one, keeps as candidates the nodes of the quadrant within reach of its best node
-void SnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Query& query,
+void OrderedSnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Query& query,
                                        Closest* closest) const {
     const Leaf& vectors = leaves_[leaf];
     const Float4 unused = fill4(UNUSED);

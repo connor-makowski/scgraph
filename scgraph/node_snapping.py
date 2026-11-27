@@ -1,7 +1,7 @@
 """The snapping of a query point to its closest node in a GeoGraph.
 
 Each `GeoGraph` has one `SnapIndexes`, in `GeoGraph._snap_indexes`. The public
-names of this module are `SnapIndex` and `NodeOrderError`. They are the C++ classes
+names of this module are `OrderedSnapIndex` and `NodeOrderError`. They are the C++ classes
 when the extension is installed, and the pure-Python classes otherwise. The other
 names of this module are internal.
 
@@ -16,12 +16,12 @@ WORDS
   snapping index of this module has `closest_idx(point)`,
   `closest_idx_per_quadrant(point)` and `list_nodes()`: each of its nodes, as
   `(node id, point)`.
-- A `SnapIndex` (`scgraph/cpp/src/snap_index.hpp`) is the snapping index of a
-  list of points. It answers with a position in this list.
+- An `OrderedSnapIndex` (`scgraph/cpp/src/snap_index.hpp`) is the snapping index
+  of a list of points. It answers with a position in this list.
 
 WHAT IT HOLDS
 
-- The index of every node: the `SnapIndex` of `GeoGraph.nodes`. `GeoGraph.snap_index`
+- The index of every node: the `OrderedSnapIndex` of `GeoGraph.nodes`. `GeoGraph.snap_index`
   reads it.
 - The index of each node mode, by the name of the node mode.
 
@@ -48,7 +48,8 @@ THE IDEA: ONE INDEX FOR EACH NODE MODE
 - for a geograph without a road node, by default, a `LazyEveryNodeSnapIndex`.
 
 The nodes of a network file are sorted by node mode. So the nodes of one node mode
-are a range of node ids, and their `SnapIndex` reads their points in the file.
+are a range of node ids, and their `OrderedSnapIndex` reads their points in the
+file.
 
 EXAMPLE
 
@@ -87,14 +88,14 @@ from scgraph.node_modes import list_node_mode_names
 from scgraph.utils import haversine
 
 try:
-    from scgraph.cpp import NodeOrderError, SnapIndex
+    from scgraph.cpp import NodeOrderError, OrderedSnapIndex
 except ImportError:
-    from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
+    from scgraph.helpers.snap_index import NodeOrderError, OrderedSnapIndex
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.geograph import GeoGraph
 
-__all__ = ["NodeOrderError", "SnapIndex"]
+__all__ = ["NodeOrderError", "OrderedSnapIndex"]
 
 # The README gives the records of the snapping indexes under this name.
 logger = logging.getLogger("scgraph.geograph")
@@ -113,7 +114,7 @@ class NodeIdSnapIndex:
     """
 
     def __init__(
-        self, node_ids: array | range, index: SnapIndex, nodes: Sequence
+        self, node_ids: array | range, index: OrderedSnapIndex, nodes: Sequence
     ):
         # node_ids[position in the index] = node id. An array or a range, not a list:
         # the garbage collector never walks it (a list of 572,009 ids cost a 16 ms pause)
@@ -212,7 +213,7 @@ class SnapIndexes:
     """
 
     def __init__(self, index_of_every_node=None):
-        # A `SnapIndex`, a `NodeIdSnapIndex`, or the `GeoKDTree` that the caller set
+        # An `OrderedSnapIndex`, a `NodeIdSnapIndex`, or the `GeoKDTree` that the caller set
         self._index_of_every_node = index_of_every_node
         # {name of a node mode: its index, or None for a node mode without a node}
         self._index_of_each_node_mode = {}
@@ -309,18 +310,18 @@ def _build_index_of_node_mode(
 
 def _build_snap_index(
     nodes: Sequence, node_ids: range | array | None = None
-) -> SnapIndex | NodeIdSnapIndex:
+) -> OrderedSnapIndex | NodeIdSnapIndex:
     """
     Builds the snapping index of the nodes, or of the nodes `node_ids` alone: a
     range, or an array of ids in rising order (see `_find_node_ids`). Nodes too
-    scattered for a `SnapIndex` are indexed in Hilbert order, and keep their ids.
+    scattered for an `OrderedSnapIndex` are indexed in Hilbert order, and keep their ids.
     """
     try:
         if node_ids is None:
             return (
-                SnapIndex.from_array(nodes.points())
+                OrderedSnapIndex.from_array(nodes.points())
                 if isinstance(nodes, array_views.NodePoints)
-                else SnapIndex(nodes)
+                else OrderedSnapIndex(nodes)
             )
         if isinstance(node_ids, range) and isinstance(
             nodes, array_views.NodePoints
@@ -330,13 +331,13 @@ def _build_snap_index(
             points = memoryview(nodes.points())
             return NodeIdSnapIndex(
                 node_ids,
-                SnapIndex.from_array(
+                OrderedSnapIndex.from_array(
                     points[2 * node_ids.start : 2 * node_ids.stop]
                 ),
                 nodes,
             )
         return NodeIdSnapIndex(
-            node_ids, SnapIndex([nodes[i] for i in node_ids]), nodes
+            node_ids, OrderedSnapIndex([nodes[i] for i in node_ids]), nodes
         )
     except NodeOrderError:
         # A graph built from a list, or one with many added nodes, does not keep
@@ -345,7 +346,7 @@ def _build_snap_index(
             list(nodes) if node_ids is None else [nodes[i] for i in node_ids]
         )
         order = array("q", get_hilbert_order(points))
-        index = SnapIndex([points[i] for i in order])
+        index = OrderedSnapIndex([points[i] for i in order])
         if node_ids is not None:
             # A position in `points` becomes the id of its node
             order = array("q", [node_ids[i] for i in order])

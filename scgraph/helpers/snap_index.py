@@ -1,7 +1,7 @@
 """
-Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is
+Pure-Python version of the C++ `OrderedSnapIndex`, with the same answers. The algorithm is
 described in `scgraph/cpp/src/snap_index.hpp`. This module is internal:
-`scgraph.node_snapping` gives the `SnapIndex` of the build.
+`scgraph.node_snapping` gives the `OrderedSnapIndex` of the build.
 
 Same as in C++: the leaves, the tree, the boxes of unit vectors, the quadrant rules, and
 the leaves-per-query limit that refuses scattered nodes (NodeOrderError). The boxes are
@@ -30,7 +30,7 @@ MAX_LEAVES_PER_QUERY = 16.0
 SORT_HINT = (
     "Sort them along a Hilbert curve and map the answers back: "
     "order = scgraph.helpers.hilbert.get_hilbert_order(nodes); "
-    "index = SnapIndex([nodes[i] for i in order]); "
+    "index = OrderedSnapIndex([nodes[i] for i in order]); "
     "node = order[index.closest_idx(point)]"
 )
 # Quadrant t of this tuple is bit 1 << t of the masks below
@@ -85,12 +85,12 @@ def _box_quadrants(box, c: int, qlat: float, qlon: float, mask: int) -> int:
     return mask
 
 
-class SnapIndex:
+class OrderedSnapIndex:
     """
     Closest node of a point on the sphere (exact, ties to the lowest id).
 
-    - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
-    - `SnapIndex.from_array(node_points)`: the same, from one array that holds the latitude
+    - `OrderedSnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
+    - `OrderedSnapIndex.from_array(node_points)`: the same, from one array that holds the latitude
       then the longitude of each node, as network files store them: float64 degrees, which
       the index keeps (leave them unchanged), or int32 units of 1e-7 degree, decoded here
       into a float64 copy (the C++ index reads them in place)
@@ -104,7 +104,7 @@ class SnapIndex:
     """
 
     @classmethod
-    def from_array(cls, node_points: array | memoryview) -> "SnapIndex":
+    def from_array(cls, node_points: array | memoryview) -> "OrderedSnapIndex":
         node_points = memoryview(node_points)
         if node_points.format not in ("d", "i"):
             raise TypeError("node_points must hold float64 or int32 values")
