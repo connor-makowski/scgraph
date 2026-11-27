@@ -569,9 +569,10 @@ class GraphReducer:
 
         # The steps below read `is_reduced` at each origin and destination node.
         # The search checks its arguments only later, so this method checks
-        # them first. A user algorithm may take None as its destination.
+        # them first. A user algorithm may take no origin or no destination.
         is_reduced = self.is_reduced
-        check_node_input(origin_id, len(is_reduced), "Origin")
+        if origin_id is not None:
+            check_node_input(origin_id, len(is_reduced), "Origin")
         if destination_id is not None:
             check_node_input(destination_id, len(is_reduced), "Destination")
 
@@ -604,9 +605,15 @@ class GraphReducer:
         # (rows of reduced_graph); reduced destinations are replaced by their
         # boundary entry nodes for every search (step 3). One-sided searches
         # keep a reduced origin: they only read reduced_graph.
-        origin_dict = normalize_node_input(origin_id)
+        origin_dict = (
+            None if origin_id is None else normalize_node_input(origin_id)
+        )
         origin_map = {}
-        if is_bidirectional and any(is_reduced[oid] for oid in origin_dict):
+        if (
+            is_bidirectional
+            and origin_dict is not None
+            and any(is_reduced[oid] for oid in origin_dict)
+        ):
             effective_origin_dict = {}
             for oid, odist in origin_dict.items():
                 exits = (

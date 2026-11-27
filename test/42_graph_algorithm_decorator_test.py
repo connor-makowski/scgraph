@@ -80,6 +80,22 @@ def test_custom_algorithm_decorator(graph_class, algorithm):
     assert algorithm(g, 1, 5) == across  # from one chain to another, through 3
 
 
+# A user algorithm may take no origin: scgraph passes its arguments on, also
+# after reduce().
+@PyGraph.algorithm
+def _count_nodes(self, origin_id=None, destination_id=None):
+    return {"path": [], "length": len(self.search_graph)}
+
+
+def test_custom_algorithm_without_an_origin_runs_on_a_reduced_graph(
+    graph_class,
+):
+    g = graph_class(_build_test_graph())
+    g.reduce()
+
+    assert _count_nodes(g)["length"] == 8
+
+
 def test_registered_algorithm():
     @PyGraph.algorithm(name="my_plugin_algo")
     def my_plugin(self, origin_id: int, destination_id: int) -> dict:

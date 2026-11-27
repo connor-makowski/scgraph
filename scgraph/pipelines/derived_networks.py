@@ -380,6 +380,8 @@ def validate_derived_network_file(
 
     Raises:
         ValueError: The header of `derived_file` has no `derivation`.
+        ModuleNotFoundError: This version of scgraph does not have the pipeline
+            that built the parent file.
         RuntimeError: The derived file fails a case that the parent file passes.
     """
     info = network_file.get_scgraph_info(derived_file)
