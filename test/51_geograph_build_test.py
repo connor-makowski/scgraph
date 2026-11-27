@@ -28,6 +28,7 @@ from helpers import build_main_roads, great_circle_km
 from scgraph import GeoGraph, network_assembly, network_file, pipelines
 from scgraph.helpers import osm
 from scgraph.helpers.hilbert import get_hilbert_order
+from scgraph.node_modes import build_node_mode_ids
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
 from scgraph.pipelines.steps import step1_osm_sources
@@ -1581,7 +1582,7 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
 
     node_modes = [
         metadata["node_modes"][row]["name"]
-        for row in network_file.build_node_mode_ids(metadata["node_modes"])
+        for row in build_node_mode_ids(metadata["node_modes"])
     ]
     classes = {}  # the modes of the two ends of an edge -> the classes found
     for u, mode in enumerate(node_modes):
@@ -1779,6 +1780,19 @@ def test_saving_a_file_among_the_built_networks_of_the_cache_is_refused(
         save(geo, str(target))
 
     assert not target.exists()
+
+
+# A save does not know the cache_dir of a build: the CACHEDIR.TAG that the
+# build writes in `networks/` marks the folder.
+def test_saving_a_file_among_the_built_networks_of_another_cache_directory_is_refused(
+    tmp_path, sea_lanes_are_the_local_lines
+):
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
+    geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
+    target = tmp_path / "networks" / "eurostat_sea_lanes" / "edited.scgraph"
+
+    with pytest.raises(ValueError, match=re.escape(str(target))):
+        geo.save_as_scgraph(str(target))
 
 
 def test_saving_into_the_cache_directory_itself_is_allowed(

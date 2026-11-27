@@ -62,6 +62,7 @@ from typing import TYPE_CHECKING
 
 from scgraph.edge_classes import find_edge_id
 from scgraph.network_file import NO_CLASS_ID
+from scgraph.node_modes import list_node_mode_names
 
 try:
     from scgraph.cpp import check_edge_weights, compute_weighted_sum
@@ -213,14 +214,11 @@ def resolve_weights_per_km(
             weight = off_graph_weight_per_km
         class_weights_per_km[class_id] = inf if weight is None else weight
 
-    node_mode_names = [mode.get("name") for mode in node_modes]
+    node_mode_names = list_node_mode_names(
+        node_modes, weight_at_hub or (), "weight_at_hub"
+    )
     hub_weights = array("d", bytes(8 * len(node_modes) * class_id_count))
     for hub_mode, weights_of_hub in (weight_at_hub or {}).items():
-        if hub_mode not in node_mode_names:
-            raise ValueError(
-                f"weight_at_hub has the key {hub_mode!r}, which is no node "
-                f"mode: the node modes of this geograph are {node_mode_names}"
-            )
         _refuse_unknown_edge_modes(
             weights_of_hub, f"weight_at_hub[{hub_mode!r}]", edge_modes
         )

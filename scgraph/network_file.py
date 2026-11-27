@@ -27,8 +27,9 @@ the file in `metadata["metrics"]`, and `length` is the first one. The file holds
 array `metric_<name>` for each metric. Example: a file with the metrics `length` and
 `travel_time` holds `metric_length` and `metric_travel_time`.
 
-The public functions are `read`, `write`, `get_scgraph_info`, `check_content`,
-`build_header_metadata` and `build_node_mode_ids`.
+The public functions are `read`, `write`, `get_scgraph_info`, `check_content` and
+`build_header_metadata`. `scgraph.node_modes.build_node_mode_ids` gives the node mode
+id of each node from the rows of the header.
 """
 
 import hashlib
@@ -41,8 +42,13 @@ from datetime import datetime
 from itertools import chain, starmap
 
 from scgraph import files
-from scgraph.coordinates import get_units_per_degree
+from scgraph.coordinates import COORDINATE_DTYPES, get_units_per_degree
 from scgraph.helpers.hilbert import NODE_ORDER
+from scgraph.node_modes import (
+    build_node_mode_ids,
+    get_default_node_modes,
+    list_node_mode_names,
+)
 from scgraph.array_checks import is_sorted
 
 try:
@@ -52,7 +58,6 @@ except ImportError:
 
 __all__ = [
     "build_header_metadata",
-    "build_node_mode_ids",
     "check_content",
     "get_scgraph_info",
     "read",
@@ -80,10 +85,10 @@ ARRAYS = {
     "edge_destination_node_ids": ("int32",),
     "metric_length": ("float64",),
     "edge_class_ids": ("uint8",),
-    "node_points": ("int32", "float64"),
+    "node_points": COORDINATE_DTYPES,
     "external_node_ids": ("int32", "int64"),
     "edge_first_shape_point_ids": ("int32",),
-    "shape_points": ("int32", "float64"),
+    "shape_points": COORDINATE_DTYPES,
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 # The value of `edge_class_ids` for an edge without a class. The id of a class is
@@ -199,7 +204,7 @@ def build_header_metadata(
                     for row, node_count in zip(node_modes, node_counts)
                 ]
             }
-            if node_modes != [{"name": None}]
+            if node_modes != get_default_node_modes()
             else {}
         ),
         **({"classes": classes} if classes is not None else {}),
@@ -323,8 +328,8 @@ def read(
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
         (`node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`, ...), with the array `metric_<name>`
         of each other metric. `metadata` holds the metadata of the header, and the
-        `content_sha256` of the file. `build_node_mode_ids` gives the node mode of
-        each node from the rows of `metadata["node_modes"]`. A read of some node
+        `content_sha256` of the file. `node_modes.build_node_mode_ids` gives the node
+        mode of each node from the rows of `metadata["node_modes"]`. A read of some node
         modes returns `external_node_ids` even when the file holds none. The id of
         a node is then its position in the file.
 
@@ -463,13 +468,11 @@ def _read(filename, file, mapped, node_modes):
         node_modes = (
             (node_modes,) if isinstance(node_modes, str) else node_modes
         )
-        node_mode_names = [
-            mode["name"]
-            for mode in header["metadata"].get("node_modes") or [{"name": None}]
-        ]
-        unknown = [mode for mode in node_modes if mode not in node_mode_names]
-        if unknown:
-            raise ValueError(f"{filename}: unknown node modes {unknown}")
+        node_mode_names = list_node_mode_names(
+            header["metadata"].get("node_modes") or get_default_node_modes(),
+            node_modes,
+            f"{filename}: node_modes",
+        )
         if not all(name in node_modes for name in node_mode_names):
             is_node_mode_kept = [name in node_modes for name in node_mode_names]
     # A selection also reads the file in place, and copies only what it keeps
@@ -511,35 +514,6 @@ def _read(filename, file, mapped, node_modes):
     metadata = dict(header["metadata"])
     metadata["content_sha256"] = digest.hex()
     return arrays, metadata, is_node_mode_kept
-
-
-def build_node_mode_ids(
-    node_modes: list[dict], kept_node_mode_names: str | list[str] | None = None
-) -> array:
-    """Return the node mode id of each node of a file, from the rows of its header.
-
-    Args:
-        node_modes: The rows of `metadata["node_modes"]` that `read` returns, each
-            with its `node_count`.
-        kept_node_mode_names: The names of the node modes that a read kept, as `read`
-            takes them. The default, None, gives the ids of every node.
-
-    Returns:
-        An array of uint8: for each node, in the order of the file, the position of its
-        row in `node_modes`. Example: the rows `road` (2 nodes), `port` (1 node) and
-        `sea` (2 nodes) give [0, 0, 1, 2, 2], and [0, 0, 2, 2] for the road and the sea.
-    """
-    if isinstance(kept_node_mode_names, str):
-        kept_node_mode_names = [kept_node_mode_names]
-    return array(
-        "B",
-        b"".join(
-            bytes([node_mode_id]) * row["node_count"]
-            for node_mode_id, row in enumerate(node_modes)
-            if kept_node_mode_names is None
-            or row["name"] in kept_node_mode_names
-        ),
-    )
 
 
 def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
@@ -588,13 +562,11 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
         selected["external_node_ids"] = array("q", positions)
-    if "edge_class_ids" in arrays:
-        # `_check` does not read the class ids of a mapped file. `translate`
-        # deletes the valid ids in one pass in C: a byte that is left is no id of a
-        # class and not NO_CLASS_ID.
-        valid = bytes([*range(len(metadata["classes"])), NO_CLASS_ID])
-        if bytes(selected["edge_class_ids"]).translate(None, valid):
-            raise ValueError(f"{filename}: invalid edge classes")
+    # `_check` does not read the class ids of a mapped file
+    if "edge_class_ids" in arrays and not _has_valid_class_ids(
+        selected["edge_class_ids"], len(metadata["classes"])
+    ):
+        raise ValueError(f"{filename}: invalid edge classes")
     return selected
 
 
@@ -730,8 +702,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         # A mapped read does not check the values: it does not read the arrays
         require(
             not should_check_values
-            or max(set(arrays["edge_class_ids"]) - {NO_CLASS_ID}, default=-1)
-            < len(rows),
+            or _has_valid_class_ids(arrays["edge_class_ids"], len(rows)),
             "invalid edge classes",
         )
     require(
@@ -753,6 +724,15 @@ def _check(filename, arrays, metadata, should_check_values=True):
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
     )
+
+
+def _has_valid_class_ids(edge_class_ids, class_count):
+    """Whether each value of `edge_class_ids` is the id of one of `class_count`
+    classes, or NO_CLASS_ID. `translate` deletes the valid ids in one pass in C: a
+    byte that is left is not valid. `_check` refuses more than NO_CLASS_ID
+    classes after this check, so the valid ids here stop at NO_CLASS_ID."""
+    valid = bytes([*range(min(class_count, NO_CLASS_ID)), NO_CLASS_ID])
+    return not bytes(edge_class_ids).translate(None, valid)
 
 
 def _is_weights_array(name):

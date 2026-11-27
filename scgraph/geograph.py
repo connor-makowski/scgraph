@@ -25,6 +25,8 @@ from scgraph.step_logs import log_step
 from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
+from scgraph.coordinates import COORDINATE_DTYPES
+from scgraph.node_modes import get_default_node_modes, list_node_mode_names
 from scgraph import array_views
 from scgraph import geograph_io, geograph_networks
 from scgraph.geograph_io import GeoGraphIO
@@ -210,7 +212,7 @@ class GeoGraph(
             ),
             nodes,
         )
-        if coordinate_dtype not in ("float64", "int32"):
+        if coordinate_dtype not in COORDINATE_DTYPES:
             raise ValueError("coordinate_dtype must be 'float64' or 'int32'")
         self.coordinate_dtype = coordinate_dtype
         # How the network was built, as read from a network file (see save_as_scgraph)
@@ -252,7 +254,7 @@ class GeoGraph(
         self.node_modes = (
             [dict(mode) for mode in node_modes]
             if node_modes
-            else [{"name": None}]
+            else get_default_node_modes()
         )
         self.node_mode_ids = array(
             "B", bytes(len(nodes) if node_mode_ids is None else node_mode_ids)
@@ -344,12 +346,11 @@ class GeoGraph(
 
         - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "node_mode"}`. `node_mode` is the name of the node mode of the node (None on a geograph without named node modes)
         """
-        node_mode_names = [row.get("name") for row in self.node_modes]
-        if node_mode is not None and node_mode not in node_mode_names:
-            raise ValueError(
-                f"Unknown node mode {node_mode!r}: the node modes of this "
-                f"geograph are {node_mode_names}"
-            )
+        node_mode_names = list_node_mode_names(
+            self.node_modes,
+            () if node_mode is None else [node_mode],
+            "node_mode",
+        )
         south, west, north, east = (
             (-inf, -inf, inf, inf) if bbox is None else bbox
         )

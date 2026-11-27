@@ -15,6 +15,7 @@ from pathlib import Path
 
 from scgraph.errors import PathNotFoundError
 from scgraph.geograph import GeoGraph
+from scgraph.node_modes import list_node_mode_names
 from scgraph.utils import haversine
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def _list_snap_to_node_modes(network, case) -> list[str] | None:
     its kind that the network has. A kind without node modes gives every named
     node mode of the network. None, when the network has none of them, leaves the
     default rule of a query."""
-    names = [mode.get("name") for mode in network.node_modes]
+    names = list_node_mode_names(network.node_modes)
     kind_modes = RULES[case["kind"]][0]
     return [
         name
@@ -99,7 +100,7 @@ def _find_closest_node(network, point, node_mode=None) -> tuple:
     as `road` or `port`. With `node_mode`, only the nodes of that node mode are candidates.
     When the network does not have that node mode, all its nodes are candidates. This is
     the case of a published network and of a file with a single node mode."""
-    node_mode_names = [m["name"] for m in network.node_modes or []]
+    node_mode_names = list_node_mode_names(network.node_modes)
     if node_mode is None or node_mode not in node_mode_names:
         node = network.nodes[network.snap_index.closest_idx(point=list(point))]
         return haversine(point, node), tuple(node)
@@ -267,7 +268,7 @@ def _check_hub(network, case) -> str | None:
     km, hub = _find_closest_node(network, case["origin"], case["hub_kind"])
     if km > 5.0:
         return f"the closest {case['hub_kind']} is {km:.1f} km away"
-    names = [mode["name"] for mode in network.node_modes]
+    names = list_node_mode_names(network.node_modes)
     for mode in case["reference"].split():
         if mode == "air":
             first_mode = "airport"

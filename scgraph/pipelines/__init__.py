@@ -245,7 +245,7 @@ import inspect
 import platform
 import sysconfig
 
-from scgraph.edge_classes import CLASS_IDS, CLASSES
+from scgraph.edge_classes import CLASSES
 from scgraph.files import download_file
 from scgraph.geograph_networks import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp

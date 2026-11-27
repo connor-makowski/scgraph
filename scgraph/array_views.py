@@ -144,7 +144,18 @@ class ExternalNodeIds(Sequence):
 
     def __init__(self, ids, nodes):
         # `nodes` gives the count: nodes past the end of `ids` were added since
-        self._ids, self._nodes, self._floor = ids, nodes, None
+        self._ids, self._nodes, self._first_added_id = ids, nodes, None
+
+    @staticmethod
+    def get_first_added_id(lowest_id: int) -> int:
+        """Return the external id of the first added node: below zero and below
+        every other id. The next added nodes get the ids below it. Example: with
+        the lowest id -3, the added nodes get -4, then -5.
+
+        Args:
+            lowest_id: The lowest external id of the nodes, or 0 without nodes.
+        """
+        return min(0, lowest_id) - 1
 
     def __len__(self):
         return len(self._nodes)
@@ -161,10 +172,10 @@ class ExternalNodeIds(Sequence):
         if i < len(ids):
             return ids[i]
         # Computed once: the ids of a large network are long to scan
-        if self._floor is None:
+        if self._first_added_id is None:
             low = ids.start if type(ids) is range else min(ids, default=0)
-            self._floor = min(0, low)
-        return self._floor - 1 - (i - len(ids))
+            self._first_added_id = self.get_first_added_id(low)
+        return self._first_added_id - (i - len(ids))
 
     def __eq__(self, other):
         if not isinstance(other, (list, ExternalNodeIds)):

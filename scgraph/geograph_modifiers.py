@@ -561,9 +561,12 @@ class GeoGraphModifiers:
         # The other graph's nodes keep their ids, its negative ids moved below this
         # graph's (connection nodes have negative ids of this graph)
         external_node_ids = self.external_node_ids.take(range(graph_length))
-        floor = min(0, min(external_node_ids, default=0))
+        # The id -1 of the other graph becomes the first added id of this graph
+        first_added_id = array_views.ExternalNodeIds.get_first_added_id(
+            min(external_node_ids, default=0)
+        )
         external_node_ids.extend(
-            i if i >= 0 else i + floor
+            i if i >= 0 else first_added_id + 1 + i
             for i in other_geograph.external_node_ids.take(
                 range(original_other_graph_length)
             )
