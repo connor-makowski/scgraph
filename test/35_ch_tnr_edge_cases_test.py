@@ -293,3 +293,12 @@ def test_contraction_order_with_a_heuristic_that_calls_default_heuristic():
     g = PythonGraph([dict(d) for d in data])
     g.create_contraction_hierarchy(heuristic_fn=heuristic)
     _assert_ch_matches_dijkstra(PythonGraph, data, g)
+
+
+# Node 3 is added next to node 0, and node 4 next to node 3. The path from node 2
+# to node 4 goes through the two added nodes.
+def test_tnr_path_to_a_node_added_next_to_an_added_node(tnr_class):
+    tnr = tnr_class([{1: 1}, {0: 1, 2: 1}, {1: 1}], num_transit_nodes=1)
+    tnr.add_node({0: 1}, symmetric=True)
+    tnr.add_node({3: 1}, symmetric=True)
+    assert tnr.search(2, 4) == {"path": [2, 1, 0, 3, 4], "length": 4}

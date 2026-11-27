@@ -437,7 +437,6 @@ class TNRGraphAlgorithms:
                                         + forward_distances[neighbor_id]
                                     )
                                     meeting_node = neighbor_id
-                                meeting_node = neighbor_id
 
             forward_min = (
                 forward_open_leaves[0][0]
