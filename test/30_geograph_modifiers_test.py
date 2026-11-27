@@ -150,6 +150,15 @@ def test_remove_coord_node_restores_path():
     )
 
 
+# The four nodes of the geograph come from its creation: no node was added, so
+# remove_coord_node has no node to remove.
+def test_remove_coord_node_refuses_a_node_that_add_coord_node_did_not_add():
+    g = _fresh()
+
+    with pytest.raises(ValueError, match="add_coord_node"):
+        g.remove_coord_node()
+
+
 def test_remove_node_removes_the_point_of_the_node():
     g = _fresh()
 

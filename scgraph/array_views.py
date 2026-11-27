@@ -173,6 +173,11 @@ class ExternalNodeIds(Sequence):
         """
         return min(0, lowest_id) - 1
 
+    def has_added_nodes(self) -> bool:
+        """Return True when the last node was added after the ids were given,
+        by `add_coord_node` or by an append to `nodes`."""
+        return len(self._nodes) > len(self._ids)
+
     def __len__(self):
         return len(self._nodes)
 
