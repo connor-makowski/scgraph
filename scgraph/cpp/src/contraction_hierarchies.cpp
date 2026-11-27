@@ -161,9 +161,6 @@ double CHGraph::default_heuristic(int node_id) const {
     auto [shortcuts_needed, found_shortcuts] = count_shortcuts(node_id);
     if (node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size())) {
         shortcuts_cache_table[node_id] = std::move(found_shortcuts);
-    } else {
-        shortcuts_cache_node = node_id;
-        shortcuts_cache = std::move(found_shortcuts);
     }
 
     int in_edges = contracting_inverse_graph[node_id].size();
@@ -182,8 +179,6 @@ double CHGraph::default_heuristic(int node_id) const {
 }
 
 void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
-    shortcuts_cache_node = -1;
-    shortcuts_cache.clear();
     shortcuts_cache_table.assign(nodes_count, std::nullopt);
 
     if (!heuristic_fn) {
@@ -230,8 +225,6 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         // were contracted since.
         if (evaluated_now && node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size()) && shortcuts_cache_table[node_id].has_value()) {
             found_shortcuts = std::move(*shortcuts_cache_table[node_id]);
-        } else if (evaluated_now && shortcuts_cache_node == node_id) {
-            found_shortcuts = std::move(shortcuts_cache);
         } else {
             found_shortcuts = count_shortcuts(node_id).second;
         }
@@ -269,13 +262,15 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
 }
 
 int CHGraph::add_node(const std::unordered_map<int, double>& node_dict, bool symmetric) {
+    // Every key is checked before the graph changes, so a wrong key leaves it whole
+    for (const auto& [dest_id, distance] : node_dict) {
+        check_node_id(dest_id, static_cast<int>(original_graph.size()), "Destination node");
+    }
     original_graph.push_back(node_dict);
     int new_node_id = static_cast<int>(original_graph.size()) - 1;
     if (symmetric) {
         for (const auto& [dest_id, distance] : node_dict) {
-            if (dest_id < static_cast<int>(original_graph.size())) {
-                original_graph[dest_id][new_node_id] = distance;
-            }
+            original_graph[dest_id][new_node_id] = distance;
         }
     }
     return new_node_id;

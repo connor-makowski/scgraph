@@ -1,7 +1,8 @@
+import pickle
 import pytest
 from copy import deepcopy
 from scgraph import GeoGraph
-from scgraph.utils import haversine
+from scgraph.utils import has_cpp, haversine
 from helpers import assert_result
 
 _NODES = [[0, 0], [0, 1], [1, 0], [1, 1]]
@@ -150,6 +151,60 @@ def test_remove_coord_node_restores_path():
     )
 
 
+# The four nodes of the geograph come from its creation: no node was added, so
+# remove_coord_node has no node to remove.
+def test_remove_coord_node_refuses_a_node_that_add_coord_node_did_not_add():
+    g = _fresh()
+
+    with pytest.raises(ValueError, match="add_coord_node"):
+        g.remove_coord_node()
+
+
+# remove_node removes the node 3 of the network. The coord node added next takes
+# its place in `nodes`, but it is a new node: it gets the external id -1, not
+# the id 3 of the removed node.
+def test_a_coord_node_added_after_remove_node_gets_a_new_external_id():
+    g = _fresh()
+    g.remove_node(symmetric_node=True)
+
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+
+    assert list(g.external_node_ids) == [0, 1, 2, -1]
+
+
+def test_remove_coord_node_removes_a_node_added_after_remove_node():
+    g = _fresh()
+    g.remove_node(symmetric_node=True)
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+
+    g.remove_coord_node()
+
+    assert g.nodes == [[0, 0], [0, 1], [1, 0]]
+
+
+# A copy of a geograph keeps the nodes that add_coord_node added.
+@pytest.mark.skipif(has_cpp(), reason="a C++ graph is not picklable")
+@pytest.mark.parametrize(
+    "copy_geograph",
+    [deepcopy, lambda geograph: pickle.loads(pickle.dumps(geograph))],
+    ids=["deepcopy", "pickle"],
+)
+def test_remove_coord_node_removes_a_node_added_before_a_copy(copy_geograph):
+    g = _fresh()
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+    copied = copy_geograph(g)
+
+    copied.remove_coord_node()
+
+    assert copied.nodes == _NODES
+
+
 def test_remove_node_removes_the_point_of_the_node():
     g = _fresh()
 
@@ -260,8 +315,22 @@ def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(
     # Two nodes joined both ways: only the ids 0 and 1 exist.
     graph = graph_class([{1: 1.0}, {0: 1.0}])
 
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError, match="is not in this graph"):
         change(graph)
+
+
+def test_add_node_refuses_an_edge_to_a_node_that_is_not_in_the_graph(
+    graph_class,
+):
+    # Two nodes joined both ways: only the ids 0 and 1 exist. The edge to node
+    # 0 is valid, and the edge to node 5 is not.
+    graph = graph_class([{1: 1.0}, {0: 1.0}])
+
+    with pytest.raises(ValueError, match="is not in this graph"):
+        graph.add_node({0: 1.0, 5: 1.0}, symmetric=True)
+
+    # The refusal comes before any change: node 0 gets no edge to a new node.
+    assert graph.graph == [{1: 1.0}, {0: 1.0}]
 
 
 def test_remove_node_refuses_a_graph_without_nodes(graph_class):
@@ -270,3 +339,15 @@ def test_remove_node_refuses_a_graph_without_nodes(graph_class):
 
     with pytest.raises(RuntimeError):
         graph.remove_node()
+
+
+# A removal of an edge that does not exist leaves the graph unchanged, so the
+# graph keeps what it computed from its edges, such as its reduced graph.
+def test_remove_edge_of_a_missing_edge_keeps_the_reduced_graph(graph_class):
+    # A line of three nodes: node 0 has no edge to node 2.
+    graph = graph_class([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+    graph.reduce()
+
+    graph.remove_edge(0, 2, symmetric=True)
+
+    assert graph.reduced_graph is not None

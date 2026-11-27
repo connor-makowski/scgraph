@@ -41,7 +41,8 @@ HOW A RUN GOES
    component, or each component of at least a given number of nodes. In such a
    component, every node can reach every other node. An edge between two components
    is dropped. A junction with a node in a kept component keeps all its nodes:
-   `keep_components` adds the other nodes of the junction to this component.
+   `keep_components` adds the other nodes of the junction to this component. With
+   `min_component_nodes=0`, `keep_components` keeps every node and every edge.
 3. `contract_chains` removes each pass-through node. A pass-through node has exactly
    two neighbours, and a route that enters it can only go on to the other neighbour.
    There are two cases. Either an edge joins the node to each neighbour in each
@@ -282,7 +283,8 @@ class ContractedGraph(NamedTuple):
 
     Attributes:
         kept: The nodes of the input graph that stay, in rising order.
-        origins: The origin of each contracted edge, as a position in `kept`.
+        node_first_edge_ids: For each kept node, the id of its first contracted
+            edge, and one more value at the end: the count of the contracted edges.
         edge_destination_node_ids: The destination id of each contracted edge, as a position in `kept`.
         weights: The length of each contracted edge in km: the sum of its members.
         member_offsets: Where the members of each contracted edge start in `members`.
@@ -292,7 +294,7 @@ class ContractedGraph(NamedTuple):
     """
 
     kept: array | memoryview
-    origins: array | memoryview
+    node_first_edge_ids: array | memoryview
     edge_destination_node_ids: array | memoryview
     weights: array | memoryview
     member_offsets: array | memoryview
@@ -436,9 +438,12 @@ def contract_chains_python(
     kept = array("i", (v for v in range(n) if keep[v]))
     position = {v: i for i, v in enumerate(kept)}
     edges.sort(key=lambda edge_: edge_[:2])
+    edge_counts = [0] * len(kept)
+    for edge_ in edges:
+        edge_counts[position[edge_[0]]] += 1
     return ContractedGraph(
         kept,
-        array("i", (position[edge_[0]] for edge_ in edges)),
+        array("i", accumulate(edge_counts, initial=0)),
         array("i", (position[edge_[1]] for edge_ in edges)),
         array("d", (edge_[2] for edge_ in edges)),
         array("i", accumulate((len(edge_[3]) for edge_ in edges), initial=0)),
@@ -615,7 +620,7 @@ def build_graph_from_pieces(
     (*How a run goes*, stage 1, and *How a piece is split*).
 
     Args:
-        pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
+        pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` fills them.
 
     Returns:
         The graph as a dict of arrays: `node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`,
@@ -730,7 +735,7 @@ def assemble_network(
             if it has several node modes. The function empties this dict, to free it.
         max_km_between_nodes: The length in km at which `contract_chains` cuts a chain.
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component.
+            only the largest component, and 0 keeps every node and every edge.
 
     Returns:
         The arrays of the network file, as `network_file.write` takes them, and
@@ -745,7 +750,7 @@ def assemble_network(
         )
         (
             kept,
-            origins,
+            node_first_edge_ids,
             edge_destination_node_ids,
             weights,
             member_offsets,
@@ -762,11 +767,8 @@ def assemble_network(
         points, edge_first_shape_point_ids = build_chain_shapes(
             graph, member_offsets, members
         )
-        node_first_edge_ids = array("i", bytes(4 * (len(kept) + 1)))
-        for u in origins:  # rows by origin, as contract_chains sorts them
-            node_first_edge_ids[u + 1] += 1
         graph = {  # the graph before contraction is freed
-            "node_first_edge_ids": array("i", accumulate(node_first_edge_ids)),
+            "node_first_edge_ids": node_first_edge_ids,
             "edge_destination_node_ids": edge_destination_node_ids,
             "metric_length": weights,
             "edge_first_shape_point_ids": edge_first_shape_point_ids,
@@ -909,15 +911,20 @@ def keep_components(
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it. The function
-            empties this dict, to free it.
+            empties this dict, to free it, unless it returns it.
         min_component_nodes: The smallest number of nodes of a kept component. None
-            keeps only the largest component.
+            keeps only the largest component. 0 keeps every node and every edge:
+            the function returns `graph`.
 
     Returns:
         The graph of the kept nodes, with the edges between two nodes of one
         component. A junction with a node in a kept component keeps all its nodes
         (`scgraph.turn_restrictions`).
     """
+    if min_component_nodes == 0:
+        # A number above 0 drops each edge between two components, also a
+        # one-way edge that is on no cycle. 0 keeps these edges too.
+        return graph
     with log_step(
         logger,
         "keep the strongly connected components",

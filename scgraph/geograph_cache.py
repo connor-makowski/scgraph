@@ -22,6 +22,7 @@ This module is internal. `ARCHITECTURE.md`, section 6, describes the cache direc
 
 import json
 import os
+import re
 from pathlib import Path
 
 from scgraph import files
@@ -38,6 +39,26 @@ _CACHEDIR_TAG = (
     "# This file is a cache directory tag created by scgraph."
     " For information about cache directory tags, see https://bford.info/cachedir/\n"
 )
+
+
+def check_region(region: str) -> None:
+    """Refuse a region that is not a safe part of a path in the folder `networks/`.
+
+    A region becomes a part of the path of its build folder, such as `europe/denmark`
+    in `networks/osm_region_multimodal/europe/denmark/`. So it holds nothing else.
+
+    Args:
+        region: The region of a build, such as `europe/denmark`.
+
+    Raises:
+        ValueError: `region` holds a character other than a lowercase letter, a
+            digit, a hyphen, or a `/` between two parts.
+    """
+    if not re.fullmatch(r"[a-z0-9-]+(/[a-z0-9-]+)*", region):
+        raise ValueError(
+            f"Invalid region '{region}': lowercase letters, digits and hyphens, "
+            "in parts joined by '/'"
+        )
 
 
 def create_networks_folder(cache_path: Path) -> None:

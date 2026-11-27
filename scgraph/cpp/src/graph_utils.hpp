@@ -7,6 +7,7 @@
 #include <optional>
 #include <functional>
 #include <stdexcept>
+#include <string>
 #include "csr_graph.hpp"
 
 struct PathNotFoundException : public std::runtime_error {
@@ -43,6 +44,10 @@ std::vector<std::pair<int, double>> get_node_entries(const NodeIdVariant& node_i
 bool node_variant_contains(const NodeIdVariant& node_variant, int node_id);
 std::vector<int> get_origin_ids(const NodeIdVariant& origin_id);
 bool origin_id_contains(const NodeIdVariant& origin_id, int node_id);
+// Throws std::invalid_argument (ValueError in Python) when node_id is not the id of
+// one of the node_count nodes of a graph. name names the node in the message, such as
+// "Origin node". The pure-Python twin is check_node_id in graph_utils.py.
+void check_node_id(int node_id, int node_count, const std::string& name);
 
 class GraphUtils {
 private:

@@ -270,9 +270,17 @@ void bind_geograph(nb::module_& m) {
             size_t count = nb::len(seq);
             owned->reserve(2 * count);
             for (nb::handle point : seq) {
-                auto [la, lo] = read_point(point);
-                owned->push_back(la);
-                owned->push_back(lo);
+                // read_point raises std::bad_cast for a value that is not a pair of
+                // numbers. The pure-Python index raises TypeError with this message.
+                try {
+                    auto [la, lo] = read_point(point);
+                    owned->push_back(la);
+                    owned->push_back(lo);
+                } catch (const std::bad_cast&) {
+                    throw nb::type_error(
+                        "points must be a sequence of [latitude, longitude] pairs. "
+                        "Use OrderedSnapIndex.from_array for one flat array of coordinates");
+                }
             }
             new (self) OrderedSnapIndex(owned->data(), int(count), owned);
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")

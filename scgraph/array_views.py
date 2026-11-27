@@ -158,9 +158,13 @@ class ExternalNodeIds(Sequence):
     list.
     """
 
-    def __init__(self, ids, nodes):
-        # `nodes` gives the count: nodes past the end of `ids` were added since
+    def __init__(self, ids, nodes, id_count=None):
+        # `nodes` gives the count: nodes past the first `_id_count` ids were added
+        # since. `_id_count` falls when `GeoGraph.remove_node` removes a node of the
+        # ids: the ids may be a view of a mapped file, which cannot be cut. A copy
+        # passes `id_count`, so that it keeps the added nodes of the original.
         self._ids, self._nodes, self._first_added_id = ids, nodes, None
+        self._id_count = len(ids) if id_count is None else id_count
 
     @staticmethod
     def get_first_added_id(lowest_id: int) -> int:
@@ -172,6 +176,17 @@ class ExternalNodeIds(Sequence):
             lowest_id: The lowest external id of the nodes, or 0 without nodes.
         """
         return min(0, lowest_id) - 1
+
+    def has_added_nodes(self) -> bool:
+        """Return True when the last node was added after the ids were given,
+        by `add_coord_node` or by an append to `nodes`."""
+        return len(self._nodes) > self._id_count
+
+    def forget_removed_nodes(self) -> None:
+        """Forget the ids of the nodes that left the end of `nodes`. The next
+        added node then gets a new id below zero, not the id of a removed node.
+        `GeoGraph.remove_node` calls it after it removes the last node."""
+        self._id_count = min(self._id_count, len(self._nodes))
 
     def __len__(self):
         return len(self._nodes)
@@ -185,13 +200,13 @@ class ExternalNodeIds(Sequence):
         if not 0 <= i < count:
             raise IndexError("node index out of range")
         ids = self._ids
-        if i < len(ids):
+        if i < self._id_count:
             return ids[i]
         # Computed once: the ids of a large network are long to scan
         if self._first_added_id is None:
             low = ids.start if type(ids) is range else min(ids, default=0)
             self._first_added_id = self.get_first_added_id(low)
-        return self._first_added_id - (i - len(ids))
+        return self._first_added_id - (i - self._id_count)
 
     def __eq__(self, other):
         if not isinstance(other, (list, ExternalNodeIds)):
@@ -202,12 +217,14 @@ class ExternalNodeIds(Sequence):
         return repr(list(self))
 
     def __reduce__(self):
-        return ExternalNodeIds, (list(self), self._nodes)
+        # Every id, also the forgotten ones: the lowest id sets the ids of the
+        # added nodes
+        return ExternalNodeIds, (list(self._ids), self._nodes, self._id_count)
 
     def take(self, node_ids: Iterable[int]) -> array:
         """The external ids of the nodes `node_ids`, as an int64 array."""
         ids = self._ids
-        if len(ids) < len(self):  # nodes were added since
+        if self._id_count < len(self):  # nodes were added since
             return array("q", (self[i] for i in node_ids))
         if ids == range(len(ids)):
             return array("q", node_ids)
@@ -219,10 +236,10 @@ class ExternalNodeIds(Sequence):
         ids, count = self._ids, len(self)
         if order is not None:
             result = self.take(order)
-        elif count <= len(ids) and ids == range(len(ids)):
+        elif count <= self._id_count and ids == range(len(ids)):
             return None
         else:
-            result = array("q", ids[:count])
+            result = array("q", ids[: min(count, self._id_count)])
             result.extend(self[i] for i in range(len(result), count))
         try:  # half the size when every id fits, as those of the built-in networks
             return array("i", result)

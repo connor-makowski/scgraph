@@ -40,12 +40,13 @@ from scgraph.geograph_routing import (
     GeoGraphRouting,
 )
 import logging
-import warnings
 from array import array
 from math import inf
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Sequence
 from scgraph import Graph
+from scgraph.deprecations import warn_deprecated
+from scgraph.utils import check_units
 
 if (
     TYPE_CHECKING
@@ -145,6 +146,7 @@ class GeoGraph(
         - `node_modes`
             - Type: list of dicts | None
             - What: The node modes, each a dict with its `name` (str or None) and, optionally, the `source` of its node ids (the name of an entry of the network's sources); read back as `node_modes`
+            - Note: The loaders (`load_from_scgraph`, `load_geograph`, `build_geograph`) also have a parameter `node_modes`: there it is a list of the names of the node modes to load
             - Note: At most 256 node modes; two node modes may have the same name (two sea networks merged)
             - Note: A node mode with `"has_turn_restrictions": True` follows turn restrictions: some of its junctions have more than one node (`scgraph/turn_restrictions.py`). The nodes of a junction come one right after the other, with the same external id and the same point. A query point that is connected to one node of a junction is connected to each of them
             - Default: None (one node mode, without a name: `[{"name": None}]`)
@@ -275,6 +277,7 @@ class GeoGraph(
         self.default_get_intermediate_nodes = (
             True if intermediate_nodes is not None else False
         )
+        check_units(geograph_units, "geograph_units")
         self.geograph_units = geograph_units
         # The name of the metric that a call without `metric` uses
         self.default_metric = "length"
@@ -531,11 +534,10 @@ class GeoGraph(
     def _get_node_addition_type(self, node_addition_type):
         if node_addition_type in ("kdclosest", "kdquadrant"):
             current = node_addition_type.removeprefix("kd")
-            warnings.warn(
-                f"The node addition type '{node_addition_type}' is deprecated. "
-                f"Use '{current}', which gives the same result.",
-                DeprecationWarning,
-                stacklevel=3,
+            warn_deprecated(
+                f"The node addition type '{node_addition_type}'",
+                stacklevel=4,
+                instead=f"Use '{current}', which gives the same result.",
             )
             return current
         if node_addition_type not in ["closest", "quadrant", "all"]:

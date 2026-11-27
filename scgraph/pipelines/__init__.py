@@ -32,10 +32,12 @@ WHAT A PIPELINE MODULE HOLDS
     - `license_url`: the page that states the license.
     - `version`, optional: a tag or a date, for a source that does not change.
     - `download`, optional: a download function for this source only (see below).
-- `PIPELINE_VERSION`: an integer. Raise it when the same sources would give another
-  graph. Do not raise it for a change that leaves the graph the same. Never lower it
-  after a release. The runner builds a cached network again when its
-  `PIPELINE_VERSION` differs.
+- `PIPELINE_VERSION`: an integer, with one use: the runner builds again a network
+  of the cache that another `PIPELINE_VERSION` built, or that it cannot read (with
+  `local_files_only`, it warns and loads the file). Raise it when the same
+  sources would give another graph, in the release of scgraph that brings the
+  change. Do not raise it for a change that leaves the graph the same. Never lower it
+  after a release. A network release does not read it: its tag names it.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
     - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
@@ -59,6 +61,11 @@ WHAT A PIPELINE MODULE HOLDS
   own. The default is `download_file`.
 - `CLASSES`, optional: the classes of the pipeline, in place of the classes of this
   package (see *The classes*).
+- `LAND_MODES` and `EDGE_SOURCE_OF_MODE`, optional: what
+  `derived_networks.derive_network_file` reads from the pipeline of a parent file.
+  `LAND_MODES` lists the node modes that a bbox cuts. `EDGE_SOURCE_OF_MODE` gives the
+  source of the edges of a node mode, when it is not the source of its node ids:
+  `{"airport": "flights"}`.
 
 The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.

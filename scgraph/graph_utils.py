@@ -35,6 +35,69 @@ def normalize_node_input(
     )
 
 
+def check_node_id(node_id: int, node_count: int, name: str) -> None:
+    """Check that a node id is the id of a node of a graph.
+
+    Args:
+        node_id: The node id to check.
+        node_count: The number of nodes of the graph.
+        name: The name of the node in the message, such as "Origin node".
+
+    Raises:
+        ValueError: `node_id` is negative, or not below `node_count`.
+    """
+    if not 0 <= node_id < node_count:
+        raise ValueError(f"{name} ({node_id}) is not in this graph")
+
+
+def check_node_input(node_input: object, node_count: int, name: str) -> None:
+    """Check an origin or a destination of a search.
+
+    Args:
+        node_input: A node id, a set of node ids, or a dict of node ids and
+            start distances.
+        node_count: The number of nodes of the graph.
+        name: "Origin" or "Destination", for the message.
+
+    Raises:
+        TypeError: `node_input`, a node id or a distance has a wrong type.
+            The C++ extension raises `TypeError` for the same arguments.
+        ValueError: A node id is not in the graph, the set or the dict is
+            empty, or a distance is negative or NaN.
+    """
+
+    def _validate_node_id(node_id):
+        if not isinstance(node_id, int):
+            raise TypeError(f"{name} node ({node_id!r}) is not an integer")
+        check_node_id(node_id, node_count, f"{name} node")
+
+    if isinstance(node_input, int):
+        _validate_node_id(node_input)
+    elif isinstance(node_input, set):
+        if len(node_input) == 0:
+            raise ValueError(f"{name} set cannot be empty")
+        for oid in node_input:
+            _validate_node_id(oid)
+    elif isinstance(node_input, dict):
+        if len(node_input) == 0:
+            raise ValueError(f"{name} dictionary cannot be empty")
+        for oid, dist in node_input.items():
+            _validate_node_id(oid)
+            if not isinstance(dist, numbers.Real):
+                raise TypeError(
+                    f"{name} distance for node ({oid}) must be a number, not {dist!r}"
+                )
+            # A NaN distance fails this test too.
+            if not dist >= 0:
+                raise ValueError(
+                    f"{name} distance for node ({oid}) must be a non-negative number"
+                )
+    else:
+        raise TypeError(
+            f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
+        )
+
+
 class GraphUtils:
     @property
     def graph(self) -> list[dict[int, int | float]]:
@@ -132,47 +195,8 @@ class GraphUtils:
 
         - None
         """
-        num_nodes = len(self.graph)
-
-        # A node id of the wrong type raises TypeError, as the C++ extension
-        # does. A node id out of range raises ValueError.
-        def _validate_node_id(node_id, name):
-            if not isinstance(node_id, int):
-                raise TypeError(f"{name} node ({node_id!r}) is not an integer")
-            if not (0 <= node_id < num_nodes):
-                raise ValueError(
-                    f"{name} node ({node_id}) is not in this graph"
-                )
-
-        def _validate_node_arg(arg, name):
-            if isinstance(arg, int):
-                _validate_node_id(arg, name)
-            elif isinstance(arg, set):
-                if len(arg) == 0:
-                    raise ValueError(f"{name} set cannot be empty")
-                for oid in arg:
-                    _validate_node_id(oid, name)
-            elif isinstance(arg, dict):
-                if len(arg) == 0:
-                    raise ValueError(f"{name} dictionary cannot be empty")
-                for oid, dist in arg.items():
-                    _validate_node_id(oid, name)
-                    if not isinstance(dist, numbers.Real):
-                        raise TypeError(
-                            f"{name} distance for node ({oid}) must be a number, not {dist!r}"
-                        )
-                    # A NaN distance fails this test too.
-                    if not dist >= 0:
-                        raise ValueError(
-                            f"{name} distance for node ({oid}) must be a non-negative number"
-                        )
-            else:
-                raise TypeError(
-                    f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
-                )
-
-        _validate_node_arg(origin_id, "Origin")
-        _validate_node_arg(destination_id, "Destination")
+        check_node_input(origin_id, len(self.graph), "Origin")
+        check_node_input(destination_id, len(self.graph), "Destination")
 
     def get_path_weight(self, path: list[int]) -> int | float:
         """
@@ -331,64 +355,6 @@ class GraphUtils:
                     return False
         return True
 
-    def _get_max_edge_weight(
-        self,
-        max_edge_weight: float | None,
-    ) -> int:
-        """Infer and round up the maximum edge weight for bucket allocation. An infinite
-        weight closes its edge, so the maximum is that of the finite weights."""
-        if max_edge_weight is not None:
-            return math.ceil(max_edge_weight)
-        cached_max_edge_weight = getattr(self, "_max_edge_weight", None)
-        if cached_max_edge_weight is None:
-            graph = self.search_graph
-            max_edge_weight = max(
-                0,
-                max(
-                    (
-                        weight
-                        for edges in graph
-                        for weight in edges.values()
-                        if math.isfinite(weight)
-                    ),
-                    default=0,
-                ),
-            )
-            cached_max_edge_weight = math.ceil(max_edge_weight)
-            self._max_edge_weight = cached_max_edge_weight
-        return cached_max_edge_weight
-
-    def _get_bucket_width(
-        self,
-        bucket_width: float | None,
-        max_edge_weight: int,
-    ) -> float:
-        """Width of the buckets of the bucket algorithms: the given width, else 8 times the
-        median finite edge weight of the graph (1 if that median is 0), never so small that a
-        bucket ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width
-        (C++).
-        """
-        if bucket_width is not None:
-            if not (math.isfinite(bucket_width) and bucket_width > 0):
-                raise ValueError(
-                    "bucket_width must be a finite number greater than 0."
-                )
-            width = float(bucket_width)
-        else:
-            width = getattr(self, "_bucket_width", None)
-            if width is None:
-                weights = sorted(
-                    w
-                    for edges in self.search_graph
-                    if edges
-                    for w in edges.values()
-                    if math.isfinite(w)
-                )
-                median = weights[len(weights) // 2] if weights else 0
-                width = 8.0 * median if median > 0 else 1.0
-                self._bucket_width = width
-        return max(width, max_edge_weight / 65536)
-
     def validate(
         self,
         check_symmetry: bool = True,
@@ -531,10 +497,9 @@ class GraphUtils:
 
         Raises:
 
-        - IndexError if `idx` is not the id of a node of the graph
+        - ValueError if `idx` is not the id of a node of the graph
         """
-        if not 0 <= idx < len(self._graph):
-            raise IndexError("Index out of range")
+        check_node_id(idx, len(self._graph), "Node")
         return self._graph[idx]
 
 
@@ -545,6 +510,13 @@ class GraphModifiers:
         `remove_edge` that changed the graph. A GeoGraph reads it to know that its
         graph was edited. An assignment into `graph` does not change it."""
         return getattr(self, "_edit_counter", 0)
+
+    def _record_edit(self) -> None:
+        """Count one more edit, and forget the inverse graph and the cached
+        trees. Each edit method calls it after it changed the graph."""
+        self._inverse_graph = None
+        self._edit_counter = self._edit_count + 1
+        self.reset_cache()
 
     def add_node(
         self,
@@ -571,16 +543,21 @@ class GraphModifiers:
         Returns:
 
         - The id of the newly added node
+
+        Raises:
+
+        - `ValueError`: A key of `node_dict` is not a node of the graph. The graph does not change
         """
         node_dict = node_dict if node_dict is not None else dict()
+        # Every key is checked before the graph changes, so a wrong key leaves it whole
+        for destination_id in node_dict:
+            check_node_id(destination_id, len(self._graph), "Destination node")
         self._graph.append(node_dict)
         new_node_id = len(self._graph) - 1
         if symmetric:
             for dest_id, distance in node_dict.items():
                 self._graph[dest_id][new_node_id] = distance
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
         return new_node_id
 
     def add_edge(
@@ -614,8 +591,7 @@ class GraphModifiers:
         Raises:
 
         - `TypeError`: A node id is not an integer, or the distance is not a number
-        - `IndexError`: The origin id or the destination id is not in the graph
-        - `ValueError`: The distance is NaN
+        - `ValueError`: The origin id or the destination id is not in the graph, or the distance is NaN
         """
         try:
             origin_id = operator.index(origin_id)
@@ -629,14 +605,8 @@ class GraphModifiers:
         if not isinstance(distance, (int, float)):
             # A Decimal or a numpy number: the searches add floats to it
             distance = float(distance)
-        if origin_id < 0 or origin_id >= len(self._graph):
-            raise IndexError(
-                f"Origin node id ({origin_id}) is not in the graph"
-            )
-        if destination_id < 0 or destination_id >= len(self._graph):
-            raise IndexError(
-                f"Destination node id ({destination_id}) is not in the graph"
-            )
+        check_node_id(origin_id, len(self._graph), "Origin node")
+        check_node_id(destination_id, len(self._graph), "Destination node")
         if math.isnan(distance):
             raise ValueError("distance must not be NaN")
         if origin_id == destination_id:
@@ -644,9 +614,7 @@ class GraphModifiers:
         self._graph[origin_id][destination_id] = distance
         if symmetric:
             self._graph[destination_id][origin_id] = distance
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
 
     def remove_node(
         self, symmetric_node: bool = False
@@ -684,9 +652,7 @@ class GraphModifiers:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
         removed_node = self._graph.pop()
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        self._record_edit()
         return removed_node
 
     def remove_edge(
@@ -716,16 +682,17 @@ class GraphModifiers:
 
         Raises:
 
-        - `IndexError`: The origin id or the destination id is not in the graph
+        - `ValueError`: The origin id or the destination id is not in the graph
         """
-        if origin_id < 0 or origin_id >= len(self._graph):
-            raise IndexError("Origin node id is not in the graph")
-        if destination_id < 0 or destination_id >= len(self._graph):
-            raise IndexError("Destination node id is not in the graph")
-        if symmetric:
+        check_node_id(origin_id, len(self._graph), "Origin node")
+        check_node_id(destination_id, len(self._graph), "Destination node")
+        reverse_weight = (
             self._graph[destination_id].pop(origin_id, None)
+            if symmetric
+            else None
+        )
         res = self._graph[origin_id].pop(destination_id, None)
-        self._inverse_graph = None
-        self._edit_counter = self._edit_count + 1
-        self.reset_cache()
+        # A removal of an edge that does not exist leaves the graph unchanged.
+        if res is not None or reverse_weight is not None:
+            self._record_edit()
         return res

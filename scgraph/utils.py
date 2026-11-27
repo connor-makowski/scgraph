@@ -11,7 +11,6 @@ import logging
 import time
 import platform
 import os
-import warnings
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
@@ -190,22 +189,37 @@ def distance_converter(
         - Type: str
         - What: units of the output distance (one of "mi", "km", "m", or "ft")
     """
-    if input_units not in ["mi", "km", "m", "ft"]:
-        raise ValueError("input_units must be one of 'mi', 'km', 'm' or 'ft'")
-    if output_units not in ["mi", "km", "m", "ft"]:
-        raise ValueError("output_units must be one of 'mi', 'km', 'm' or 'ft'")
+    check_units(input_units, "input_units")
+    check_units(output_units, "output_units")
     return (distance / units_per_km[input_units]) * units_per_km[output_units]
+
+
+def check_units(units: str, parameter: str) -> None:
+    """Refuse a unit that is not a key of `units_per_km`.
+
+    Args:
+        units: The name of a unit of length, such as `km`.
+        parameter: The name of the parameter that holds `units`, for the message.
+
+    Raises:
+        ValueError: `units` is not `km`, `m`, `mi` or `ft`.
+    """
+    if units not in units_per_km:
+        raise ValueError(
+            f"{parameter} must be one of {', '.join(map(repr, units_per_km))}"
+        )
 
 
 def get_units_per_km(geograph_units: str) -> float:
     """Return 1 km in the units of a geograph: 0.621 for `mi`.
 
-    The value is the one of `units_per_km`. An unknown unit gives 1.
+    The value is the one of `units_per_km`. The constructor of `GeoGraph` checks
+    the unit with `check_units`.
 
     Args:
         geograph_units: The `geograph_units` of the geograph.
     """
-    return units_per_km.get(geograph_units, 1)
+    return units_per_km[geograph_units]
 
 
 def get_line_path(
@@ -311,10 +325,10 @@ def adjacency_dict_to_list_tuples(
     - Type: list[list[tuple[int, int | float]]]
     - What: The converted graph in adjacency list representation
     """
-    warnings.warn(
-        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
-        DeprecationWarning,
-        stacklevel=2,
+    warn_deprecated(
+        "scgraph.utils.adjacency_dict_to_list_tuples",
+        instead="Nothing replaces it: copy the function into your code. "
+        "Release 5.0 or later removes it.",
     )
     if not graph:
         return []
@@ -342,10 +356,10 @@ def adjacency_list_tuples_to_dict(
     - Type: list[dict[int, int | float]]
     - What: The converted graph in adjacency dictionary representation
     """
-    warnings.warn(
-        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
-        DeprecationWarning,
-        stacklevel=2,
+    warn_deprecated(
+        "scgraph.utils.adjacency_list_tuples_to_dict",
+        instead="Nothing replaces it: copy the function into your code. "
+        "Release 5.0 or later removes it.",
     )
     if not graph:
         return []

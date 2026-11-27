@@ -64,15 +64,11 @@ def build_main_roads(files, *, work_dir=None):
 
     pieces = osm.build_way_pieces(
         step1_osm_sources.get_source(files["roads"]),
-        {
-            "road": {
-                "ways": osm.select_main_roads,
-                "ferries": osm_region_multimodal.select_vehicle_ferries,
-            }
-        },
+        {"road": {"ways": osm.select_main_roads}},
         ("highway", "route"),
         step1_osm_sources.MAX_KM_BETWEEN_NODES,
         os.path.join(work_dir, "ways") if work_dir else None,
+        ferry_selects={"road": osm_region_multimodal.select_vehicle_ferries},
     )
     graph = network_assembly.build_graph_from_pieces(pieces["road"])
     arrays = network_assembly.assemble_network(

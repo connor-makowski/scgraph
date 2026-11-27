@@ -14,15 +14,19 @@ that joins the sea lanes to other networks.
 """
 
 import contextlib
-import json
 import struct
 from array import array
 
 from scgraph import network_assembly
-from scgraph.coordinates import encode_coordinate
+from scgraph.coordinates import (
+    encode_coordinate,
+    get_coordinate_dtype_for_precision,
+)
 from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.geograph import GeoGraph
+from scgraph.geograph_io import renumber_in_hilbert_order
 from scgraph.helpers.geojson import format_coord_list
+from scgraph.utils import hard_round, haversine
 
 PIPELINE_VERSION = 1
 
@@ -66,6 +70,53 @@ def _read_lines(files):
     return lines
 
 
+def _read_lane_graph(files):
+    """Return the graph of the lines, with the nodes in the order of their first
+    point in the lines.
+
+    Each point of a line is rounded to COORDINATE_DECIMALS decimals, as
+    `GeoGraph.load_from_geojson` rounds it. The points with the same rounded value
+    are one node. Two consecutive points that differ give one edge each way, with
+    their great-circle distance in km, rounded to 3 decimals. The edge has the class
+    of its line.
+
+    Example: two lines meet at the point (36.000001, 14.5). Both lines round it to
+    (36.0, 14.5), so they share one node there.
+
+    Returns:
+        `(points, weights, class_ids)`. `points` holds the `[latitude, longitude]`
+        of each node, in degrees. `weights[u]` gives the km of the edge from node `u`
+        to each of its neighbours, and `class_ids[u]` gives the class id of this
+        edge. The neighbours of a node are in the order in which the lines reach
+        them, as in `load_from_geojson`.
+    """
+    node_ids = {}  # the node id of each rounded point
+    points, weights, class_ids = [], [], []
+    for line, passage in _read_lines(files):
+        rounded = []
+        for lon_lat in line["coordinates"]:
+            point = format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1]
+            if not rounded or point != rounded[-1]:
+                rounded.append(point)
+        if len(rounded) < 2:  # a line that rounds to one point gives no edge
+            continue
+        nodes = []
+        for point in rounded:
+            node_id = node_ids.setdefault(tuple(point), len(points))
+            if node_id == len(points):
+                points.append(point)
+                weights.append({})
+                class_ids.append({})
+            nodes.append(node_id)
+        class_id = CLASS_IDS[passage or "open_sea"]
+        for a, b in zip(nodes, nodes[1:]):
+            # Each direction has its own haversine, as in `load_from_geojson`
+            weights[a][b] = hard_round(3, haversine(points[a], points[b]))
+            weights[b][a] = hard_round(3, haversine(points[b], points[a]))
+            class_ids[a][b] = class_ids[b][a] = class_id
+    return points, weights, class_ids
+
+
 def build(files: dict[str, str]) -> GeoGraph:
     """Build the sea lanes as a GeoGraph, with the class of each edge.
 
@@ -81,56 +132,35 @@ def build(files: dict[str, str]) -> GeoGraph:
     Returns:
         The GeoGraph of the lanes.
     """
-    lines = _read_lines(files)
-    geojson = files["sea_lanes"] + ".geojson"
-    with open(geojson, "w") as file:
-        json.dump(
-            {
-                "type": "GeometryCollection",
-                "geometries": [line for line, _ in lines],
-            },
-            file,
+    points, weights, class_ids = _read_lane_graph(files)
+    sea = renumber_in_hilbert_order(
+        GeoGraph(
+            graph=weights,
+            nodes=points,
+            coordinate_dtype=get_coordinate_dtype_for_precision(
+                COORDINATE_DECIMALS
+            ),
         )
-    sea = GeoGraph.load_from_geojson(geojson, precision=COORDINATE_DECIMALS)
-    # The name of the class of each edge, by its two nodes. A node is found by its
-    # point: `load_from_geojson` rounds each point of a lane with
-    # `format_coord_list`. No segment of the pinned file is in two lines of
-    # different passages.
-    node_of_point = {
-        _convert_to_e7_degrees(point): node_id
-        for node_id, point in enumerate(sea.nodes)
-    }
-    edge_class_names = [{} for _ in sea.nodes]
-    for line, passage in lines:
-        nodes = [
-            node_of_point[
-                _convert_to_e7_degrees(
-                    format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1]
-                )
-            ]
-            for lon_lat in line["coordinates"]
-        ]
-        for a, b in zip(nodes, nodes[1:]):
-            edge_class_names[a][b] = edge_class_names[b][a] = (
-                passage or "open_sea"
-            )
+    )
+    # `external_node_ids` gives the node id of each node before the Hilbert order
+    old_ids = list(sea.external_node_ids)
+    new_id = {old_id: node_id for node_id, old_id in enumerate(old_ids)}
+    class_names = list(CLASSES)
     # The same graph and the same nodes, with the class of each edge
     return GeoGraph(
         graph=sea.graph_object,
         nodes=sea.nodes,
-        external_node_ids=list(sea.external_node_ids),
+        external_node_ids=old_ids,
         coordinate_dtype=sea.coordinate_dtype,
         classes=[
             {"name": name, "edge_mode": edge_mode}
             for name, edge_mode in CLASSES.items()
         ],
-        edge_classes=edge_class_names,
+        edge_classes=[
+            {new_id[v]: class_names[c] for v, c in class_ids[old_id].items()}
+            for old_id in old_ids
+        ],
     )
-
-
-def _convert_to_e7_degrees(point):
-    # A [latitude, longitude] point, in units of 1e-7 degree
-    return encode_coordinate(point[0]), encode_coordinate(point[1])
 
 
 def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
@@ -147,40 +177,33 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         The graph as a dict of arrays, as `network_assembly.build_graph_from_pieces` returns
         it, with `edge_class_ids`. The edges have no shape points.
     """
-    sea = build(files)
-    class_id_of_edge = {
-        (edge["origin_id"], edge["destination_id"]): CLASS_IDS[
-            edge["edge_class"]
-        ]
-        for edge in sea.get_edges()
-    }
-    node_first_edge_ids, edge_destination_node_ids, weights = (
-        network_assembly.build_csr_from_adjacency_list(sea.graph_object.graph)
+    points, weights, class_ids = _read_lane_graph(files)
+    node_first_edge_ids, edge_destination_node_ids, metric_length = (
+        network_assembly.build_csr_from_adjacency_list(weights)
     )
-    return {
+    graph = {
         "node_first_edge_ids": node_first_edge_ids,
         "edge_destination_node_ids": edge_destination_node_ids,
-        "metric_length": weights,
+        "metric_length": metric_length,
         "node_points": array(
-            "i",
-            (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
+            "i", (encode_coordinate(x) for point in points for x in point)
         ),
         "edge_first_shape_point_ids": array(
             "i", bytes(4 * (len(edge_destination_node_ids) + 1))
         ),
         "shape_points": array("i"),
-        "external_node_ids": array("q", sea.external_node_ids),
+        "external_node_ids": array("q", range(len(points))),
         "edge_class_ids": array(
             "B",
             (
-                class_id_of_edge[u, v]
-                for u in range(len(sea.nodes))
-                for v in edge_destination_node_ids[
-                    node_first_edge_ids[u] : node_first_edge_ids[u + 1]
-                ]
+                class_ids[u][v]
+                for u in range(len(points))
+                for v in sorted(class_ids[u])
             ),
         ),
     }
+    # The Hilbert order of `build`, which `order_nodes` also gives
+    return network_assembly.order_nodes(graph)
 
 
 # The kind `sea_distances` measures between ports. This network has no port

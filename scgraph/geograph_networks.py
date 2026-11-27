@@ -40,6 +40,7 @@ from scgraph.geograph_cache import (
     NETWORKS_FOLDER,
     RELEASES_FOLDER,
     WORK_FOLDER,
+    check_region,
     find_cached_file,
 )
 from scgraph import built_in_geographs
@@ -292,10 +293,10 @@ def clear_cache(
         *BUILDABLE_NETWORKS,
     }:
         raise ValueError(f"Unknown network '{name}'")
-    if region is not None and (
-        name is None or not re.fullmatch(r"[a-z0-9-]+(/[a-z0-9-]+)*", region)
-    ):
-        raise ValueError(f"Invalid region '{region}', or no name with it")
+    if region is not None:
+        if name is None:
+            raise ValueError(f"Invalid region '{region}': no name with it")
+        check_region(region)
     cache_path = resolve_cache_dir(cache_dir)
     root = cache_path.joinpath(NETWORKS_FOLDER)
 

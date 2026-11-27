@@ -374,6 +374,9 @@ class GeoGraphUtils:
               weight of 1 km of an off-graph leg in the metric
             - Note: The total of a metric other than 'length' is not converted to
               `output_units`. An unknown name raises a ValueError
+            - Note: With a metric other than `length`, the result is the total of
+              this metric, not a length. `get_shortest_path` returns both: `length`
+              and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is
               'length' unless a loader or the caller set it)
 
@@ -405,15 +408,7 @@ class GeoGraphUtils:
             self.get_graph_object(metric).get_path_weight(path)
             + off_graph_km * self._read_metric(metric).off_graph_weight_per_km
         )
-        if metric != "length":
-            # Release 3.6.0 converts a length only: a total of another metric
-            # stays in the unit of the metric
-            return total
-        return distance_converter(
-            total,
-            input_units=self.geograph_units,
-            output_units=output_units,
-        )
+        return self._read_metric(metric).convert_total(total, output_units)
 
     def validate(
         self,
@@ -550,13 +545,45 @@ class GeoGraphRouting:
         origin: Sequence[float],
         destination: Sequence[float],
     ) -> float:
-        # The km of the two off-graph legs of a route, without circuity. A route
-        # without a node is one off-graph leg from the origin to the destination.
-        if not path:
-            return haversine(origin, destination)
-        return haversine(origin, self.nodes[path[0]]) + haversine(
-            self.nodes[path[-1]], destination
+        # The km of the off-graph legs of a route, without circuity
+        return sum(
+            km for _, km in self._list_off_graph_legs(path, origin, destination)
         )
+
+    def _list_off_graph_legs(
+        self,
+        path: list[int],
+        origin: Sequence[float],
+        destination: Sequence[float],
+    ) -> list[tuple[list, float]]:
+        """Return the points and the km, without circuity, of each off-graph leg
+        of a route. A route with an edge has two: from `origin` to the first node
+        of `path`, and from its last node to `destination`. A route without an
+        edge has one, through the node of its path if it has one. The legs and
+        the totals of a route read their km here."""
+        if len(path) > 1:
+            off_graph_paths = [
+                [origin, self.nodes[path[0]]],
+                [self.nodes[path[-1]], destination],
+            ]
+        else:
+            off_graph_paths = [
+                [
+                    origin,
+                    *(self.nodes[node_id] for node_id in path),
+                    destination,
+                ]
+            ]
+        return [
+            (
+                points,
+                sum(
+                    haversine(start, end)
+                    for start, end in zip(points, points[1:])
+                ),
+            )
+            for points in off_graph_paths
+        ]
 
     def _get_legs(
         self,
@@ -604,43 +631,18 @@ class GeoGraphRouting:
         destination: Sequence[float],
         off_graph_circuity: float,
     ) -> list[dict]:
-        """Return the off-graph legs of a route, with the keys of a leg of
-        `_cut_legs` and a `coordinate_path` in place of `path`. A route with an
-        edge has two: from `origin` to the first node of `path`, and from its last
-        node to `destination`. A route without an edge is one off-graph leg,
-        through the node of its path if it has one. An off-graph leg has the
-        weight that `_get_metric_totals` gives it in the totals of the route."""
-        if len(path) > 1:
-            off_graph_paths = [
-                [origin, self.nodes[path[0]]],
-                [self.nodes[path[-1]], destination],
-            ]
-        else:
-            off_graph_paths = [
-                [
-                    origin,
-                    *(self.nodes[node_id] for node_id in path),
-                    destination,
-                ]
-            ]
+        """Return the off-graph legs of a route (`_list_off_graph_legs`), with
+        the keys of a leg of `_cut_legs` and a `coordinate_path` in place of
+        `path`. An off-graph leg has the weight that `_get_metric_totals` gives
+        it in the totals of the route."""
+        units_per_km = get_units_per_km(self.geograph_units)
         off_graph_legs = []
-        for points in off_graph_paths:
-            hops = list(zip(points, points[1:]))
-            off_graph_km = off_graph_circuity * sum(
-                haversine(start, end) for start, end in hops
-            )
+        for points, km in self._list_off_graph_legs(path, origin, destination):
+            off_graph_km = off_graph_circuity * km
             off_graph_legs.append(
                 {
                     "edge_mode": "off_graph",
-                    "length": sum(
-                        haversine(
-                            start,
-                            end,
-                            circuity=off_graph_circuity,
-                            units=self.geograph_units,
-                        )
-                        for start, end in hops
-                    ),
+                    "length": off_graph_km * units_per_km,
                     "metric_totals": {
                         name: off_graph_km
                         * metric_record.off_graph_weight_per_km
@@ -1005,14 +1007,9 @@ class GeoGraphRouting:
                 destination_id,
             )
         # The search returned the total of the metric
-        metric_total = output["length"]
-        if metric == "length":
-            # Release 3.6.0 gives the length of a route in `output_units`
-            metric_total = distance_converter(
-                metric_total,
-                input_units=self.geograph_units,
-                output_units=output_units,
-            )
+        metric_total = self._read_metric(metric).convert_total(
+            output["length"], output_units
+        )
         if totals_only:
             return {"metric_totals": {metric: metric_total}}
         if length_only:
@@ -1104,9 +1101,9 @@ class GeoGraphRouting:
             algorithm_kwargs.pop("heuristic_fn")
             # The total of a route of the length d is at least d times
             # `min_weight_per_length_unit`: the radius times it is the bound.
-            radius = earth_radius.get(
-                self.geograph_units, 6371
-            ) * self._read_metric(metric).get_min_weight_per_length_unit(
+            radius = earth_radius[self.geograph_units] * self._read_metric(
+                metric
+            ).get_min_weight_per_length_unit(
                 lambda: self._read_edge_arrays()[2]
             )
             return partial(
@@ -1328,6 +1325,7 @@ class GeoGraphRouting:
         - `metric`
             - Type: str
             - What: The name of the metric to minimise, a name of `metrics`: the path between two nodes is the one with the smallest total of this metric
+            - Note: With a metric other than `length`, a value of the matrix is the total of this metric, not a length. `get_shortest_path` returns both: `length` and `metric_totals`
             - Default: None (the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it)
         - `output_metric`
             - Type: str | None
@@ -1364,21 +1362,11 @@ class GeoGraphRouting:
         graph_object = self.get_graph_object(metric)
         if output_metric is None:
             output_metric = metric
-        # Release 3.6.0 gives the lengths in `output_units`. A total of another
-        # metric stays in the unit of the metric.
-        dist_multiplier = (
-            distance_converter(
-                distance=1,
-                input_units=self.geograph_units,
-                output_units=output_units,
-            )
-            if output_metric == "length"
-            else 1
-        )
+        output_metric_record = self._read_metric(output_metric)
+        dist_multiplier = output_metric_record.convert_total(1, output_units)
         # The weight of an off-graph leg is its km times the weight of 1 km
         off_graph_weight_per_km = (
-            self._read_metric(output_metric).off_graph_weight_per_km
-            * dist_multiplier
+            output_metric_record.off_graph_weight_per_km * dist_multiplier
         )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
         follows_turn_restrictions = has_turn_restrictions(self)

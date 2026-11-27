@@ -130,7 +130,22 @@ def find_water_path_cells(
         `(km, cells)`: the length of the path, and its cells from the start to the
         target. None when no target is within `max_km`, or when the search would hold
         more than `max_cells` cells.
+
+    Raises:
+        ValueError: The raster has no cell, `bits`, `east_km` or `diagonal_km` is
+            too short for the raster, or `start` is not a cell of the raster.
     """
+    if (
+        width <= 0
+        or height <= 0
+        or len(bits) * 8 < width * height
+        or len(east_km) < height
+        or len(diagonal_km) + 1 < height
+        or not 0 <= start < width * height
+    ):
+        raise ValueError(
+            "find_water_path_cells: arrays do not match the raster"
+        )
     km, before, heap = {start: 0.0}, {start: -1}, [(0.0, start)]
     while heap:
         d, cell = heappop(heap)

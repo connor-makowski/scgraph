@@ -10,9 +10,8 @@ name: Build the reference networks
 # One network is built from its sources: `world_multimodal`, by the pipeline
 # `osm_world_multimodal`. Every other file is derived from it by
 # `scgraph.pipelines.derived_networks`, with no download: `DERIVED_NETWORKS` of that module
-# names the derived networks. The world file is carried over from the previous
-# published network release when the same pipeline, at the same version, built it
-# from the same source URLs. That release may be a development release.
+# names the derived networks. Every run builds the world network: a tag is the choice
+# of a maintainer to build it, and the tag names the network release.
 on:
   push:
     tags:
@@ -78,44 +77,8 @@ jobs:
           tag=$(gh release list --limit 100 --json tagName,isDraft,publishedAt -q "$PREVIOUS_TAG_FILTER")
           echo "previous network release: ${tag:-none}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      # The URL of each source tells its content: the planet file has its date in its
-      # name, and the other sources are read at a fixed commit or kept with the code.
-      - name: Carry over the world file, if this pipeline built it from these sources
-        if: steps.previous.outputs.tag != ''
+      - name: Build and validate the world network
         run: |
-          mkdir previous
-          gh release download "${{ steps.previous.outputs.tag }}" --dir previous \
-            --pattern 'world_multimodal.scgraph*'
-          gunzip previous/world_multimodal.scgraph.gz
-          uv run python - <<'PYTHON'
-          import os
-          from scgraph import GeoGraph
-          from scgraph.pipelines import osm_world_multimodal as pipeline
-
-          file = "previous/world_multimodal.scgraph"
-          try:
-              info = GeoGraph.get_scgraph_info(file)
-          except ValueError as error:  # another file format: build the network
-              print(error)
-              raise SystemExit
-          then = (
-              info["pipeline"]["name"],
-              info["pipeline"]["version"],
-              {s["name"]: s["url"] for s in info["sources"]},
-          )
-          now = (
-              "osm_world_multimodal",
-              pipeline.PIPELINE_VERSION,
-              {name: source["url"] for name, source in pipeline.SOURCES.items()},
-          )
-          print(f"then: {then}\nnow:  {now}")
-          if then == now:
-              os.makedirs("files")
-              os.replace(file, "files/world_multimodal.scgraph")
-          PYTHON
-      - name: Build and validate the world network, if it is not carried over
-        run: |
-          if [ -f files/world_multimodal.scgraph ]; then echo "carried over"; exit 0; fi
           uv run python -m scgraph.pipelines.network_builder osm_world_multimodal --cache-dir cache --validate
           mkdir -p files
           cp cache/networks/osm_world_multimodal/*.scgraph files/world_multimodal.scgraph

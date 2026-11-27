@@ -123,8 +123,18 @@ class OrderedSnapIndex:
         return index
 
     def __init__(self, points):
-        latitudes = array("d", [p[0] for p in points])
-        self._build(latitudes, array("d", [p[1] for p in points]))
+        # len() refuses an iterator, which the two loops below cannot read twice,
+        # with the TypeError of the C++ index.
+        len(points)
+        try:
+            latitudes = array("d", [latitude for latitude, _ in points])
+            longitudes = array("d", [longitude for _, longitude in points])
+        except (TypeError, ValueError):
+            raise TypeError(
+                "points must be a sequence of [latitude, longitude] pairs. "
+                "Use OrderedSnapIndex.from_array for one flat array of coordinates"
+            ) from None
+        self._build(latitudes, longitudes)
 
     def _build(self, latitudes, longitudes):
         # Columns of float64 arrays, not lists of floats: 8 bytes per value instead of 32,

@@ -54,9 +54,9 @@
 // AN EDGE WITHOUT A CLASS
 //   The class id 255 is the id of no class. The kernels have no rule for it: the caller
 //   gives it a weight per km and hub weights, as to a class. GeoGraph.create_metric gives
-//   C = 256 values, one for each value of a class id. class_weights_per_km[255] is the
-//   weight of 1 km between a query point and its node, and hub_weights[m * 256 + 255] is
-//   zero for every node mode m. A value that is the id of no class has a weight per km that
+//   C = 256 values, one for each value of a class id. With a dict of weights per km,
+//   class_weights_per_km[255] is the weight of 1 km between a query point and its node.
+//   hub_weights[m * 256 + 255] is zero for every node mode m. A value that is the id of no class has a weight per km that
 //   is not a number, so step 4 below refuses an edge with such an id.
 //   Example: with the 2 classes above and 0.1 hour for 1 km off the graph,
 //   class_weights_per_km holds 0.02, 0.04, then 253 values that are not a number, then 0.1.

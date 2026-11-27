@@ -1203,15 +1203,14 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     pytest.importorskip("osmium")
     strait_file = tmp_path / "strait.osm"
     strait_file.write_bytes(_FILES["/strait.osm"])
-    selects = {
-        "road": {
-            "ways": osm_region_multimodal.select_main_roads_with_class,
-            "ferries": osm_region_multimodal.select_vehicle_ferries_with_class,
-        }
-    }
-
     pieces = osm.build_way_pieces(
-        str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
+        str(strait_file),
+        {"road": {"ways": osm_region_multimodal.select_main_roads_with_class}},
+        ("highway", "route"),
+        max_km_between_nodes=2,
+        ferry_selects={
+            "road": osm_region_multimodal.select_vehicle_ferries_with_class
+        },
     )
     graph = network_assembly.build_graph_from_pieces(pieces["road"])
 

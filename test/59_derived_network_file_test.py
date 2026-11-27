@@ -317,12 +317,73 @@ def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
     assert route["length"] == pytest.approx(1.0)
 
 
+# A road joins W and E both ways, and a one-way street goes from E to the dead
+# end D. No route comes back from D, so D is a component of its own, and the
+# street joins two components. Each edge is 1 km long. A parent file has
+# several node modes: the network also has one sea node.
+def test_a_derivation_with_min_component_nodes_0_keeps_every_edge(tmp_path):
+    w, e, d, sea = range(4)
+    parent = GeoGraph(
+        graph=[{e: 1.0}, {w: 1.0, d: 1.0}, {}, {}],
+        nodes=[[0, 0], [0, 0.01], [0, 0.02], [-1, 0]],
+        intermediate_nodes=[{} for _ in range(4)],
+        node_mode_ids=[0, 0, 0, 1],
+        node_modes=[
+            {"name": "road", "source": "osm"},
+            {"name": "sea", "source": "sea"},
+        ],
+        coordinate_dtype="int32",
+    )
+    parent_file = str(tmp_path / "dead_end.scgraph")
+    parent.save_as_scgraph(
+        parent_file,
+        metadata=pipelines.build_metadata(
+            "osm_world_multimodal", None, 1, SOURCES
+        ),
+    )
+    derived_file = str(tmp_path / "derived.scgraph")
+
+    derived_networks.derive_network_file(
+        parent_file, derived_file, min_component_nodes=0
+    )
+
+    # The route from W to D takes the road, then the one-way street
+    route = GeoGraph.load_from_scgraph(derived_file).get_shortest_path(
+        {"latitude": 0, "longitude": 0}, {"latitude": 0, "longitude": 0.02}
+    )
+    assert route["length"] == pytest.approx(2.0)
+
+
 def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
     # The network of the parent file has 8 nodes. The smallest component that a
     # derivation keeps has 10 nodes, unless the call gives another size.
     with pytest.raises(ValueError, match="no component of 10 nodes"):
         derived_networks.derive_network_file(
             parent_file, str(tmp_path / "empty.scgraph")
+        )
+
+
+# The pipeline of a parent file gives its land node modes. The pipeline
+# eurostat_sea_lanes builds a network with one node mode, so it gives none.
+# This version of scgraph has no pipeline atlantis_multimodal.
+@pytest.mark.parametrize(
+    "pipeline_name", ["eurostat_sea_lanes", "atlantis_multimodal"]
+)
+def test_a_parent_file_of_a_pipeline_without_land_modes_is_refused(
+    parent_file, tmp_path, pipeline_name
+):
+    other_parent_file = str(tmp_path / "other_parent.scgraph")
+    GeoGraph.load_from_scgraph(parent_file).save_as_scgraph(
+        other_parent_file,
+        metadata=pipelines.build_metadata(pipeline_name, None, 1, SOURCES),
+    )
+
+    with pytest.raises(ValueError, match=f"'{pipeline_name}'.*LAND_MODES"):
+        derived_networks.derive_network_file(
+            other_parent_file,
+            str(tmp_path / "derived.scgraph"),
+            bbox=BBOX,
+            min_component_nodes=1,
         )
 
 
@@ -476,16 +537,6 @@ def small_world_file(tmp_path_factory):
     )
 
 
-@pytest.fixture(scope="module")
-def world_file_of_an_unknown_pipeline(tmp_path_factory):
-    """The small world, as a file that a pipeline built which this version of
-    scgraph does not have. Its derived files cannot be validated."""
-    folder = tmp_path_factory.mktemp("unknown")
-    return _write_small_world(
-        str(folder / "world_multimodal.scgraph"), "atlantis_multimodal"
-    )
-
-
 # The ten derived networks of a network release
 DERIVED_NAMES = ["world_sea", "world_rail", *REGION_POINTS]
 
@@ -582,23 +633,14 @@ def test_a_name_that_is_not_a_derived_network_is_refused(
         )
 
 
-# A derived network is validated against the cases of the pipeline that built
-# the world file. Without that pipeline, the validation cannot run.
-def test_derived_files_of_an_unknown_pipeline_are_refused_with_validation(
-    world_file_of_an_unknown_pipeline, tmp_path
-):
-    with pytest.raises(ValueError, match="atlantis_multimodal.*--no-validate"):
-        derived_networks.derive_network_release_files(
-            world_file_of_an_unknown_pipeline, tmp_path, ["world_sea"]
-        )
-
-
+# The command writes the two files of each derived network that it names. With
+# `--no-validate`, it does not check them against the cases of the pipeline.
 def test_the_derive_command_writes_without_validation_when_asked(
-    world_file_of_an_unknown_pipeline, tmp_path, capsys
+    small_world_file, tmp_path, capsys
 ):
     derived_networks.main(
         [
-            world_file_of_an_unknown_pipeline,
+            small_world_file,
             str(tmp_path),
             "world_sea",
             "--no-validate",

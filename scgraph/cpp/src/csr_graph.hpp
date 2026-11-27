@@ -181,6 +181,23 @@ struct RowEdits {
         return found->second;
     }
 
+    // Whether the graph has an edge from node u to destination_id, without copying
+    // the row of node u
+    bool has_edge(const CsrGraph& base, int u, int destination_id) const {
+        auto edited = rows.find(u);
+        if (edited != rows.end()) {
+            for (const auto& edge : edited->second) {
+                if (edge.first == destination_id) return true;
+            }
+            return false;
+        }
+        if (u >= base.size()) return false;
+        for (const auto& edge : base[u]) {
+            if (edge.destination_id == destination_id) return true;
+        }
+        return false;
+    }
+
     // The arrays with the edits applied: untouched rows are copied as they are
     CsrGraph apply(const CsrGraph& base) const {
         std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
@@ -224,18 +241,7 @@ public:
 
     // Without copying the row of node u
     bool has_edge(int u, int destination_id) const {
-        auto edited = edits_.rows.find(u);
-        if (edited != edits_.rows.end()) {
-            for (const auto& edge : edited->second) {
-                if (edge.first == destination_id) return true;
-            }
-            return false;
-        }
-        if (u >= base_.size()) return false;
-        for (const auto& edge : base_[u]) {
-            if (edge.destination_id == destination_id) return true;
-        }
-        return false;
+        return edits_.has_edge(base_, u, destination_id);
     }
 
     void push_back(std::vector<std::pair<int, double>> row) {

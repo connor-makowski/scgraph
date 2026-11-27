@@ -2,6 +2,7 @@
 
 It downloads byte ranges of an OSM PBF file and writes them to its standard output.
 After a network error, it asks again from the first byte that it did not write.
+An answer 4xx other than 429 stops it at once: a new request gets the same answer.
 """
 
 import json
@@ -10,10 +11,15 @@ import sys
 import time
 
 import requests
-from requests.adapters import HTTPAdapter, Retry
+
+from scgraph.files import (
+    MAX_RETRIES,
+    check_byte_range_answer,
+    create_retry_session,
+    should_retry_request,
+)
 
 logger = logging.getLogger(__name__)
-_MAX_RETRIES = 10  # the failures in a row that one range may have
 
 
 class PbfRangeStreamer:
@@ -26,23 +32,6 @@ class PbfRangeStreamer:
         self.tag = tag
         self.size = size
 
-    def _create_session(self) -> requests.Session:
-        """Return a session that tries a failed request again."""
-        session = requests.Session()
-        retries = Retry(
-            total=_MAX_RETRIES,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
-        adapter = HTTPAdapter(
-            max_retries=retries,
-            pool_connections=4,
-            pool_maxsize=4,
-        )
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
-        return session
-
     def stream_ranges(self, ranges: list[list[int]]) -> None:
         """Write the byte ranges to the standard output, in order.
 
@@ -50,23 +39,22 @@ class PbfRangeStreamer:
             ranges: Pairs `[start, end]` of byte offsets. `end` is not included.
 
         Raises:
-            SystemExit: The tag or the size of the file changed on the server.
-            requests.RequestException: A range failed more than `_MAX_RETRIES` times in a
+            ValueError: The tag or the size of the file changed on the server, or
+                the server ignores byte ranges.
+            requests.HTTPError: The server answered 4xx other than 429.
+            requests.RequestException: A range failed more than `MAX_RETRIES` times in a
                 row.
         """
         wanted = sum(end - start for start, end in ranges)
         done, shown, began = 0, 0, time.time()
         sink = sys.stdout.buffer
-        session = self._create_session()
+        session = create_retry_session()
 
         try:
             for start, end in ranges:
                 failures = 0
                 while start < end:
-                    headers = {
-                        "User-Agent": "scgraph",
-                        "Range": f"bytes={start}-{end - 1}",
-                    }
+                    headers = {"Range": f"bytes={start}-{end - 1}"}
                     try:
                         with session.get(
                             self.url,
@@ -75,22 +63,9 @@ class PbfRangeStreamer:
                             timeout=(10.0, 60.0),
                         ) as response:
                             response.raise_for_status()
-                            tag = response.headers.get(
-                                "ETag"
-                            ) or response.headers.get("Last-Modified")
-                            total = response.headers.get(
-                                "Content-Range", ""
-                            ).rpartition("/")[2]
-
-                            if (
-                                response.status_code != 206
-                                or tag != self.tag
-                                or total != str(self.size)
-                            ):
-                                sys.exit(
-                                    f"{self.url} changed or ignores byte ranges"
-                                )
-
+                            check_byte_range_answer(
+                                response, self.tag, self.size
+                            )
                             for chunk in response.iter_content(1 << 20):
                                 sink.write(chunk)
                                 start += len(chunk)
@@ -117,7 +92,9 @@ class PbfRangeStreamer:
                         TimeoutError,
                     ) as error:
                         failures += 1
-                        if failures > _MAX_RETRIES:
+                        if failures > MAX_RETRIES or not should_retry_request(
+                            error
+                        ):
                             raise
                         logger.warning(
                             "Transient read error at byte offset %d: %r. Retrying...",

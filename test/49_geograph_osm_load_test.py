@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 import pytest
+import requests
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
@@ -109,7 +110,7 @@ def osm_file(tmp_path_factory):
 def whole_network(osm_file):
     """The network of every part of the small file, not only of its largest
     connected part."""
-    return GeoGraph.load_from_osm(osm_file, largest_component=False)
+    return GeoGraph.load_from_osm(osm_file, min_component_nodes=0)
 
 
 @pytest.fixture(scope="module")
@@ -164,7 +165,7 @@ def test_a_way_is_not_cut_by_length_without_max_km_between_nodes(osm_file):
     # Way 6 runs 10, 11, 12, 13 and meets no other way: one edge in each
     # direction joins its two ends.
     network = GeoGraph.load_from_osm(
-        osm_file, max_km_between_nodes=None, largest_component=False
+        osm_file, max_km_between_nodes=None, min_component_nodes=0
     )
 
     edges = _edges(network)
@@ -197,7 +198,7 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
     network = GeoGraph.load_from_osm(
         osm_file,
         select=select_primary_roads_as_two_way,
-        largest_component=False,
+        min_component_nodes=0,
     )
 
     edges = _edges(network)
@@ -241,7 +242,8 @@ def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
     # `scgraph.pipelines.CLASSES`: these roads have no motorway.
     network.create_metric(
         "minutes",
-        weight_per_km={"road": 2.0, "off_graph": 4.0},
+        weight_per_km={"road": 2.0},
+        off_graph_weight_per_km=4.0,
         class_weight_per_km={"motorway": 0.5},
     )
 
@@ -288,7 +290,7 @@ def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
         osm_file,
         select=select_primary_roads_and_ferries,
         tag_keys=("highway", "route"),
-        largest_component=False,
+        min_component_nodes=0,
     )
 
     # Way 1 (1-2-3) has the key highway only. The ferry way 11 (60-61) has
@@ -446,6 +448,23 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
         )
 
 
+# The ferries of a node mode have their own argument, `ferry_selects`. A
+# ferry select among the selects of the ways would give no ferry edge.
+def test_way_pieces_refuse_ferries_among_the_selects_of_the_ways(osm_file):
+    with pytest.raises(ValueError, match="ferry_selects"):
+        osm.build_way_pieces(
+            osm_file,
+            {
+                "road": {
+                    "ways": osm.select_main_roads,
+                    "ferries": osm_region_multimodal.select_vehicle_ferries,
+                }
+            },
+            ("highway", "route"),
+            step1_osm_sources.MAX_KM_BETWEEN_NODES,
+        )
+
+
 # The planet file is too large to download: scgraph reads it in place, by
 # HTTP byte ranges (`step1_osm_sources.StreamedPbf`). It first finds where the nodes and
 # the ways start in the file. In a file above 8 MB, it finds them by bisection.
@@ -501,11 +520,17 @@ def planet_folder(osm_file, tmp_path_factory):
 # The mirror serves the files of a folder by HTTP, with byte ranges. Every
 # answer carries an ETag: the text of the file "tag" of the folder, read at
 # each request. A test changes that file to make the PBF a new file for scgraph.
+# When the folder has the file "forbid_once", the mirror removes it and answers
+# the next GET with 403 Forbidden. A HEAD request gets its normal answer.
 _MIRROR = r"""
 import http.server, pathlib, sys
 folder = pathlib.Path(sys.argv[1])
 class Mirror(http.server.BaseHTTPRequestHandler):
     def do_GET(self, body=True):
+        if body and (folder / "forbid_once").exists():
+            (folder / "forbid_once").unlink()
+            self.send_error(403)
+            return
         data = (folder / self.path[1:]).read_bytes()
         ranged = self.headers.get("Range", "bytes=0-").removeprefix("bytes=")
         first, last = (int(x) if x else len(data) - 1 for x in ranged.split("-"))
@@ -593,15 +618,36 @@ def test_a_pbf_read_by_byte_ranges_gives_its_turn_restrictions(
     ]
 
 
+# Each case writes a file of the mirror: a new ETag makes the PBF a new file,
+# and "forbid_once" makes the next answer 403. A new request cannot correct
+# either answer, so the build stops at once.
+@pytest.mark.parametrize(
+    "file_name, text",
+    [("tag", '"second upload"'), ("forbid_once", "")],
+    ids=["the file changed", "the server forbids the request"],
+)
 def test_a_pbf_that_changes_on_the_server_stops_the_build(
-    planet_url, planet_folder, tmp_path
+    planet_url, planet_folder, tmp_path, file_name, text
 ):
     layout = str(tmp_path / "layout.json")
     step1_osm_sources.StreamedPbf.download(planet_url, layout)
-    (planet_folder / "tag").write_text('"second upload"')
+    (planet_folder / file_name).write_text(text)
 
     with pytest.raises(RuntimeError, match="Reading http"):
         build_main_roads({"roads": layout})
+
+
+# The download of the layout file reads byte ranges too: the mirror forbids
+# its first range. A new request cannot correct the answer 403.
+def test_a_pbf_that_the_server_forbids_stops_the_download_of_its_layout(
+    planet_url, planet_folder, tmp_path
+):
+    (planet_folder / "forbid_once").write_text("")
+
+    with pytest.raises(requests.HTTPError, match="403"):
+        step1_osm_sources.StreamedPbf.download(
+            planet_url, str(tmp_path / "layout.json")
+        )
 
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")

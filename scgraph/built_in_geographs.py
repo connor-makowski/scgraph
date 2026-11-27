@@ -15,12 +15,12 @@ scgraph 5.0 removes these networks: this module and its calls then go.
 `GeoGraph.load_geograph` and `GeoGraph.list_geographs` call this module.
 """
 
-import warnings
 from pathlib import Path
 
 import requests
 
 from scgraph import files
+from scgraph.deprecations import warn_deprecated
 
 GEOGRAPH_URL = (
     "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
@@ -61,17 +61,16 @@ BUILT_IN_GEOGRAPHS = {
 }
 
 
-def warn_deprecated_url(geograph_url: str, stacklevel: int = 3) -> None:
+def warn_deprecated_url(geograph_url: str, stacklevel: int = 4) -> None:
     """Warn that `geograph_url` is deprecated, if the caller gave another URL than the
     default one. The default `stacklevel` points the warning at the caller of the
     function that calls this one."""
     if geograph_url != GEOGRAPH_URL:
-        warnings.warn(
-            "`geograph_url` is deprecated. scgraph 5.0 removes it. To load your "
-            "own network, use `GeoGraph.load_from_graphjson` or "
-            "`GeoGraph.load_from_scgraph`.",
-            DeprecationWarning,
+        warn_deprecated(
+            "`geograph_url`",
             stacklevel=stacklevel,
+            instead="scgraph 5.0 removes it. To load your own network, use "
+            "`GeoGraph.load_from_graphjson` or `GeoGraph.load_from_scgraph`.",
         )
 
 
@@ -83,15 +82,14 @@ def warn_deprecated_load(name: str, geograph_url: str) -> None:
         name: The name of the network to load.
         geograph_url: The `geograph_url` of the call.
     """
-    warn_deprecated_url(geograph_url, stacklevel=4)
+    warn_deprecated_url(geograph_url, stacklevel=5)
     if geograph_url == GEOGRAPH_URL and name in BUILT_IN_GEOGRAPHS:
         replacement = BUILT_IN_GEOGRAPHS[name]["superseded_by"]
-        warnings.warn(
-            f"The network '{name}' of scgraph 3.6.0 is deprecated. scgraph 5.0 "
-            f"removes it. Use '{replacement}', a released network with newer "
-            "data. Its results differ (MIGRATING.md).",
-            DeprecationWarning,
-            stacklevel=3,
+        warn_deprecated(
+            f"The network '{name}' of scgraph 3.6.0",
+            stacklevel=4,
+            instead=f"scgraph 5.0 removes it. Use '{replacement}', a released "
+            "network with newer data. Its results differ (MIGRATING.md).",
         )
 
 

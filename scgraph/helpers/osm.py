@@ -21,9 +21,9 @@ function for each kind of way. `load_from_osm` gives one select function for all
 ways.
 
 `build_way_pieces` gives the pieces of the kept ways
-(`scgraph.helpers.polylines.PieceArrays`). The kinds are `ways` and `ferries`. The kind
-`ferries` is special: `build_way_pieces` does not cut a ferry by length, and attaches
-it to the nodes of its node mode.
+(`scgraph.helpers.polylines.PieceArrays`). It takes the select functions of the
+ferries in their own argument, `ferry_selects`. It does not cut a ferry by length, and
+attaches it to the nodes of its node mode.
 
 A select function may return the direction with the class of the way (docstring of
 `scgraph.pipelines`, *The classes*). Example: for a one-way trunk road,
@@ -562,14 +562,17 @@ def build_way_pieces(
     work_dir: str | os.PathLike | None = None,
     optional_modes: tuple[str, ...] = (),
     shape_tolerance_meters: float | None = 50,
+    ferry_selects: dict[str, Callable] | None = None,
 ) -> dict[str, PieceArrays]:
     """Read the ways of `source` that the select functions keep, and cut them into pieces.
 
-    `selects` gives the select functions of each node mode as `{mode: {kind: select}}`,
-    as `locate_ways` takes them. One call reads the file once for all the node modes.
+    `selects` gives the select function of the ways of each node mode, as
+    `{mode: {"ways": select}}`. One call reads the file once for all the node modes.
     A way is cut at the junctions of its node mode, and at the first point where a piece
-    reaches `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries"
-    is cut at its junctions only, not by length. Each piece of a ferry joins the
+    reaches `max_km_between_nodes` (`cut_polylines`). `ferry_selects` gives the
+    select function of the ferries of a node mode, as `{mode: select}`. The
+    function reads them as the kind `ferries` of the node mode. A ferry is cut at
+    its junctions only, not by length. Each piece of a ferry joins the
     nodes closest its two ends, if both are within FERRY_END_KM
     (`build_ferry_edges`). A ferry joins nodes of its own node mode: the ends of the
     pieces of that node mode. A piece has the class that the select function gave to
@@ -584,8 +587,20 @@ def build_way_pieces(
     Raises:
         ValueError: The select functions of a node mode keep no way, and the node mode
             is not in `optional_modes`. The message names the node mode. An optional
-            node mode without a way has no piece.
+            node mode without a way has no piece. Or `selects` has the kind
+            `ferries`, which belongs in `ferry_selects`.
     """
+    for mode, kinds in selects.items():
+        if "ferries" in kinds:
+            raise ValueError(
+                f"selects gives ferries for the node mode {mode}. "
+                "Give the select function of the ferries in ferry_selects"
+            )
+    # One read of the file gives the ways and the ferries, as two kinds of each node
+    # mode
+    selects = {mode: dict(kinds) for mode, kinds in selects.items()}
+    for mode, select in (ferry_selects or {}).items():
+        selects.setdefault(mode, {})["ferries"] = select
     # `PieceArrays` names its files by column, so two node modes cannot share a folder.
     pieces_dirs = {
         mode: os.path.join(work_dir, f"pieces_{mode}") if work_dir else None
@@ -677,7 +692,7 @@ def build_way_pieces(
                 f"No way of {source} is kept for the node mode {mode}"
             )
     for mode, mode_pieces in pieces.items():
-        if "ferries" not in selects[mode]:
+        if mode not in (ferry_selects or {}):
             continue
         with log_step(logger, "attach the ferries", {}) as counts:
             # The road nodes are the ends of the pieces, in units of 1e-7 degree. They

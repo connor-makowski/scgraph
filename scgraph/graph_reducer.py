@@ -63,8 +63,10 @@ through reduced nodes then ends at node 3, so the second pass reduces node 0.
 - The destination is reduced. It is replaced by the boundary nodes of its row of
   `reduced_inverse_graph`, with their distances as exit distances.
 - Both ends are kept. The search runs on the reduced graph as it is.
-`contraction_hierarchy` and `tnr` search their own hierarchy. `expand_path` then puts
-the hidden nodes back between each pair of nodes of the path. When the destination is
+`contraction_hierarchy` and `tnr` do not go through `run_with_reduced`. Each method
+routes a pair of one chain with `dijkstra_on_graph`, or searches its own hierarchy.
+`expand_path` then puts the hidden nodes back between each pair of nodes of the path.
+When the destination is
 reduced, the nodes from the last boundary node to the destination are added.
 
 Example: `dijkstra(origin_id=4, destination_id=1)` reads `reduced_graph[4]` and finds
@@ -91,7 +93,11 @@ from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
 from scgraph.errors import PathNotFoundError
-from scgraph.graph_utils import _last_search_in_thread
+from scgraph.graph_utils import (
+    check_node_input,
+    normalize_node_input,
+    _last_search_in_thread,
+)
 
 if TYPE_CHECKING:  # annotations only
     from scgraph.contraction_hierarchies import CHGraph
@@ -124,7 +130,6 @@ def algorithm(
             )
 
         wrapper._is_graph_algorithm = True
-        wrapper._bidirectional = bidirectional
 
         if name is not None:
             import scgraph.graph as _graph_mod
@@ -512,6 +517,17 @@ class GraphReducer:
             ch, n
         )
 
+    def _limit_transit_nodes(self, num_transit_nodes: int) -> int:
+        """Return the number of transit nodes of the TNR graph of this graph:
+        `num_transit_nodes`, or at most the number of nodes left after
+        `reduce()`. Same rule as GraphReducer::create_tnr_graph (C++)."""
+        is_reduced = getattr(self, "is_reduced", None)
+        if is_reduced is None:
+            return num_transit_nodes
+        # Transit nodes are the last contracted, and reduced nodes are
+        # contracted first: no more transit nodes than nodes left
+        return min(num_transit_nodes, max(1, is_reduced.count(False)))
+
     def run_with_reduced(
         self, func: Callable, *args, is_bidirectional: bool = False, **kwargs
     ) -> object:
@@ -520,7 +536,6 @@ class GraphReducer:
 
         - Run a graph routing function on the reduced graph.
         - Same-chain queries route directly on the unreduced graph.
-        - Contraction Hierarchies and Transit Node Routing run on their own graph.
         - Other algorithms: reduced destinations are replaced by their boundary entry nodes (reduced_inverse_graph); for bidirectional algorithms, reduced origins are also replaced by the boundary nodes they reach (reduced_graph).
 
         Required Arguments:
@@ -541,6 +556,15 @@ class GraphReducer:
         if destination_id is None and len(args) > 1:
             destination_id = args[1]
 
+        # The steps below read `is_reduced` at each origin and destination node.
+        # The search checks its arguments only later, so this method checks
+        # them first. A user algorithm may take no origin or no destination.
+        is_reduced = self.is_reduced
+        if origin_id is not None:
+            check_node_input(origin_id, len(is_reduced), "Origin")
+        if destination_id is not None:
+            check_node_input(destination_id, len(is_reduced), "Destination")
+
         # 1. Same-chain check: solve on unreduced graph with dijkstra
         if destination_id is not None and self.is_same_chain(
             origin_id, destination_id
@@ -552,54 +576,26 @@ class GraphReducer:
                     .bind(self, *args, **kwargs)
                     .arguments.get("length_only", length_only)
                 )
-            res = GraphReducer.dijkstra_on_graph(
-                self.unreduced_graph, origin_id, destination_id
+            # A decorated algorithm may get a C++ Graph as `self`: call this
+            # method from its class.
+            return GraphReducer._dijkstra_on_same_chain(
+                self, origin_id, destination_id, length_only
             )
-            if length_only:
-                res["path"] = []
-            return res
-
-        is_reduced = self.is_reduced
-
-        # 2. Contraction Hierarchies and Transit Node Routing search their own graph
-        if func.__name__ in ("contraction_hierarchy", "tnr"):
-            res = func(self, *args, **kwargs)
-            if isinstance(res, dict) and "path" in res:
-                res["path"] = self.expand_path(res["path"])
-            return res
 
         dest_dict = (
-            {destination_id: 0.0}
-            if isinstance(destination_id, int)
-            else (
-                {did: 0.0 for did in destination_id}
-                if isinstance(destination_id, (set, list))
-                else (
-                    destination_id if isinstance(destination_id, dict) else None
-                )
-            )
+            None
+            if destination_id is None
+            else normalize_node_input(destination_id)
         )
 
         # Bidirectional searches must start and end on non-reduced nodes: only
         # there is reduced_inverse_graph exactly the reverse of reduced_graph.
         # Their reduced origins are replaced by the boundary nodes they reach
         # (rows of reduced_graph); reduced destinations are replaced by their
-        # boundary entry nodes for every search (step 4). One-sided searches
+        # boundary entry nodes for every search (step 3). One-sided searches
         # keep a reduced origin: they only read reduced_graph.
-        is_bidirectional = (
-            is_bidirectional
-            or getattr(func, "_bidirectional", False)
-            or func.__name__
-            in ("bidirectional_dijkstra", "bidirectional_buckets")
-        )
         origin_dict = (
-            {origin_id: 0.0}
-            if isinstance(origin_id, int)
-            else (
-                {oid: 0.0 for oid in origin_id}
-                if isinstance(origin_id, (set, list))
-                else (origin_id if isinstance(origin_id, dict) else None)
-            )
+            None if origin_id is None else normalize_node_input(origin_id)
         )
         origin_map = {}
         if (
@@ -642,7 +638,7 @@ class GraphReducer:
                 return [origin_map[path[0]]] + path
             return path
 
-        # 3. Unreduced destinations (or None)
+        # 2. Unreduced destinations (or None)
         if dest_dict is None or all(
             not is_reduced[did] for did in dest_dict.keys()
         ):
@@ -651,7 +647,7 @@ class GraphReducer:
                 res["path"] = self.expand_path(restore_origin(res["path"]))
             return res
 
-        # 4. Reduced destination(s)
+        # 3. Reduced destination(s)
         # Build effective destination dict expanding reduced destination nodes into boundary entries
         boundary_entries_map = {}
         effective_dest_dict = {}
@@ -706,6 +702,22 @@ class GraphReducer:
                     expanded_path = expanded_path + tail
             res["path"] = expanded_path
 
+        return res
+
+    def _dijkstra_on_same_chain(
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        length_only: bool,
+    ) -> dict:
+        """Route between nodes of one chain on the unreduced graph. The reduced
+        graph has no route inside a chain. `contraction_hierarchy`, `tnr` and
+        `run_with_reduced` call this method."""
+        res = GraphReducer.dijkstra_on_graph(
+            self.unreduced_graph, origin_id, destination_id
+        )
+        if length_only:
+            res["path"] = []
         return res
 
     @staticmethod

@@ -7,6 +7,7 @@ from helpers import great_circle_km
 
 from scgraph import Graph
 from scgraph.pipelines.steps import step2_land_mask
+from scgraph.utils import has_cpp
 
 # These tests call the land mask, a step of the builds that joins ports to
 # water. No public call runs it alone: a build needs the download of its maps.
@@ -214,6 +215,37 @@ def test_a_search_finds_no_path_when_it_may_hold_one_cell_less_than_its_path(
     )
 
     assert found is None
+
+
+# The kernel of each build: the pure-Python one and, when the extension is
+# built, the C++ one.
+KERNELS = {"python": step2_land_mask.python.find_water_path_cells}
+if has_cpp():
+    from scgraph import cpp
+
+    KERNELS["cpp"] = cpp.find_water_path_cells
+
+
+# The kernel refuses a start cell after the last cell of the raster, in both
+# builds.
+@pytest.mark.parametrize("kernel", list(KERNELS.values()), ids=list(KERNELS))
+def test_a_search_refuses_a_start_cell_outside_the_raster(coast, kernel):
+    cell_after_the_last = coast.width * coast.height
+
+    with pytest.raises(ValueError, match="do not match the raster"):
+        kernel(
+            coast.bits,
+            coast.width,
+            coast.height,
+            coast.wrap,
+            cell_after_the_last,
+            array("q", [0]),
+            100,
+            coast.east_km,
+            coast.diagonal_km,
+            coast.north_km,
+            1000,
+        )
 
 
 # The globe map covers every longitude, from the equator to latitude 10, in

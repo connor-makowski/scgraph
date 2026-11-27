@@ -45,3 +45,4 @@ def lint(session):
     )
     session.run("ruff", "check", "scgraph", "test")
     session.run("pyrefly", "check", "scgraph")
+    session.run("python", "utils/check_import_layers.py")

@@ -12,6 +12,7 @@ from scgraph import array_views
 from copy import deepcopy
 from typing import TYPE_CHECKING
 from scgraph import Graph
+from scgraph.graph_utils import check_node_id
 
 if TYPE_CHECKING:  # Only for annotations.
     from scgraph.geograph import GeoGraph
@@ -47,8 +48,7 @@ class GeoGraphModifiers:
         Raises:
 
         - `TypeError`: A node id is not an integer, or the distance is not a number
-        - `IndexError`: The origin id or the destination id is not in the geograph
-        - `ValueError`: The distance is NaN, or `edge_class` is not a name of `classes`
+        - `ValueError`: The origin id or the destination id is not in the geograph, the distance is NaN, or `edge_class` is not a name of `classes`
         """
         self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
@@ -93,6 +93,7 @@ class GeoGraphModifiers:
             symmetric_node=symmetric_node
         )
         self.nodes.pop()
+        self.external_node_ids.forget_removed_nodes()
         self._edge_classes.forget_node(len(self.nodes))
         self._remove_metrics()
         del self.node_mode_ids[len(self.nodes) :]
@@ -318,16 +319,6 @@ class GeoGraphModifiers:
         if auto_edge:
             if not (circuity >= 1):
                 raise ValueError("Circuity must be greater than or equal to 1")
-            if node_addition_type not in [
-                "quadrant",
-                "all",
-                "closest",
-                "kdclosest",
-                "kdquadrant",
-            ]:
-                raise ValueError(
-                    f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
-                )
             node_addition_type = self._get_node_addition_type(
                 node_addition_type
             )
@@ -395,7 +386,13 @@ class GeoGraphModifiers:
         - Assumes that this node has symmetric flows
             - EG: If node A has a distance of 10 to node B, then node B has a distance of 10 to node A
         - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
+        - Raises a ValueError when the last node was not added by `add_coord_node`: the geograph had it at its creation or its load
         """
+        if not self.external_node_ids.has_added_nodes():
+            raise ValueError(
+                "remove_coord_node removes a node that add_coord_node added: "
+                "this geograph has no such node"
+            )
         self.remove_node(symmetric_node=True)
 
     def add_haversine_edge(
@@ -432,10 +429,8 @@ class GeoGraphModifiers:
             - What: The name of the class of the new edge (see `add_edge`)
             - Default: None (no class: a metric made from weights per km gives the new edge the weight of an off-graph leg)
         """
-        if not (origin_idx < len(self.graph_object.graph)):
-            raise ValueError("Origin node does not exist")
-        if not (destination_idx < len(self.graph_object.graph)):
-            raise ValueError("Destination node does not exist")
+        check_node_id(origin_idx, len(self.nodes), "Origin node")
+        check_node_id(destination_idx, len(self.nodes), "Destination node")
         self.add_edge(
             origin_id=origin_idx,
             destination_id=destination_idx,

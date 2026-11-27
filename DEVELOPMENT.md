@@ -15,7 +15,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 1. Install Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
-4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,150 tests with the C++ extension (about 920 in pure Python), in 1 to 2 minutes, all passed or skipped.
+4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,400 tests with the C++ extension (about 1,100 in pure Python), in 1 to 2 minutes, all passed or skipped.
 5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, run the verbose build command of *Debugging a C++ build* below. It shows the compiler error.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
@@ -61,13 +61,13 @@ scgraph/
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
   bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
-  prettify.py                    # ruff (unused imports) + black (line-length=80)
+  prettify.py, check_import_layers.py  # ruff (unused imports) + black (line-length=80); the layer of each import of scgraph (run by the lint session)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
   draft_network_release.py       # Notes and file list of a network release (run by build_networks.yml)
   pin_network_release.py         # Write scgraph/network_release.py for a published network release
   build_hub_tables.py            # Rebuild the hub tables of scgraph/pipelines/data
   validation_references/         # Scripts that built the validation cases from their published sources
-noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly)
+noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly, the layers of the imports)
 pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
 README.md, guides/, MIGRATING.md, WRITING.md # User documents: the entry page, one guide for each task (with a module that gives it a page of the site), the changes since release 3.6; how to write a text
@@ -83,7 +83,7 @@ README.md, guides/, MIGRATING.md, WRITING.md # User documents: the entry page, o
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `python3 utils/compare_versions.py BASE HEAD` | Benchmark two git refs side by side; options in `--help` |
 | `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
-| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, and the types of `scgraph` with pyrefly. `.github/workflows/tests.yml` runs this session and `tests-3.12` on every pull request |
+| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, the types of `scgraph` with pyrefly, and the imports of `scgraph` with `utils/check_import_layers.py`. `.github/workflows/tests.yml` runs this session and `tests-3.12` on every pull request |
 
 **Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`, `snap`).
 
@@ -121,10 +121,10 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 **Shared infrastructure:**
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `built_in`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
 - `test/conftest.py` also gives the fixtures `graph_class`, `ch_class` and `tnr_class`. A test of `Graph`, `CHGraph` or `TNRGraph` takes the fixture: it runs with the pure-Python class, then with the C++ class if the extension is built
-- `test/helpers.py` — `assert_result(realized, expected)` (`realized` is the result of the call) rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
+- `test/helpers.py` — `assert_result(realized, expected)` (`realized` is the result of the call) rounds `length` to 3dp, and ignores `metric_totals` when `expected` has none, before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/step4_validation_cases/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.network_builder NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62` classes, metrics and legs of a `GeoGraph`. `CH` is `CHGraph` and `TNR` is `TNRGraph`. `BMSSP` is the algorithm `bmssp`. A bucket test checks `dijkstra_buckets` or `bidirectional_buckets`. A leg is the line between a query point and its node.
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62–63` classes, metrics, default metric and legs of a `GeoGraph` · `64` turn restrictions. `CH` is `CHGraph` and `TNR` is `TNRGraph`. `BMSSP` is the algorithm `bmssp`. A bucket test checks `dijkstra_buckets` or `bidirectional_buckets`. A leg is the line between a query point and its node.
 
 **Test pattern:**
 ```python
@@ -151,7 +151,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 ## Coding Conventions
 
 - **Line length**: 80 characters (black config in `pyproject.toml`). **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
-- **Formatting and checks**: Always run `uv run utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. The rules and their reasons are in `pyproject.toml`.
+- **Formatting and checks**: Always run `uv run utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff`, `pyrefly` or `utils/check_import_layers.py` blocks a PR. The rules and their reasons are in `pyproject.toml`.
 - **Names**: A function name starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`). A function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`.
   - A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding.
   - Internal names: `_name` in Python, `name_` for C++ members. A test helper that only returns data may be named for that data (`_small_graph`).
@@ -168,7 +168,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `step_logs.log_step` (`guides/routing.md`, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium, a library that reads OpenStreetMap files), imported only when it is called
 - **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
-- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
+- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls. A rule (a check, a default value, a constant or a conversion) is written once, in one module, and the other modules call it; `utils/check_import_layers.py` fails the lint session on an import that goes up a layer.
 - **Don't mutate caller-provided arguments**: Make a copy of small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 
 ## Contribution Workflow
@@ -191,9 +191,9 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 
 ## Release Checklist (owner only — do not execute)
 
-1. Set `version` in `pyproject.toml` (and `uv.lock`) to the release number, dropping the `.devN` suffix
+1. Set `version` in `pyproject.toml` (and `uv.lock`) to the release number, dropping the `.devN` suffix, and pin a network release without `-dev` (`utils/pin_network_release.py`)
 2. Run `uv run utils/prettify.py`
 3. Run `uv run nox` — all sessions must pass
-4. Run `uv run python utils/docs.py` to regenerate docs
+4. Set `VERSION` in `utils/docs.py` to the release number and add the release before it to `OLD_DOC_VERSIONS`, then run `uv run python utils/docs.py` to regenerate docs
 5. Merge `dev` into `main`: `build_wheels.yml` drafts the release, and publishing the draft sends the packages to PyPI
 6. Right after the release, set the next development version on `dev` with a `.dev0` suffix (PEP 440), e.g. `4.1.0.dev0`

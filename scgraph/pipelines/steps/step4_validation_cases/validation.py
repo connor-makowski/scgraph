@@ -107,7 +107,9 @@ def _find_closest_node(network, point, node_mode=None) -> tuple:
     wanted = node_mode_names.index(node_mode)
     return min(
         (haversine(point, node), tuple(node))
-        for node, node_mode_id in zip(network.nodes, network.node_mode_ids)
+        for node, node_mode_id in zip(
+            network.nodes, network._read_node_mode_ids()
+        )
         if node_mode_id == wanted
     )
 
@@ -159,15 +161,12 @@ def _check_coverage(network, case) -> str | None:
     km, _ = _find_closest_node(network, case["origin"])
     if km > 5.0:
         return f"the closest road is {km:.1f} km away"
-    # All the cities of a landmass have the same main city. Its shortest path
-    # tree is computed once and serves them all. The tree of the previous landmass is
-    # dropped first: on a world network, one tree takes about 150 MB.
-    main_city = case["destination"]
-    if getattr(network, "main_city_of_the_kept_tree", None) != main_city:
-        network.graph_object.reset_cache()
-        network.main_city_of_the_kept_tree = main_city
+    # The tree of the main city is kept between the cities of one landmass
+    # (`validate_network`).
     if (
-        _find_path_km(network, case, main_city, case["origin"], from_tree=True)
+        _find_path_km(
+            network, case, case["destination"], case["origin"], from_tree=True
+        )
         is None
     ):
         return "no road route to the main city of the landmass"
@@ -289,7 +288,10 @@ def _check_hub(network, case) -> str | None:
             )["path"]
         except PathNotFoundError:
             return f"no route to the {mode} network"
-        if len(path) < 2 or names[network.node_mode_ids[path[1]]] != first_mode:
+        if (
+            len(path) < 2
+            or names[network._read_node_mode_ids()[path[1]]] != first_mode
+        ):
             return f"no connector to the {mode} network"
         # A direct flight is the shortest route between two airports: a stop
         # or a road between them is longer
@@ -451,7 +453,18 @@ def validate_network(
         loaded = None  # the previous network is released before the next load
         loaded = _load_on_node_modes(network, node_modes)
         failures = []
+        main_city_of_the_kept_tree = None
         for case in cases_on_modes:
+            # All the cities of a landmass have the same main city. Its shortest
+            # path tree is computed once and serves them all. The tree of the
+            # previous landmass is dropped first: on a world network, one tree
+            # takes about 150 MB.
+            if (
+                case["kind"] == "coverage"
+                and case["destination"] != main_city_of_the_kept_tree
+            ):
+                loaded.graph_object.reset_cache()
+                main_city_of_the_kept_tree = case["destination"]
             reason = RULES[case["kind"]][1](loaded, case)
             if reason:
                 failures.append(

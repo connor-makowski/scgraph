@@ -74,8 +74,9 @@ another cache directory. The option `--work-dir` gives the work folder and keeps
 ### Build Steps
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
-read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
-validate (`step4_…`). A module name gives the group of a step, not its number:
+read the sources (`step1_…`), join the networks (`step2_…`), assemble the network
+(`scgraph/network_assembly.py`, which `load_from_osm` uses too) and validate (`step4_…`). A
+module name gives the group of a step, not its number:
 `step2_land_mask` does step 4.
 
 ```mermaid
@@ -412,6 +413,10 @@ A tag that ends with `-dev.N` makes a development network release, to try the ne
 new version of scgraph. GitHub shows it as a pre-release. By convention, a version of scgraph
 on PyPI loads a network release without `-dev`.
 
+Push a tag only for networks that scgraph will pin. A tag stays in the repository, also when
+its run fails or when its draft is deleted. To check a change of a pipeline, build a small
+region before and after the change, and compare the `content_sha256` of the two files.
+
 ### Run Steps
 
 A **run** is one execution of a workflow. This run has three **jobs**, one after the other, and
@@ -422,39 +427,35 @@ flowchart TD
     T["A maintainer pushes the tag networks-YYYY.MM.DD"]
     T --> C{"Job 1: is the tag well formed,<br/>and its network release not yet published?"}
     C -- "no" --> X1["The run stops"]
-    C -- "yes" --> Q{"Job 2: did this version of the pipeline<br/>build the last world file<br/>from the same sources?"}
-    Q -- "yes" --> O["Take that world file"]
-    Q -- "no" --> B["Build world_multimodal (Part 1)"]
+    C -- "yes" --> B["Job 2: build world_multimodal (Part 1)"]
     B --> V{"Does it pass its validation cases?"}
     V -- "no" --> X2["The run stops"]
-    V -- "yes" --> D
-    O --> D["Job 3: derive the two files of each derived network (Part 2),<br/>with and without shapes,<br/>and the world file without shapes"]
+    V -- "yes" --> D["Job 3: derive the two files of each derived network (Part 2),<br/>with and without shapes,<br/>and the world file without shapes"]
     D --> W{"Does each derived network pass its validation?<br/>Does each source have a license?"}
     W -- "no" --> X3["The run stops"]
     W -- "yes" --> F["Compress the 22 files,<br/>write networks.json and the notes,<br/>create the draft of the network release"]
 ```
 
-| Job | Time when the world is built | Time when the world file is taken |
-|---|---|---|
-| 1. Check the tag | 7 s | 3 s |
-| 2. `world_multimodal` | 1 h 35 min | 41 s |
-| 3. Derive and draft | 4 min 25 s | 3 min 9 s |
+| Job | Time |
+|---|---|
+| 1. Check the tag | 6 s |
+| 2. `world_multimodal` | 1 h 6 min |
+| 3. Derive and draft | 5 min 5 s |
 
-The times come from two runs. The run of a development network release, on 2026-11-22, built
-the world. A run of 2026-11-19 took the world file of the network release before it.
+The times come from the run of the network release `networks-2026.11.27-dev.1`.
 
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
   file records the URL that was read.
-- **Job 2 builds the world only when something changed.** It takes the world file of the last
-  published network release when its header has the pipeline name, `PIPELINE_VERSION` and source
-  URLs of the code. Both planet URLs are those of the mirror, because the workflow changed the
-  code first. A new planet URL therefore gives a new build.
+- **Job 2 always builds the world.** A tag is the choice of a maintainer to build the
+  networks, and the tag names the network release. No run takes a file of a network release
+  before it.
 - **Job 2 has 5 h 55 min.** GitHub stops a job at 6 hours. A job that is run again starts from
   nothing.
 
-`PIPELINE_VERSION` is a number in a pipeline. Its author raises it when a change of the code
-changes the network.
+`PIPELINE_VERSION` is a number in a pipeline. It has one use: `build_geograph` builds again a
+network of the cache that another `PIPELINE_VERSION` built, or that it cannot read. With
+`local_files_only`, it warns and loads the file. The workflow does not read the number.
 
 ### Contents of a Network Release
 
@@ -550,8 +551,9 @@ where scgraph keeps network files on the machine of a user.
 5. **Read.** The load reads 147,795 nodes and 367,548 edges. When the caller passes a
    `content_sha256`, the load fails if the file of the cache has another one.
 
-scgraph deletes a file that fails a check. The file does not enter the cache, and the load
-raises a `ValueError`.
+scgraph deletes a download that fails step 2 or 3. The file does not enter the cache, and the
+load raises a `ValueError`. A file of the cache that has another `content_sha256` than the one
+of the caller (step 5) stays: it is a whole file of the network release.
 
 The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
 extension. The first load took 2.7 s, download included, and the later load 0.01 s. The

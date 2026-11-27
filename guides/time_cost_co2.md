@@ -10,7 +10,8 @@ europe = GeoGraph.load_geograph("europe")
 # Hours: a speed by road, by rail, by sea and by air, and a wait at each port, airport and rail terminal
 europe.create_metric(
     "hours",
-    weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
+    weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750},
+    off_graph_weight_per_km=1 / 30,
     class_weight_per_km={"motorway": 1 / 90},
     weight_at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
     units="h",
@@ -32,11 +33,12 @@ A **metric** gives each edge a weight under a name, such as its hours. The **tot
 - The **node mode** of a node is the kind of place where the node is. A **hub** is a node of the node mode `port`, `airport` or `rail_terminal`.
 - A **query point** is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. The total of a route includes its two off-graph legs.
 
-The call above gives the weights in three arguments:
+The call above gives the weights in four arguments:
 
 | Argument | Its keys | Its values | In `hours` above |
 |---|---|---|---|
-| `weight_per_km` | The edge modes and `off_graph` | The weight of 1 km | `1 / 70`: 70 km/h on a road |
+| `weight_per_km` | The edge modes | The weight of 1 km | `1 / 70`: 70 km/h on a road |
+| `off_graph_weight_per_km` | No keys: one number | The weight of 1 km of an off-graph leg | `1 / 30`: 30 km/h off the network |
 | `class_weight_per_km` | Classes | The weight of 1 km, in place of the weight of the edge mode | `1 / 90`: 90 km/h on a motorway |
 | `weight_at_hub` | The node mode of a hub, then an edge mode | A weight, added to each edge of this edge mode that enters or leaves the hub | 3 hours at each end of a flight |
 
@@ -111,7 +113,7 @@ A weighted sum can also add two metrics of different units: `weighted_sum_of={"c
 **The rules of a call.**
 
 - **The way.** A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. `class_weight_per_km` and `weight_at_hub` need `weight_per_km`.
-- **The off-graph legs.** A call that gives `edge_weight_fn` also gives `off_graph_weight_per_km`. A call without `edge_weight_fn` does not give it. A dict of `weight_per_km` gives a weight per km for `off_graph`.
+- **The off-graph legs.** `off_graph_weight_per_km` gives the weight of 1 km of an off-graph leg. A call with `edge_weight_fn` or with a dict of `weight_per_km` gives it. Without it, a number of `weight_per_km` gives this weight, and a weighted sum adds the weights of its metrics.
 - **The classes.** Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`.
 - **The values.** A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it.
 - **The name.** A metric of the same name is replaced, and `remove_metric(metric)` removes a metric.
@@ -124,7 +126,7 @@ The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scg
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
-world_sea.create_metric("km_without_suez", weight_per_km={"sea": 1, "off_graph": 1}, class_weight_per_km={"suez": None})
+world_sea.create_metric("km_without_suez", weight_per_km={"sea": 1}, off_graph_weight_per_km=1, class_weight_per_km={"suez": None})
 
 rotterdam = {"latitude": 51.95, "longitude": 4.14}
 singapore = {"latitude": 1.26, "longitude": 103.82}

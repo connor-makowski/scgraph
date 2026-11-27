@@ -24,12 +24,14 @@ maps the parent file, and copies into memory only the nodes and the edges that i
 HOW A RUN GOES
 
 1. Select the nodes. A node is selected when its node mode is one of `node_modes`. A
-   node of a land node mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not
-   cut the other node modes: their nodes all stay. A `node_modes` of None keeps every
-   node mode. A `bbox` of None cuts nothing.
+   node of a land node mode must also be inside `bbox`. The pipeline of the parent file
+   lists its land node modes in `LAND_MODES`. The bbox does not cut the other node
+   modes: their nodes all stay. A `node_modes` of None keeps every node mode. A `bbox`
+   of None cuts nothing.
 2. Cut the graph. An edge stays when its two ends are selected.
 3. Keep each strongly connected component of at least `min_component_nodes` nodes.
-   An edge between two components is dropped. The chains are not contracted again: a
+   An edge between two components is dropped. With `min_component_nodes=0`, every
+   node and every edge stays. The chains are not contracted again: a
    junction that lost a road in step 2 stays as a node.
 4. Write the derived file. Its nodes keep the order of the parent file: by node mode,
    then along a Hilbert curve. Its node modes table holds the kept node modes only,
@@ -66,11 +68,12 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
 - `pipeline`: the pipeline of the parent file. The header has no `description`: the
   description of the parent file names networks that the derived file may not hold;
 - `sources`: the sources of the parent file that serve the derived file. A node mode
-  uses the source of its node ids, which the node modes table names. The node mode
-  `airport` also uses the source `flights`, because a flight joins two airports. A
-  source is removed when only removed node modes use it. A source that no node mode uses
-  is kept, because the header does not record what uses it. For example, the land mask
-  of the connectors uses Natural Earth;
+  uses the source of its node ids, which the node modes table names. It also uses the
+  source of its edges, which `EDGE_SOURCE_OF_MODE` of the pipeline gives. For example,
+  the node mode `airport` uses the source `flights`, because a flight joins two
+  airports. A source is removed when only removed node modes use it. A source that no
+  node mode uses is kept, because the header does not record what uses it. For
+  example, the land mask of the connectors uses Natural Earth;
 - `software`: the software that derived the file;
 - `derivation`: the `parent_content_sha256`, and the `node_modes`, the `bbox` and the
   `min_component_nodes` of the call.
@@ -120,13 +123,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["derive_network_file"]
 
-# The node modes that a bbox cuts. The nodes of the other node modes (`sea`, `port`,
-# `airport`) all stay. A route can then leave the bbox by sea or by air, and reach a
-# port or an airport outside it.
-LAND_MODES = ("road", "rail", "rail_terminal")
-# The source of the edges of a node mode, when it is not the source of its node ids. A
-# flight joins two airports: a file without the node mode `airport` holds no flight.
-_EDGE_SOURCE_OF_MODE = {"airport": "flights"}
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
 # The networks that a network release derives from the file of `world_multimodal`.
@@ -194,13 +190,15 @@ def derive_network_file(
         derived_file: The path of the network file to write.
         node_modes: The name of the node mode to keep, or a list of names. None
             keeps every node mode.
-        bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
-            outside the bbox is removed. None removes no node.
+        bbox: `(south, west, north, east)`, in degrees. A node of a land node mode
+            (`LAND_MODES` of the pipeline) outside the bbox is removed. None removes
+            no node.
         save_intermediate_nodes: False writes the same network without the
             intermediate nodes of its edges.
         min_component_nodes: The smallest number of nodes of a kept strongly
             connected component. The default removes a node that the cut left
-            alone, and keeps the roads of a small island.
+            alone, and keeps the roads of a small island. 0 keeps every node and
+            every edge.
 
     Returns:
         The `content_sha256` of the derived file.
@@ -208,8 +206,9 @@ def derive_network_file(
     Raises:
         ValueError: The south of the bbox is above its north, or its west is beyond
             its east. Or the parent file has one node mode only, no edge shapes, or
-            float64 coordinates. Or `node_modes` names a node mode that the parent file
-            does not have. Or the derived file would hold no node.
+            float64 coordinates. Or its pipeline does not declare `LAND_MODES` and
+            `EDGE_SOURCE_OF_MODE`. Or `node_modes` names a node mode that the parent
+            file does not have. Or the derived file would hold no node.
     """
     if isinstance(node_modes, str):
         node_modes = [node_modes]
@@ -232,6 +231,17 @@ def derive_network_file(
             f"{parent_file} has one node mode, no edge shapes or float64 coordinates: "
             "a parent file needs several node modes, edge shapes and int32 coordinates"
         )
+    pipeline_name = parent_metadata["pipeline"]["name"]
+    try:
+        pipeline = importlib.import_module(f"scgraph.pipelines.{pipeline_name}")
+        land_modes = pipeline.LAND_MODES
+        edge_source_of_mode = pipeline.EDGE_SOURCE_OF_MODE
+    except (ModuleNotFoundError, AttributeError):
+        raise ValueError(
+            f"{parent_file} was built by the pipeline '{pipeline_name}': "
+            "derive_network_file needs a pipeline of scgraph.pipelines that "
+            "declares LAND_MODES and EDGE_SOURCE_OF_MODE"
+        ) from None
     node_mode_names = list_node_mode_names(
         parent_metadata["node_modes"],
         node_modes or (),
@@ -256,7 +266,7 @@ def derive_network_file(
         land_node_mode_ids = {
             node_mode_id
             for node_mode_id in kept_node_mode_ids
-            if node_mode_names[node_mode_id] in LAND_MODES
+            if node_mode_names[node_mode_id] in land_modes
         }
         node_points = parent_arrays["node_points"]
         latitudes, longitudes = node_points[0::2], node_points[1::2]
@@ -278,31 +288,14 @@ def derive_network_file(
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
         graph = network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
-    with log_step(
-        logger,
-        "keep the strongly connected components",
-        network_assembly.count_nodes_and_edges(graph),
-    ) as counts:
-        # 3. Keep the strongly connected components. A junction with several
-        # nodes keeps them all (`scgraph/turn_restrictions.py`).
-        kept_nodes, component_of_node = network_assembly.keep_junctions_whole(
-            graph,
-            *network_assembly.keep_strongly_connected_components(
-                graph["node_first_edge_ids"],
-                graph["edge_destination_node_ids"],
-                min_component_nodes,
-            ),
+    # 3. Keep the strongly connected components, as a build does. A junction
+    # with several nodes keeps them all (`scgraph/turn_restrictions.py`).
+    graph = network_assembly.keep_components(graph, min_component_nodes)
+    if len(graph["node_first_edge_ids"]) == 1:
+        raise ValueError(
+            f"{parent_file} has no component of {min_component_nodes} nodes "
+            "or more with these node modes inside the bbox"
         )
-        if not len(kept_nodes):
-            raise ValueError(
-                f"{parent_file} has no component of {min_component_nodes} nodes "
-                "or more with these node modes inside the bbox"
-            )
-        # An edge between two components is dropped
-        graph = network_assembly.renumber_nodes(
-            graph, kept_nodes, component_of_node
-        )
-        counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     # A kept node mode takes its id in the new node modes table
@@ -325,7 +318,7 @@ def derive_network_file(
 
     def find_used_sources(node_modes):
         return {mode.get("source") for mode in node_modes} | {
-            _EDGE_SOURCE_OF_MODE.get(mode["name"]) for mode in node_modes
+            edge_source_of_mode.get(mode["name"]) for mode in node_modes
         }
 
     removed_sources = find_used_sources(
@@ -371,8 +364,9 @@ def validate_derived_network_file(
         parent_file: The network file that `derived_file` was derived from.
 
     Raises:
-        ValueError: The header of `derived_file` has no `derivation`. Or this version
-            of scgraph does not have the pipeline that built the parent file.
+        ValueError: The header of `derived_file` has no `derivation`.
+        ModuleNotFoundError: This version of scgraph does not have the pipeline
+            that built the parent file.
         RuntimeError: The derived file fails a case that the parent file passes.
     """
     info = network_file.get_scgraph_info(derived_file)
@@ -397,18 +391,11 @@ def validate_derived_network_file(
         )
         return has_the_modes and is_inside_the_bbox
 
-    try:
-        pipeline = importlib.import_module(
-            f"scgraph.pipelines.{parent_pipeline['name']}"
-        )
-    except ModuleNotFoundError:
-        # The cases of a file are those of the pipeline that built its parent file
-        raise ValueError(
-            f"{parent_file} was built by the pipeline "
-            f"'{parent_pipeline['name']}', which this version of scgraph does not "
-            "have: its derived files cannot be validated (`run_validation_cases=False`, or "
-            "`--no-validate` on the command line)"
-        ) from None
+    # The cases of a file are those of the pipeline that built its parent file.
+    # `derive_network_file` refuses a parent file of an unknown pipeline.
+    pipeline = importlib.import_module(
+        f"scgraph.pipelines.{parent_pipeline['name']}"
+    )
     cases = [
         case
         for case in load_validation_cases(
@@ -467,8 +454,8 @@ def derive_network_release_files(
 
     Raises:
         ValueError: A name is not in `DERIVED_NETWORKS`, or a derived network is
-            empty. Or `run_validation_cases` is on and this version of scgraph does not have
-            the pipeline that built the world file.
+            empty. Or this version of scgraph does not have the pipeline that built
+            the world file, with or without `run_validation_cases`.
         RuntimeError: A derived network fails a validation case that the world
             file passes.
     """

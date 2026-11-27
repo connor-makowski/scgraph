@@ -83,11 +83,11 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 Here the metric gives each edge a cost in euros.
 
-`weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the two **off-graph legs**: the straight lines from each point to its node. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
+`weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. `off_graph_weight_per_km` gives the cost of 1 km of the two **off-graph legs**: the straight lines from each point to its node. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
 
 ```py
-euros_per_km = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5, "off_graph": 1.2}
-europe.create_metric("euros", weight_per_km=euros_per_km, weight_at_hub={"port": {"sea": 300}, "airport": {"air": 200}})
+euros_per_km = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5}
+europe.create_metric("euros", weight_per_km=euros_per_km, off_graph_weight_per_km=1.2, weight_at_hub={"port": {"sea": 300}, "airport": {"air": 200}})
 
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="euros", output_legs=True)
 print(route["length"], route["metric_totals"]["euros"])  # the km and the euros of the cheapest route
