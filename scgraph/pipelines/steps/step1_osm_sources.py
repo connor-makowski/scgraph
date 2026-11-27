@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 
 import requests
 
+from scgraph import files
 from scgraph.helpers.osm import (
     MAIN_ROADS as MAIN_ROADS,
     MAX_KM_BETWEEN_NODES as MAX_KM_BETWEEN_NODES,
@@ -121,44 +122,28 @@ class StreamedPbf:
             `{version, bytes, md5}`, without the values that the server does not give.
         """
         osmium = require_osmium()
-        session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            max_retries=requests.adapters.Retry(
-                total=5,
-                backoff_factor=1,
-                status_forcelist=[429, 500, 502, 503, 504],
-            )
-        )
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
-
-        head = session.head(
-            url, headers=_AGENT, allow_redirects=True, timeout=(10.0, 60.0)
-        )
+        session = files.create_retry_session()
+        head = session.head(url, allow_redirects=True, timeout=(10.0, 60.0))
         head.raise_for_status()
         url = head.url
         size = int(head.headers["Content-Length"])
         tag = head.headers.get("ETag") or head.headers["Last-Modified"]
 
         def get(start, end):  # bytes [start, end) of the same file
-            ask = {**_AGENT, "Range": f"bytes={start}-{min(end, size) - 1}"}
+            ask = {"Range": f"bytes={start}-{min(end, size) - 1}"}
             # A request is tried again: one slow answer must not stop a build that
             # takes hours
-            for attempt in range(6):
+            for attempt in range(files.MAX_RETRIES + 1):
                 try:
                     answer = session.get(url, headers=ask, timeout=(10.0, 60.0))
                     answer.raise_for_status()
                     content = answer.content
                     break
                 except (requests.RequestException, OSError, TimeoutError):
-                    if attempt == 5:
+                    if attempt == files.MAX_RETRIES:
                         raise
-                    time.sleep(2**attempt)
-            headers = answer.headers
-            total = headers.get("Content-Range", "").rpartition("/")[2]
-            same = (headers.get("ETag") or headers.get("Last-Modified")) == tag
-            if answer.status_code != 206 or not same or total != str(size):
-                raise ValueError(f"{url} changed or ignores byte ranges")
+                    time.sleep(min(60, 2**attempt))
+            files.check_byte_range_answer(answer, tag, size)
             return content
 
         header = get(0, _get_blob_length(get(0, 1 << 16)))
@@ -203,10 +188,7 @@ class StreamedPbf:
             md5_val = None
             try:
                 md5 = session.get(
-                    url + ".md5",
-                    headers=_AGENT,
-                    allow_redirects=True,
-                    timeout=(10.0, 60.0),
+                    url + ".md5", allow_redirects=True, timeout=(10.0, 60.0)
                 )
                 if md5.ok:
                     md5_val = md5.text.split()[0]
@@ -306,7 +288,6 @@ PLANET = {
     "url": "https://osm-planet-eu-central-1.s3.dualstack.eu-central-1.amazonaws.com/planet/pbf/2026/planet-261102.osm.pbf",
     "download": write_pbf_layout_file,
 }
-_AGENT = {"User-Agent": "scgraph"}
 # In bytes. Below this distance, the start of a section is found blob by blob.
 _SCAN = 1 << 23
 _RANGE_STREAMER_SCRIPT = str(

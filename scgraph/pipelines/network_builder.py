@@ -30,6 +30,7 @@ from scgraph.geograph_cache import (
     CACHE_JSON,
     NETWORKS_FOLDER,
     WORK_FOLDER,
+    check_region,
     create_networks_folder,
     find_cached_file,
     write_cache_json,
@@ -152,14 +153,8 @@ def _check_region(
             f"The pipeline '{name}' takes no region: no URL of its sources "
             "holds {region}"
         )
-    # The region becomes a part of the path of the cache, so it holds nothing else
-    if region is not None and not re.fullmatch(
-        r"[a-z0-9-]+(/[a-z0-9-]+)*", region
-    ):
-        raise ValueError(
-            f"Invalid region '{region}': lowercase letters, digits and hyphens, "
-            "in parts joined by '/'"
-        )
+    if region is not None:
+        check_region(region)
 
 
 def _should_build(
