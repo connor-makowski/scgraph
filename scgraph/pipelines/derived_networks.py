@@ -30,7 +30,8 @@ HOW A RUN GOES
    of None cuts nothing.
 2. Cut the graph. An edge stays when its two ends are selected.
 3. Keep each strongly connected component of at least `min_component_nodes` nodes.
-   An edge between two components is dropped. The chains are not contracted again: a
+   An edge between two components is dropped. With `min_component_nodes=0`, every
+   node and every edge stays. The chains are not contracted again: a
    junction that lost a road in step 2 stays as a node.
 4. Write the derived file. Its nodes keep the order of the parent file: by node mode,
    then along a Hilbert curve. Its node modes table holds the kept node modes only,
@@ -196,7 +197,8 @@ def derive_network_file(
             intermediate nodes of its edges.
         min_component_nodes: The smallest number of nodes of a kept strongly
             connected component. The default removes a node that the cut left
-            alone, and keeps the roads of a small island.
+            alone, and keeps the roads of a small island. 0 keeps every node and
+            every edge.
 
     Returns:
         The `content_sha256` of the derived file.
@@ -286,31 +288,14 @@ def derive_network_file(
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
         graph = network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
-    with log_step(
-        logger,
-        "keep the strongly connected components",
-        network_assembly.count_nodes_and_edges(graph),
-    ) as counts:
-        # 3. Keep the strongly connected components. A junction with several
-        # nodes keeps them all (`scgraph/turn_restrictions.py`).
-        kept_nodes, component_of_node = network_assembly.keep_junctions_whole(
-            graph,
-            *network_assembly.keep_strongly_connected_components(
-                graph["node_first_edge_ids"],
-                graph["edge_destination_node_ids"],
-                min_component_nodes,
-            ),
+    # 3. Keep the strongly connected components, as a build does. A junction
+    # with several nodes keeps them all (`scgraph/turn_restrictions.py`).
+    graph = network_assembly.keep_components(graph, min_component_nodes)
+    if len(graph["node_first_edge_ids"]) == 1:
+        raise ValueError(
+            f"{parent_file} has no component of {min_component_nodes} nodes "
+            "or more with these node modes inside the bbox"
         )
-        if not len(kept_nodes):
-            raise ValueError(
-                f"{parent_file} has no component of {min_component_nodes} nodes "
-                "or more with these node modes inside the bbox"
-            )
-        # An edge between two components is dropped
-        graph = network_assembly.renumber_nodes(
-            graph, kept_nodes, component_of_node
-        )
-        counts.update(network_assembly.count_nodes_and_edges(graph, "kept_"))
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     # A kept node mode takes its id in the new node modes table

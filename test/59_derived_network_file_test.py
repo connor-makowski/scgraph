@@ -317,6 +317,43 @@ def test_a_derived_file_keeps_every_node_of_a_junction(tmp_path):
     assert route["length"] == pytest.approx(1.0)
 
 
+# A road joins W and E both ways, and a one-way street goes from E to the dead
+# end D. No route comes back from D, so D is a component of its own, and the
+# street joins two components. Each edge is 1 km long. A parent file has
+# several node modes: the network also has one sea node.
+def test_a_derivation_with_min_component_nodes_0_keeps_every_edge(tmp_path):
+    w, e, d, sea = range(4)
+    parent = GeoGraph(
+        graph=[{e: 1.0}, {w: 1.0, d: 1.0}, {}, {}],
+        nodes=[[0, 0], [0, 0.01], [0, 0.02], [-1, 0]],
+        intermediate_nodes=[{} for _ in range(4)],
+        node_mode_ids=[0, 0, 0, 1],
+        node_modes=[
+            {"name": "road", "source": "osm"},
+            {"name": "sea", "source": "sea"},
+        ],
+        coordinate_dtype="int32",
+    )
+    parent_file = str(tmp_path / "dead_end.scgraph")
+    parent.save_as_scgraph(
+        parent_file,
+        metadata=pipelines.build_metadata(
+            "osm_world_multimodal", None, 1, SOURCES
+        ),
+    )
+    derived_file = str(tmp_path / "derived.scgraph")
+
+    derived_networks.derive_network_file(
+        parent_file, derived_file, min_component_nodes=0
+    )
+
+    # The route from W to D takes the road, then the one-way street
+    route = GeoGraph.load_from_scgraph(derived_file).get_shortest_path(
+        {"latitude": 0, "longitude": 0}, {"latitude": 0, "longitude": 0.02}
+    )
+    assert route["length"] == pytest.approx(2.0)
+
+
 def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
     # The network of the parent file has 8 nodes. The smallest component that a
     # derivation keeps has 10 nodes, unless the call gives another size.

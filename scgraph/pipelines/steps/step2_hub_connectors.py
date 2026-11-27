@@ -45,14 +45,10 @@ from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from scgraph.coordinates import UNITS_PER_DEGREE, decode_coordinate
+from scgraph.coordinates import decode_coordinate, encode_coordinates
 from scgraph.edge_classes import CLASS_IDS
 from scgraph.helpers.near_nodes import NearNodes
-from scgraph.helpers.polylines import PieceArrays
-from scgraph.network_assembly import (
-    build_graph_from_pieces,
-    find_strongly_connected_components,
-)
+from scgraph.network_assembly import find_strongly_connected_components
 from scgraph.utils import haversine
 
 if TYPE_CHECKING:
@@ -226,30 +222,6 @@ class _Network:
             decode_coordinate(self.longitudes[u]),
         ]
 
-    def edges(self) -> Iterator[tuple[int, int, float, list, int | None]]:
-        """(origin, destination, km, shape, class id) of each edge. The points of the
-        shape are in degrees.
-        """
-        network = self.network
-        weights = network["metric_length"]
-        starts, line = (
-            network["edge_first_shape_point_ids"],
-            network["shape_points"],
-        )
-        edge_class_ids = network["edge_class_ids"]
-        for u in range(len(self)):
-            for a in range(
-                self.node_first_edge_ids[u], self.node_first_edge_ids[u + 1]
-            ):
-                points = line[2 * starts[a] : 2 * starts[a + 1]]
-                shape = [
-                    [x / UNITS_PER_DEGREE, y / UNITS_PER_DEGREE]
-                    for x, y in zip(points[::2], points[1::2])
-                ]
-                yield u, self.edge_destination_node_ids[a], weights[
-                    a
-                ], shape, edge_class_ids[a]
-
 
 def join_networks_at_hubs(
     layers: dict[str, dict],
@@ -257,12 +229,18 @@ def join_networks_at_hubs(
     land_mask: "LandMask",
     node_modes: Sequence[str],
     flights: Iterable[tuple[int, int]] = (),
-    work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, dict[str, int]]:
     """Join several networks at their hubs.
 
     A hub becomes a node when it reaches at least two networks. A flight is kept when
     both its airports have a connector.
+
+    The joined network holds the nodes of each layer, in the order of `layers`, then
+    the hubs. Each node keeps its edges, and its connectors and flights come after
+    them. The connectors and the flights go to hubs, so the edges of a node stay
+    sorted by destination id. Example: road node 7 of the first layer has edges to
+    the road nodes 3 and 9. A port that becomes node 50,000 joins node 7. Node 7 then
+    has edges to the nodes 3, 9 and 50,000.
 
     Args:
         layers: Each network, by its node mode, as the network file's arrays, with
@@ -272,7 +250,6 @@ def join_networks_at_hubs(
         node_modes: The names of the node modes: every layer and every kind
             of hub.
         flights: The two airport ids of each pair with regular flights.
-        work_dir: A folder that keeps the edges in files. None keeps them in memory.
 
     Returns:
         The joined network as the network file's arrays, and the number of hubs
@@ -291,22 +268,15 @@ def join_networks_at_hubs(
     for mode, layer in layers.items():
         first[mode], n = n, n + len(layer)
     points = []  # of the hubs, in degrees, after the layers' nodes
-    pieces = PieceArrays(tolerance_meters=None, work_dir=work_dir)
-
-    def at(u):
-        for mode, layer in layers.items():
-            if u < first[mode] + len(layer):
-                return layer.point(u - first[mode])
-        return points[u - n]
+    # The connectors and the flights of each node: destination -> (km, shape, class
+    # id). Of two edges between the same two nodes, the first one stays.
+    added = {}
 
     def add(u, v, km, shape, class_id):
-        pieces.append(u, v, km, 1, [at(u), at(v)], shape, class_id)
+        if u != v:
+            added.setdefault(u, {}).setdefault(v, (km, shape, class_id))
 
-    # 1. The edges of each layer, on node indices that follow each other
-    for mode, layer in layers.items():
-        for u, v, km, shape, class_id in layer.edges():
-            add(first[mode] + u, first[mode] + v, km, shape, class_id)
-    # 2. The connectors of each hub, and its node if it reaches two networks
+    # 1. The connectors of each hub, and its node if it reaches two networks
     connect = {
         mode: _build_land_connector(layer, land_mask, CONNECTOR_KM[mode])
         for mode, layer in layers.items()
@@ -351,35 +321,120 @@ def join_networks_at_hubs(
             u += first[mode]
             add(h, u, km, shape, connector_class_id[mode])
             add(u, h, km, shape[::-1], connector_class_id[mode])
-    # 3. The flights, airport to airport
+    # 2. The flights, airport to airport
     for one, other in flights:
         a, b = airport[one], airport[other]
-        km = haversine(at(a), at(b))
+        km = haversine(points[a - n], points[b - n])
         add(a, b, km, [], flight_class_id)
         add(b, a, km, [], flight_class_id)
-    # 4. The graph, with the node mode and the source id of each node
-    layer_ids = [layer.ids for layer in layers.values()]
-    layer_node_mode_ids = [node_modes.index(mode) for mode in layers]
-    sizes = [len(layer) for layer in layers.values()]
-    for layer in layers.values():
-        layer.release()  # freed before the joined graph is built
+    # 3. The joined arrays: the nodes of each layer, then the hubs
     land_mask.bits = None
     del connect
-    joined = build_graph_from_pieces(pieces)
-    all_ids = array("q")
-    for layer_id in layer_ids:
-        all_ids += layer_id
-    all_ids += ids
-    node_mode_ids = bytearray()
-    for node_mode_id, size in zip(layer_node_mode_ids, sizes):
-        node_mode_ids += bytes([node_mode_id]) * size
-    node_mode_ids += bytes(node_modes.index(kind) for kind in kinds)
-    # build_graph_from_pieces renumbers the nodes; its external_node_ids are the numbers
-    # the nodes had here
-    old = joined["external_node_ids"]
-    joined["node_mode_ids"] = array("B", (node_mode_ids[u] for u in old))
-    joined["external_node_ids"] = array("q", (all_ids[u] for u in old))
+    joined = {
+        "node_first_edge_ids": array("i", [0]),
+        "edge_destination_node_ids": array("i"),
+        "metric_length": array("d"),
+        "node_points": array("i"),
+        "edge_first_shape_point_ids": array("i", [0]),
+        "shape_points": array("i"),
+        "external_node_ids": array("q"),
+        "edge_class_ids": array("B"),
+        "node_mode_ids": array("B"),
+    }
+    for mode, layer in layers.items():
+        end = first[mode] + len(layer)
+        _append_layer(
+            joined,
+            layer.network,
+            first[mode],
+            {
+                u - first[mode]: added[u]
+                for u in added
+                if first[mode] <= u < end
+            },
+        )
+        joined["external_node_ids"] += layer.ids
+        node_mode_id = node_modes.index(mode)
+        joined["node_mode_ids"] += array("B", [node_mode_id] * len(layer))
+        layer.release()  # freed before the next layer is copied
+    for h in range(n, n + len(points)):
+        _append_edges(joined, added[h])
+    (hub_points,) = encode_coordinates(
+        [[x for point in points for x in point]], "int32"
+    )
+    joined["node_points"] += hub_points
+    joined["external_node_ids"] += ids
+    joined["node_mode_ids"] += array(
+        "B", (node_modes.index(kind) for kind in kinds)
+    )
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}
+
+
+def _append_layer(joined, network, first_node_id, added):
+    """Append the nodes and the edges of one layer to the joined arrays. The node ids
+    of the layer grow by `first_node_id`. `added[u]` holds the connectors of node
+    `u` of the layer, which come after its own edges.
+    """
+    node_first_edge_ids = network["node_first_edge_ids"]
+    edge_first_shape_point_ids = network["edge_first_shape_point_ids"]
+    node_count = len(node_first_edge_ids) - 1
+    joined["node_points"] += array("i", network["node_points"])
+    u = 0  # the first node of the layer that is not yet appended
+    # Each step appends the nodes u to v - 1, and the edges of node v
+    for v in [*sorted(added), node_count]:
+        a, b = (
+            node_first_edge_ids[u],
+            node_first_edge_ids[min(v + 1, node_count)],
+        )
+        edge_shift = len(joined["edge_destination_node_ids"]) - a
+        point_shift = (
+            len(joined["shape_points"]) // 2 - edge_first_shape_point_ids[a]
+        )
+        joined["node_first_edge_ids"].extend(
+            edge_id + edge_shift
+            for edge_id in node_first_edge_ids[u + 1 : v + 1]
+        )
+        joined["edge_destination_node_ids"].extend(
+            node_id + first_node_id
+            for node_id in network["edge_destination_node_ids"][a:b]
+        )
+        joined["metric_length"].extend(network["metric_length"][a:b])
+        joined["edge_class_ids"].extend(network["edge_class_ids"][a:b])
+        # The shape points of the edges a to b - 1: two values for each point
+        start, stop = (
+            2 * edge_first_shape_point_ids[a],
+            2 * edge_first_shape_point_ids[b],
+        )
+        joined["shape_points"].extend(network["shape_points"][start:stop])
+        joined["edge_first_shape_point_ids"].extend(
+            point_id + point_shift
+            for point_id in edge_first_shape_point_ids[a + 1 : b + 1]
+        )
+        if v < node_count:
+            _append_edges(joined, added[v])
+        u = v + 1
+
+
+def _append_edges(joined, edges):
+    """Append the edges of `edges` (destination -> (km, shape, class id)) to the
+    joined arrays, sorted by destination id, and end their node there. A shape is a
+    list of points in degrees.
+    """
+    for v in sorted(edges):
+        km, shape, class_id = edges[v]
+        joined["edge_destination_node_ids"].append(v)
+        joined["metric_length"].append(km)
+        joined["edge_class_ids"].append(class_id)
+        (shape_points,) = encode_coordinates(
+            [[x for point in shape for x in point]], "int32"
+        )
+        joined["shape_points"] += shape_points
+        joined["edge_first_shape_point_ids"].append(
+            len(joined["shape_points"]) // 2
+        )
+    joined["node_first_edge_ids"].append(
+        len(joined["edge_destination_node_ids"])
+    )
 
 
 def _build_land_connector(

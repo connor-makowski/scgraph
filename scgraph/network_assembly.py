@@ -620,7 +620,7 @@ def build_graph_from_pieces(
     (*How a run goes*, stage 1, and *How a piece is split*).
 
     Args:
-        pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
+        pieces: The pieces, as `scgraph.helpers.osm.build_way_pieces` fills them.
 
     Returns:
         The graph as a dict of arrays: `node_first_edge_ids`, `edge_destination_node_ids`, `metric_length`,
