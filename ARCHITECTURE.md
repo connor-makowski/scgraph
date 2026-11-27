@@ -485,7 +485,7 @@ All multi-byte integers are **little-endian**:
 | next | 0 to 63 | Zeros, up to a multiple of 64 bytes |
 | array section | variable | The arrays, each starting at a multiple of 64 bytes |
 
-In the example, the header of 1,590 bytes ends at byte 1,637, so the arrays start at byte 1,664. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
+In the example, the header of 1,667 bytes ends at byte 1,714, so the arrays start at byte 1,728. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
 
 ### Header JSON Schema
 
@@ -502,7 +502,8 @@ The header of the example, one line for each row:
     "node_points": {"dtype": "int32", "offset": 448, "shape": [6, 2]},
     "external_node_ids": {"dtype": "int32", "offset": 512, "shape": [6]},
     "edge_first_shape_point_ids": {"dtype": "int32", "offset": 576, "shape": [11]},
-    "shape_points": {"dtype": "int32", "offset": 640, "shape": [4, 2]}
+    "edge_has_reversed_shape": {"dtype": "uint8", "offset": 640, "shape": [10]},
+    "shape_points": {"dtype": "int32", "offset": 704, "shape": [2, 2]}
   },
   "format_version": 1,
   "metadata": {
@@ -564,7 +565,8 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 * **point**: one `[latitude, longitude]` pair, its two coordinates.
 * **node**: a vertex of the graph, from `0` to $N - 1$, at a point.
 * **edge id**: the position of an edge in `edge_destination_node_ids`, from `0` to $M - 1$.
-* **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`).
+* **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`). The shape of an edge is the list of its shape points.
+* **second edge**: an edge $v \to u$ whose shape is the shape of the edge $u \to v$ in the reverse order. The edge $u \to v$ is its pair edge. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for a second edge. A reader reads the points of the pair edge backwards.
 
 The edges are stored by origin node, in Compressed Sparse Row (CSR) arrays. The edges of a node are consecutive, in the order that a search visits them.
 
@@ -580,6 +582,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
 | `external_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id outside this network, such as a 64-bit OpenStreetMap id. |
 | `edge_first_shape_point_ids` *(opt)* | `int32` | $M + 1$ | edge, and one more | The id of its first shape point: edge $e$ has points `edge_first_shape_point_ids[e]` to `edge_first_shape_point_ids[e+1] - 1`. |
+| `edge_has_reversed_shape` *(opt)* | `uint8` | $M$ | edge | 1 for a second edge, 0 for any other edge. |
 | `shape_points` *(opt)* | as `node_points` | $K \times 2$ | shape point | Its latitude, then its longitude. |
 
 * **Weights**: `read` refuses weights of another dtype than `float64`.
@@ -597,8 +600,9 @@ metric_hours (10): [0.15, 0.67, 0.15, 0.02, 0.67, 3.23, 0.58, 3.23, 0.02, 0.58]
 edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 node_points (12): [494190000, 2330000, 494944000, 1079000, 494431000, 10993000, 502000000, -10000000, 495500000, -1000000, 494833000, 1167000]
 external_node_ids (6): [103, 102, 101, 1, 0, 35840]
-edge_first_shape_point_ids (11): [0, 0, 2, 2, 2, 4, 4, 4, 4, 4, 4]
-shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 495300000, 4500000]
+edge_first_shape_point_ids (11): [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+edge_has_reversed_shape (10): [0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+shape_points (4): [495300000, 4500000, 495200000, 8000000]
 ```
 
 ### Lookup Examples
@@ -607,7 +611,9 @@ shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 4
 
 **A class.** The edges of node 5 are `node_first_edge_ids[5]` = 8 to `node_first_edge_ids[6] - 1` = 9. Edge 8 goes to `edge_destination_node_ids[8]` = 1, Le Havre. Its class id `edge_class_ids[8]` = 2 is the row `road_connector`, of edge mode `road`. Edge 9 goes to node 4, with class id 3 (`sea_connector`, edge mode `sea`), 17.3 km and 0.58 hour.
 
-**A shape.** Edge 1, the motorway from Le Havre to Rouen, has the shape points `edge_first_shape_point_ids[1]` = 0 to `edge_first_shape_point_ids[2] - 1` = 1: (49.53, 0.45), then (49.52, 0.80). Edge 4, from Rouen, has them in reverse order. The other edges have no shape point.
+**A shape.** Edge 1, the motorway from Le Havre to Rouen, has the shape points `edge_first_shape_point_ids[1]` = 0 to `edge_first_shape_point_ids[2] - 1` = 1: (49.53, 0.45), then (49.52, 0.80). The other edges have no shape point of their own.
+
+**The shape of a second edge.** Edge 4 goes from Rouen, node 2, to Le Havre, node 1. Its value in `edge_has_reversed_shape` is 1, so it is a second edge. A reader visits the edges of node 1, edges 1 to 3, and stops at the first edge to node 2: edge 1, the pair edge. Edge 4 reads the points of edge 1 backwards: (49.52, 0.80), then (49.53, 0.45). `scgraph/cpp/src/second_edges.hpp` explains how `write` finds the second edges.
 
 ### How scgraph Reads a File
 
@@ -627,14 +633,14 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 2. `format_version` is `1`; otherwise the message gives the version of the file.
 3. Each name given in `node_modes` is in `metadata.node_modes`.
 4. Each known array, `metric_<name>` included, has a dtype of the table, and lies inside the file from a multiple of 64 bytes.
-5. Every array not marked *(opt)* is there, both shape arrays or neither, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
+5. Every array not marked *(opt)* is there, the three shape arrays or none, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
 6. The first metric is `length`, with its `units`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
 7. The point arrays have one dtype.
 8. `metadata.node_modes` has 256 rows at most, whose `node_count` values sum to $N$.
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.
 10. A read that copies the whole file checks the values: the node_first_edge_ids do not decrease, each destination id is a node, and each class id is a row of `classes`, or 255.
 
-A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads.
+A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape raises a `ValueError` for a second edge with shape points of its own, and for a second edge without a pair edge that has shape points.
 
 `read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 

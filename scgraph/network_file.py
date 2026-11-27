@@ -52,9 +52,10 @@ from scgraph.node_modes import (
 from scgraph.array_checks import is_sorted
 
 try:
-    from scgraph.cpp import select_edges
+    from scgraph.cpp import remove_second_edge_shapes, select_edges
 except ImportError:
     from scgraph.helpers.edge_selection import select_edges
+    from scgraph.helpers.second_edges import remove_second_edge_shapes
 
 __all__ = [
     "build_header_metadata",
@@ -82,6 +83,8 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `scgraph.coordinates`).
 # external_node_ids (optional): the id of each node in its source.
+# edge_has_reversed_shape (with the shapes): 1 for a second edge, which reads the shape
+# of its pair edge backwards (`scgraph/cpp/src/second_edges.hpp`), and 0 for any other edge.
 ARRAYS = {
     "node_first_edge_ids": ("int32",),
     "edge_destination_node_ids": ("int32",),
@@ -90,9 +93,16 @@ ARRAYS = {
     "node_points": COORDINATE_DTYPES,
     "external_node_ids": ("int32", "int64"),
     "edge_first_shape_point_ids": ("int32",),
+    "edge_has_reversed_shape": ("uint8",),
     "shape_points": COORDINATE_DTYPES,
 }
 POINT_ARRAYS = ("node_points", "shape_points")
+# A file holds the three arrays of the shapes, or none of them
+SHAPE_ARRAYS = (
+    "edge_first_shape_point_ids",
+    "edge_has_reversed_shape",
+    "shape_points",
+)
 # The value of `edge_class_ids` for an edge without a class. The id of a class is
 # below it: a network holds 255 classes at most.
 NO_CLASS_ID = 255
@@ -227,7 +237,10 @@ def write(
         arrays: The arrays of the network, by name (`node_first_edge_ids`, `edge_destination_node_ids`,
             `metric_length`, `node_points`, ...). `ARRAYS` gives the names and the
             dtypes that a file may hold. The file may also hold one array
-            `metric_<name>` for each other metric.
+            `metric_<name>` for each other metric. Without `edge_has_reversed_shape`,
+            each edge holds its own shape, and `write` stores the shape of a second
+            edge once, in its pair edge. With it, the shapes are stored as `read`
+            returns them.
         metadata: The metadata of the network (metrics, node modes, sources, ...), as
             `build_header_metadata` returns it. It must be serializable as JSON.
 
@@ -247,8 +260,20 @@ def write(
         "arrays": {},
         "metadata": dict(metadata),
     }
+    # Shapes without flags are a file without second edges
+    has_full_shapes = (
+        "edge_first_shape_point_ids" in arrays
+        and "edge_has_reversed_shape" not in arrays
+    )
+    if has_full_shapes:
+        arrays = {
+            **arrays,
+            "edge_has_reversed_shape": bytes(
+                len(arrays.get("edge_destination_node_ids", ()))
+            ),
+        }
     arrays = _sort_arrays(arrays)
-    position = 0
+    dtype_of_array = {}
     for name, values in arrays.items():
         size = memoryview(values).itemsize
         dtypes = _get_dtypes(name)
@@ -259,18 +284,33 @@ def write(
             raise TypeError(
                 f"Array '{name}' must hold {' or '.join(dtypes)} values"
             )
-        shape = [len(values) // 2, 2] if name in POINT_ARRAYS else [len(values)]
-        header["arrays"][name] = {
-            "dtype": dtype,
-            "shape": shape,
-            "offset": position,
-        }
-        position = _align(position + len(values) * values.itemsize)
+        dtype_of_array[name] = dtype
     # The checks of `read`, so that `read` accepts every file that `write` writes
     try:
         _check(filename, arrays, header["metadata"])
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid metadata ({error!r})") from error
+    if has_full_shapes:
+        arrays.update(
+            zip(
+                SHAPE_ARRAYS,
+                remove_second_edge_shapes(
+                    arrays["node_first_edge_ids"],
+                    arrays["edge_destination_node_ids"],
+                    arrays["edge_first_shape_point_ids"],
+                    arrays["shape_points"],
+                ),
+            )
+        )
+    position = 0
+    for name, values in arrays.items():
+        shape = [len(values) // 2, 2] if name in POINT_ARRAYS else [len(values)]
+        header["arrays"][name] = {
+            "dtype": dtype_of_array[name],
+            "shape": shape,
+            "offset": position,
+        }
+        position = _align(position + len(values) * values.itemsize)
     # Sorted, so that in one build the same network and metadata give the same file
     text = json.dumps(header, sort_keys=True).encode()
     start = _align(_PREAMBLE + len(text))
@@ -556,6 +596,7 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         ("edge_class_ids", edge_runs, 1),
         ("node_points", node_runs, 2),
         ("external_node_ids", node_runs, 1),
+        ("edge_has_reversed_shape", edge_runs, 1),
         ("shape_points", shape_point_runs, 2),
     ):
         if name in arrays:
@@ -601,7 +642,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
     }
     require(required <= set(arrays), "missing arrays")
     require(
-        ("edge_first_shape_point_ids" in arrays) == ("shape_points" in arrays),
+        len({name in arrays for name in SHAPE_ARRAYS}) == 1,
         "missing shape arrays",
     )
     node_first_edge_ids, edge_destination_node_ids = (
@@ -670,6 +711,10 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[0] == 0
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid edge_first_shape_point_ids",
+        )
+        require(
+            len(arrays["edge_has_reversed_shape"]) == m,
+            "one edge_has_reversed_shape value per edge expected",
         )
         # Mapped, each shape's edge_first_shape_point_ids are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(

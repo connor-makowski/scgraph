@@ -158,6 +158,7 @@ from scgraph.helpers.douglas_peucker import (
 )
 from scgraph.helpers.hilbert import hilbert_key
 from scgraph.helpers.polylines import PieceArrays
+from scgraph.helpers.second_edges import find_pair_shape
 from scgraph.utils import haversine
 from scgraph.array_checks import is_sorted_from_zero
 from scgraph.step_logs import log_step
@@ -1025,7 +1026,8 @@ def renumber_nodes(graph, order, labels=None):
     """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
     the edges of each node are sorted by destination id. With `labels`, an edge is kept only when
     its two ends have the same label. A kept edge keeps its shape, and its class if
-    `graph` has `edge_class_ids`.
+    `graph` has `edge_class_ids`. The new graph has no second edges: a second edge of
+    `graph` gets the shape of its pair edge, read backwards.
     """
     new = array("i", [-1]) * (len(graph["node_first_edge_ids"]) - 1)
     for i, u in enumerate(order):
@@ -1039,6 +1041,7 @@ def renumber_nodes(graph, order, labels=None):
         )
     )
     starts, line = graph["edge_first_shape_point_ids"], graph["shape_points"]
+    has_reversed_shape = graph.get("edge_has_reversed_shape")
     out = {
         "node_first_edge_ids": array("i", [0]),
         "edge_destination_node_ids": array("i"),
@@ -1061,9 +1064,22 @@ def renumber_nodes(graph, order, labels=None):
             ):
                 out["edge_destination_node_ids"].append(v)
                 out["metric_length"].append(weights[a])
-                out["shape_points"].extend(
-                    line[2 * starts[a] : 2 * starts[a + 1]]
-                )
+                if has_reversed_shape is not None and has_reversed_shape[a]:
+                    first, last = find_pair_shape(
+                        node_first_edge_ids,
+                        edge_destination_node_ids,
+                        starts,
+                        u,
+                        a,
+                    )
+                    for point_id in range(last - 1, first - 1, -1):
+                        out["shape_points"].extend(
+                            line[2 * point_id : 2 * point_id + 2]
+                        )
+                else:
+                    out["shape_points"].extend(
+                        line[2 * starts[a] : 2 * starts[a + 1]]
+                    )
                 out["edge_first_shape_point_ids"].append(
                     len(out["shape_points"]) // 2
                 )

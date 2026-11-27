@@ -474,6 +474,74 @@ def test_a_route_on_a_loaded_network_passes_the_points_of_the_shapes(
     assert route == _route_0_to_1(_small())
 
 
+# A road goes both ways between node 0 and node 1, and bends at two points. The
+# edge 1 -> 0 passes the bend points in the reverse order. A file stores the
+# points of the edge 0 -> 1 only, because the edge 1 -> 0 has the higher
+# origin id. The edge 1 -> 0 reads them backwards.
+TWO_WAY_ROAD = [{1: 1.2}, {0: 1.2}]
+TWO_WAY_ROAD_NODES = [[0.0, 0.0], [0.0, 0.01]]
+BEND = [[0.002, 0.003], [0.002, 0.007]]
+TWO_WAY_ROAD_SHAPES = [{1: BEND}, {0: BEND[::-1]}]
+
+
+def _two_way_road(shapes):
+    return GeoGraph(
+        graph=[dict(row) for row in TWO_WAY_ROAD],
+        nodes=[list(node) for node in TWO_WAY_ROAD_NODES],
+        intermediate_nodes=shapes,
+    )
+
+
+def _route_1_to_0(geograph):
+    # Through the edge 1 -> 0, which reads the points of its pair edge
+    return geograph.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0.01},
+        destination_node={"latitude": 0, "longitude": 0},
+    )["coordinate_path"]
+
+
+@both_coordinate_dtypes
+def test_a_two_way_road_is_read_with_its_shape_both_ways_and_stored_once(
+    tmp_path, coordinate_dtype
+):
+    path = str(tmp_path / "road.scgraph")
+    _two_way_road(TWO_WAY_ROAD_SHAPES).save_as_scgraph(
+        path, coordinate_dtype=coordinate_dtype
+    )
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert loaded.intermediate_nodes == TWO_WAY_ROAD_SHAPES
+    # A latitude and a longitude for each of the 2 bend points
+    assert len(network_file.read(path)[0]["shape_points"]) == 4
+
+
+def test_a_route_over_a_two_way_road_passes_the_bend_points_in_its_direction(
+    tmp_path,
+):
+    path = str(tmp_path / "road.scgraph")
+    _two_way_road(TWO_WAY_ROAD_SHAPES).save_as_scgraph(path)
+
+    route = _route_1_to_0(GeoGraph.load_from_scgraph(path))
+
+    assert route == _route_1_to_0(_two_way_road(TWO_WAY_ROAD_SHAPES))
+
+
+# Two roads join node 0 and node 1, one road in each direction. The road from
+# node 1 to node 0 passes south of the bend, so the two shapes differ.
+def test_two_roads_of_different_shapes_between_two_nodes_keep_both_shapes(
+    tmp_path,
+):
+    south_bend = [[-0.002, 0.007], [-0.002, 0.003]]
+    shapes = [{1: BEND}, {0: south_bend}]
+    path = str(tmp_path / "roads.scgraph")
+    _two_way_road(shapes).save_as_scgraph(path)
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert loaded.intermediate_nodes == shapes
+
+
 @pytest.mark.parametrize(
     "coordinates, message",
     [
@@ -1639,6 +1707,28 @@ def test_reading_a_shape_refuses_edge_first_shape_point_ids_that_go_past_the_sha
             GeoGraph.load_from_scgraph(str(file_to_damage)).intermediate_nodes[
                 0
             ]
+        )
+
+
+# Another tool may write a file that flags an edge with shape points of its
+# own. A route over that edge must refuse the file, and not read the points of
+# the pair edge in their place.
+def test_a_route_refuses_a_flagged_edge_with_shape_points_of_its_own(tmp_path):
+    path = str(tmp_path / "arrays.scgraph")
+    # The edges 0 -> 1 and 1 -> 0 have one shape point each, and the edge
+    # 1 -> 0 is flagged as a second edge.
+    arrays = _two_road_nodes_and_a_port() | {
+        "edge_first_shape_point_ids": array("i", [0, 1, 2]),
+        "edge_has_reversed_shape": array("B", [0, 1]),
+        "shape_points": array("d", [0.1, 0.5, -0.1, 0.5]),
+    }
+    network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
+    road = GeoGraph.load_from_scgraph(path)
+
+    with pytest.raises(ValueError, match="invalid edge_has_reversed_shape"):
+        road.get_shortest_path(
+            origin_node={"latitude": 0, "longitude": 1},
+            destination_node={"latitude": 0, "longitude": 0},
         )
 
 

@@ -26,8 +26,9 @@ NODES = ROAD_NODES | PORT_NODES | SEA_NODES | AIRPORT_NODES
 ROAD_LINKS = [(1, 2, 3.0), (2, 3, 3.0), (2, 4, 222.0)]
 PORT_AND_SEA_LINKS = [(3, 10, 1.0), (10, 20, 11.0), (20, 21, 5550.0)]
 FLIGHT_LINKS = [(30, 31, 4392.0)]
-# The road from node 1 to node 2 bends at this point: the only edge shape.
-BEND = [0.01, 0.015]
+# The road from node 1 to node 2 bends at these two points: the only edge
+# shape. The road from node 2 to node 1 passes them in the reverse order.
+BEND = [[0.01, 0.01], [0.01, 0.02]]
 MODES = [
     {"name": "road", "source": "osm"},
     {"name": "port", "source": "ports"},
@@ -52,7 +53,8 @@ def parent_file(tmp_path_factory):
     graph, shapes = [{} for _ in NODES], [{} for _ in NODES]
     for a, b, km in ROAD_LINKS + PORT_AND_SEA_LINKS + FLIGHT_LINKS:
         graph[position[a]][position[b]] = graph[position[b]][position[a]] = km
-    shapes[position[1]][position[2]] = shapes[position[2]][position[1]] = [BEND]
+    shapes[position[1]][position[2]] = BEND
+    shapes[position[2]][position[1]] = BEND[::-1]
     path = str(tmp_path_factory.mktemp("parent") / "parent.scgraph")
     GeoGraph(
         graph=graph,
@@ -149,6 +151,16 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
     # The links of the parent network on this route: 3 + 3 km of road, 1 + 11
     # km at the port, 5550 km of sea
     assert _km_from_node_1_to_node_21(bbox_file) == pytest.approx(5568.0)
+
+
+# A network file stores the bend once, for one direction of the road. The
+# derived file and a load of its roads must keep the bend in both directions.
+def test_the_roads_of_a_derived_file_keep_their_bend_both_ways(bbox_file):
+    roads = GeoGraph.load_from_scgraph(bbox_file, node_modes=["road"])
+
+    node_1, node_2 = map(list(roads.external_node_ids).index, (1, 2))
+    assert roads.intermediate_nodes[node_1][node_2] == BEND
+    assert roads.intermediate_nodes[node_2][node_1] == BEND[::-1]
 
 
 def _name_each_edge(arrays):
