@@ -318,16 +318,6 @@ class GeoGraphModifiers:
         if auto_edge:
             if not (circuity >= 1):
                 raise ValueError("Circuity must be greater than or equal to 1")
-            if node_addition_type not in [
-                "quadrant",
-                "all",
-                "closest",
-                "kdclosest",
-                "kdquadrant",
-            ]:
-                raise ValueError(
-                    f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
-                )
             node_addition_type = self._get_node_addition_type(
                 node_addition_type
             )

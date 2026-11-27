@@ -194,6 +194,12 @@ def test_a_value_of_the_wrong_type_raises_a_type_error(geograph, call):
         call(geograph)
 
 
+def test_a_geograph_refuses_an_unknown_unit():
+    # "yd" (yard) is not one of the units km, m, mi and ft
+    with pytest.raises(ValueError, match="geograph_units"):
+        GeoGraph(graph=_GRAPH, nodes=_NODES, geograph_units="yd")
+
+
 def test_save_as_scgraph_refuses_a_metadata_string_other_than_auto(geograph):
     with pytest.raises(ValueError, match="metadata"):
         geograph.save_as_scgraph("network.scgraph", metadata="bad")

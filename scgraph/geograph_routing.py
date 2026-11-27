@@ -405,15 +405,7 @@ class GeoGraphUtils:
             self.get_graph_object(metric).get_path_weight(path)
             + off_graph_km * self._read_metric(metric).off_graph_weight_per_km
         )
-        if metric != "length":
-            # Release 3.6.0 converts a length only: a total of another metric
-            # stays in the unit of the metric
-            return total
-        return distance_converter(
-            total,
-            input_units=self.geograph_units,
-            output_units=output_units,
-        )
+        return self._read_metric(metric).convert_total(total, output_units)
 
     def validate(
         self,
@@ -1005,14 +997,9 @@ class GeoGraphRouting:
                 destination_id,
             )
         # The search returned the total of the metric
-        metric_total = output["length"]
-        if metric == "length":
-            # Release 3.6.0 gives the length of a route in `output_units`
-            metric_total = distance_converter(
-                metric_total,
-                input_units=self.geograph_units,
-                output_units=output_units,
-            )
+        metric_total = self._read_metric(metric).convert_total(
+            output["length"], output_units
+        )
         if totals_only:
             return {"metric_totals": {metric: metric_total}}
         if length_only:
@@ -1104,9 +1091,9 @@ class GeoGraphRouting:
             algorithm_kwargs.pop("heuristic_fn")
             # The total of a route of the length d is at least d times
             # `min_weight_per_length_unit`: the radius times it is the bound.
-            radius = earth_radius.get(
-                self.geograph_units, 6371
-            ) * self._read_metric(metric).get_min_weight_per_length_unit(
+            radius = earth_radius[self.geograph_units] * self._read_metric(
+                metric
+            ).get_min_weight_per_length_unit(
                 lambda: self._read_edge_arrays()[2]
             )
             return partial(
@@ -1364,21 +1351,11 @@ class GeoGraphRouting:
         graph_object = self.get_graph_object(metric)
         if output_metric is None:
             output_metric = metric
-        # Release 3.6.0 gives the lengths in `output_units`. A total of another
-        # metric stays in the unit of the metric.
-        dist_multiplier = (
-            distance_converter(
-                distance=1,
-                input_units=self.geograph_units,
-                output_units=output_units,
-            )
-            if output_metric == "length"
-            else 1
-        )
+        output_metric_record = self._read_metric(output_metric)
+        dist_multiplier = output_metric_record.convert_total(1, output_units)
         # The weight of an off-graph leg is its km times the weight of 1 km
         off_graph_weight_per_km = (
-            self._read_metric(output_metric).off_graph_weight_per_km
-            * dist_multiplier
+            output_metric_record.off_graph_weight_per_km * dist_multiplier
         )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
         follows_turn_restrictions = has_turn_restrictions(self)

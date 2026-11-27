@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Literal
 from collections.abc import Sequence
 from scgraph import Graph
 from scgraph.deprecations import warn_deprecated
+from scgraph.utils import check_units
 
 if (
     TYPE_CHECKING
@@ -275,6 +276,7 @@ class GeoGraph(
         self.default_get_intermediate_nodes = (
             True if intermediate_nodes is not None else False
         )
+        check_units(geograph_units, "geograph_units")
         self.geograph_units = geograph_units
         # The name of the metric that a call without `metric` uses
         self.default_metric = "length"

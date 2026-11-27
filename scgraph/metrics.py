@@ -63,6 +63,7 @@ from typing import TYPE_CHECKING
 from scgraph.edge_classes import find_edge_id
 from scgraph.network_file import NO_CLASS_ID
 from scgraph.node_modes import list_node_mode_names
+from scgraph.utils import distance_converter
 
 try:
     from scgraph.cpp import check_edge_weights, compute_weighted_sum
@@ -106,6 +107,16 @@ class Metric:
             "off_graph_weight_per_km": self.off_graph_weight_per_km,
         }
         return {key: value for key, value in info.items() if value is not None}
+
+    def convert_total(self, total: float, output_units: str) -> float:
+        """Return a total of this metric in `output_units`. Release 3.6.0 converts a
+        length only, from `geograph_units`: a total of another metric stays in the
+        unit of the metric."""
+        if self.name != "length":
+            return total
+        return distance_converter(
+            total, input_units=self.unit, output_units=output_units
+        )
 
     def get_min_weight_per_length_unit(
         self, read_lengths: Callable[[], array | memoryview]
