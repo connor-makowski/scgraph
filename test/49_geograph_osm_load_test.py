@@ -109,7 +109,7 @@ def osm_file(tmp_path_factory):
 def whole_network(osm_file):
     """The network of every part of the small file, not only of its largest
     connected part."""
-    return GeoGraph.load_from_osm(osm_file, largest_component=False)
+    return GeoGraph.load_from_osm(osm_file, min_component_nodes=0)
 
 
 @pytest.fixture(scope="module")
@@ -164,7 +164,7 @@ def test_a_way_is_not_cut_by_length_without_max_km_between_nodes(osm_file):
     # Way 6 runs 10, 11, 12, 13 and meets no other way: one edge in each
     # direction joins its two ends.
     network = GeoGraph.load_from_osm(
-        osm_file, max_km_between_nodes=None, largest_component=False
+        osm_file, max_km_between_nodes=None, min_component_nodes=0
     )
 
     edges = _edges(network)
@@ -197,7 +197,7 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
     network = GeoGraph.load_from_osm(
         osm_file,
         select=select_primary_roads_as_two_way,
-        largest_component=False,
+        min_component_nodes=0,
     )
 
     edges = _edges(network)
@@ -289,7 +289,7 @@ def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
         osm_file,
         select=select_primary_roads_and_ferries,
         tag_keys=("highway", "route"),
-        largest_component=False,
+        min_component_nodes=0,
     )
 
     # Way 1 (1-2-3) has the key highway only. The ferry way 11 (60-61) has

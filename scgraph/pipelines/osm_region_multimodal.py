@@ -254,7 +254,7 @@ def build(
         max_km_between_nodes: The length in km at which a way is cut, and at which a
             chain is cut. Two nodes along a way are at most about twice this far apart.
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component.
+            only the largest component, and 0 keeps every node and every edge.
         work_dir: A folder where the build keeps files between its steps, so that a later
             build resumes from them. None keeps nothing.
 

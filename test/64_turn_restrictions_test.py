@@ -307,7 +307,7 @@ def test_a_u_turn_restriction_lets_a_route_go_straight_on_a_one_way_street(
         ways=_WAYS_WITH_LONG_STREET,
         way_tags={LONG_STREET: {"oneway": "yes"}},
         # No route comes back from EAST, so EAST is not in the largest component
-        largest_component=False,
+        min_component_nodes=0,
     )
     assert _km(streets, WEST, EAST) == pytest.approx(3 * STREET_KM)
 

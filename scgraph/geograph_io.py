@@ -536,7 +536,7 @@ class GeoGraphIO:
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
         max_km_between_nodes: float | None = MAX_KM_BETWEEN_NODES,
-        largest_component: bool = True,
+        min_component_nodes: int | None = None,
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
         lazy: bool = False,
@@ -557,7 +557,7 @@ class GeoGraphIO:
         - Some junctions then have more than one node, with the same point and the same external id. `scgraph/turn_restrictions.py` explains these nodes
         - Conditional turn restrictions, and the turn restrictions of other vehicles, are not read
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
-        - The load builds its graph with `scgraph.helpers.osm` and `scgraph.network_assembly`, as the OpenStreetMap pipelines do, on one node mode: it reads and cuts the ways, builds the graph, keeps the largest component and orders the nodes. It neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - The load builds its graph with `scgraph.helpers.osm` and `scgraph.network_assembly`, as the OpenStreetMap pipelines do, on one node mode: it reads and cuts the ways, builds the graph, keeps the strongly connected components (`min_component_nodes`) and orders the nodes. It neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
@@ -584,11 +584,11 @@ class GeoGraphIO:
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are. None cuts a way only where it meets another kept way or ends
             - Default: 2 (`scgraph.helpers.osm.MAX_KM_BETWEEN_NODES`)
-        - `largest_component`
-            - Type: bool
-            - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
-            - Default: True
-            - Note: Parts not connected to the largest one, such as islands without a road link, are dropped
+        - `min_component_nodes`
+            - Type: int | None
+            - What: The smallest number of nodes of a kept strongly connected component: a part of the network where every node can reach every other. A dropped part holds one-way dead ends, or fragments that the border of the extract cut off
+            - Default: None: the load keeps only the largest component, so that origins and destinations are never placed on a dropped part
+            - Note: 0 keeps every node and every edge. A number above 0 drops the edges between two components, and parts without a road link to the others, such as islands, if they are smaller
         - `load_intermediate_nodes`
             - Type: bool
             - What: Whether to keep the shape of each edge, to draw routes
@@ -622,7 +622,7 @@ class GeoGraphIO:
                     select=select,
                     tag_keys=tag_keys,
                     max_km_between_nodes=max_km_between_nodes,
-                    largest_component=largest_component,
+                    min_component_nodes=min_component_nodes,
                     load_intermediate_nodes=load_intermediate_nodes,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
@@ -661,8 +661,7 @@ class GeoGraphIO:
         # Only `list_forbidden_turns` reads the way of an edge
         arrays.pop("edge_way_ids", None)
         arrays = network_assembly.forbid_turns(arrays, forbidden_turns)
-        if largest_component:
-            arrays = network_assembly.keep_components(arrays, None)
+        arrays = network_assembly.keep_components(arrays, min_component_nodes)
         arrays = network_assembly.order_nodes(arrays)
         edge_arrays = (
             arrays["node_first_edge_ids"],
