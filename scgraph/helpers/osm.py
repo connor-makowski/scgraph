@@ -169,6 +169,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from scgraph.coordinates import decode_coordinate
 from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.helpers.near_nodes import NearNodes
 from scgraph.helpers.polylines import (
@@ -686,7 +687,7 @@ def build_way_pieces(
             latitudes = mode_pieces.ends[0::2]
             longitudes = mode_pieces.ends[1::2]
             ids = (mode_pieces.origins, mode_pieces.destinations)
-            near = NearNodes(latitudes, longitudes, scale=1e-7)
+            near = NearNodes(latitudes, longitudes)
             # The ferries of one class give the edges of that class
             edges = []
             for class_id, polylines in ferries[mode].items():
@@ -704,7 +705,11 @@ def build_way_pieces(
                 )
             for u, v, km, shape, class_id in edges:
                 road = [
-                    [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
+                    [
+                        decode_coordinate(latitudes[w]),
+                        decode_coordinate(longitudes[w]),
+                    ]
+                    for w in (u, v)
                 ]
                 end_ids = ids[u % 2][u // 2], ids[v % 2][v // 2]
                 # A ferry edge joins two road nodes: it is the piece of no way

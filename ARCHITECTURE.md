@@ -584,7 +584,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 
 * **Weights**: `read` refuses weights of another dtype than `float64`.
 * **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
-* **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8.
+* **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8. `scgraph/coordinates.py` converts between the two forms, and `scgraph/cpp/src/coordinates.hpp` is its C++ version.
 * **`external_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id, except the nodes of one junction, in a node mode with `has_turn_restrictions`; `read` does not check it.
 
 The arrays of the example, weights rounded (count of values in parentheses):

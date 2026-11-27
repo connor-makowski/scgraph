@@ -14,19 +14,13 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include "../src/coordinates.hpp"
 #include "../src/snap_index.hpp"
 #include "../src/edge_selection.hpp"
 #include "../src/metric_weights.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
-
-// Coordinates as network files store them: int32 in 1e-7 degree (OSM's) or float64 degrees
-template <typename T>
-using CoordinateArray = nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
-// The same division as the Python reader, so that both read a stored value back exactly
-static inline double degrees(int32_t units) { return units / 1e7; }
-static inline double degrees(double value) { return value; }
 
 // Returns the points of the nodes in `ids`, as a list of [latitude, longitude] in
 // degrees. One C loop builds the list, for NodePoints.take. `node_points` holds the

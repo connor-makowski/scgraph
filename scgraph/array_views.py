@@ -9,7 +9,7 @@ value from the arrays when it is asked for, and behaves as the list that it repl
 Example: `NodePoints(node_points)[3]` builds the list `[latitude, longitude]` of the
 node 3 from its two values in `node_points`, and keeps no list of it.
 
-`network_file` is of the layer below: this module imports it, and it does not import
+`coordinates` is of the layer below: this module imports it, and it does not import
 this module.
 """
 
@@ -18,7 +18,7 @@ from collections.abc import Iterable, MutableSequence, Sequence
 from operator import eq, index
 from types import MappingProxyType
 
-from scgraph import network_file
+from scgraph.coordinates import get_units_per_degree
 
 # The C++ kernels take typed buffers only, so each call chooses its kernel.
 try:
@@ -45,7 +45,7 @@ class EdgeShapes(Sequence):
             arrays["edge_first_shape_point_ids"],
             arrays["shape_points"],
         )
-        self._scale = network_file.get_units_per_degree(self._points)
+        self._scale = get_units_per_degree(self._points)
 
     def __len__(self):
         return len(self._node_first_edge_ids) - 1
@@ -221,7 +221,7 @@ class NodePoints(MutableSequence):
         self._latitudes = self._points[0::2]
         self._longitudes = self._points[1::2]
         self._added = []
-        self._scale = network_file.get_units_per_degree(node_points)
+        self._scale = get_units_per_degree(node_points)
 
     def __len__(self):
         return len(self._latitudes) + len(self._added)

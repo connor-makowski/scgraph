@@ -33,16 +33,15 @@ The public functions are `read`, `write`, `get_scgraph_info`, `check_content`,
 
 import hashlib
 import json
-import math
 import mmap
 import os
 import sys
 from array import array
-from collections.abc import Sequence
 from datetime import datetime
 from itertools import chain, starmap
 
 from scgraph import files
+from scgraph.coordinates import get_units_per_degree
 from scgraph.helpers.hilbert import NODE_ORDER
 from scgraph.array_checks import is_sorted
 
@@ -74,7 +73,7 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # metadata["classes"], or NO_CLASS_ID for an edge without a class.
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
-# degree (see `encode_coordinates`).
+# degree (see `scgraph.coordinates`).
 # external_node_ids (optional): the id of each node in its source.
 ARRAYS = {
     "node_first_edge_ids": ("int32",),
@@ -94,44 +93,6 @@ _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
-def encode_coordinates(
-    point_arrays: Sequence[Sequence[float]], dtype: str
-) -> list[Sequence[float]]:
-    """Return arrays of points in the form that a network file stores.
-
-    Args:
-        point_arrays: Arrays of points, in float64 degrees.
-        dtype: "float64" keeps the arrays as they are. "int32" converts each value to
-            units of 1e-7 degree and rounds it. This is the encoding of OpenStreetMap,
-            and one unit is about 1 cm.
-
-    Returns:
-        One array for each array of `point_arrays`, in `dtype`.
-
-    Raises:
-        ValueError: `dtype` is not one of the two names, a value is not a finite
-            number, or an int32 value is beyond ±214.7483647 degrees.
-    """
-    if dtype not in ARRAYS["node_points"]:
-        raise ValueError(
-            f"coordinate_dtype must be 'float64' or 'int32', not {dtype!r}"
-        )
-    if dtype == "int32":
-        try:
-            return [
-                array("i", (round(x * 1e7) for x in v)) for v in point_arrays
-            ]
-        # Not finite, or beyond the int32 range
-        except (OverflowError, ValueError):
-            raise ValueError(
-                "Coordinates stored as int32 must be finite numbers within"
-                " ±214.7483647 degrees"
-            ) from None
-    if not all(all(map(math.isfinite, values)) for values in point_arrays):
-        raise ValueError("Coordinates must be finite numbers")
-    return list(point_arrays)
-
-
 def get_coordinate_dtype(arrays: dict[str, array | memoryview]) -> str:
     """Return the dtype of the coordinates in the arrays that `read` returns: "int32"
     or "float64"."""
@@ -140,11 +101,6 @@ def get_coordinate_dtype(arrays: dict[str, array | memoryview]) -> str:
         if get_units_per_degree(arrays["node_points"]) != 1
         else "float64"
     )
-
-
-def get_units_per_degree(values):
-    # Units of a coordinate array per degree: 1e7 for int32 (OSM's), 1 for float64
-    return 1e7 if memoryview(values).format == "i" else 1.0
 
 
 # Header keys that scgraph writes or computes itself, which build metadata cannot set

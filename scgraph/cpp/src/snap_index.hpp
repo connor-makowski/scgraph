@@ -3,6 +3,7 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include "coordinates.hpp"
 
 // SnapIndex finds the node of a network that is closest to a point of the globe. GeoGraph
 // uses it to snap the origin and the destination of a route to the network.
@@ -131,9 +132,9 @@ class SnapIndex {
 public:
     // A view of the points of the nodes, read in place. It is built from a pointer to
     // float64 degrees or to int32 units of 1e-7 degree. The type of the pointer tells
-    // which. A read returns degrees. An int32 value is divided by 1e7, as the Python
-    // reader does. The index reads the points in two places only: when it builds its
-    // leaves, and when it checks a candidate node. Its loops over 4 floats never read them.
+    // which. A read returns degrees, from the function `degrees` of coordinates.hpp. The index reads
+    // the points in two places only: when it builds its leaves, and when it checks a
+    // candidate node. Its loops over 4 floats never read them.
     class Points {
     public:
         Points(const double* degrees) : degrees_(degrees) {}
@@ -142,7 +143,7 @@ public:
         double longitude(int node) const { return at(2 * int64_t(node) + 1); }
 
     private:
-        double at(int64_t i) const { return degrees_ ? degrees_[i] : units_[i] / 1e7; }
+        double at(int64_t i) const { return degrees_ ? degrees_[i] : degrees(units_[i]); }
         const double* degrees_ = nullptr;  // set for float64 degrees
         const int32_t* units_ = nullptr;   // set for int32 units of 1e-7 degree
     };

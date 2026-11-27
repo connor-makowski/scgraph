@@ -73,7 +73,7 @@ from scgraph.helpers.douglas_peucker import (
     simplify_shapes as simplify_shapes_python,
 )
 from scgraph.helpers.hilbert import hilbert_key
-from scgraph.network_file import encode_coordinates
+from scgraph.coordinates import encode_coordinates
 from scgraph.utils import haversine
 
 

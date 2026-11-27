@@ -430,8 +430,8 @@ NB_MODULE(cpp, m) {
         .def("_a_star_great_circle", [](Graph& self,
                                        const NodeIdVariant& origin_id,
                                        const NodeIdVariant& destination_id,
-                                       nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> latitudes,
-                                       nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> longitudes,
+                                       DoubleArray latitudes,
+                                       DoubleArray longitudes,
                                        double radius) -> nb::dict {
             if (latitudes.shape(0) < (size_t)self.size() || longitudes.shape(0) < (size_t)self.size()) {
                 throw std::invalid_argument("latitudes and longitudes must have an entry for every graph node");

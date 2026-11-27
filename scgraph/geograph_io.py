@@ -14,6 +14,7 @@ from scgraph.helpers.hilbert import get_hilbert_order
 from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric, check_weights
+from scgraph.coordinates import encode_coordinates
 from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, network_file
 import json
@@ -398,7 +399,7 @@ class GeoGraphIO:
         arrays.update(
             zip(
                 network_file.POINT_ARRAYS,
-                network_file.encode_coordinates(point_arrays, coordinate_dtype),
+                encode_coordinates(point_arrays, coordinate_dtype),
             )
         )
         return network_file.write(filename, arrays, metadata=metadata)

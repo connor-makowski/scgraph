@@ -112,6 +112,7 @@ import os
 from typing import TYPE_CHECKING
 
 from scgraph import network_assembly
+from scgraph.coordinates import decode_coordinate
 from scgraph.helpers.osm import (
     build_way_pieces,
     read_turn_restrictions,
@@ -305,10 +306,10 @@ def build(
     # 4. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]
-    south = max(-90, min(latitudes) * 1e-7 - MARGIN_DEGREES)
-    west = max(-180, min(longitudes) * 1e-7 - MARGIN_DEGREES)
-    north = min(90, max(latitudes) * 1e-7 + MARGIN_DEGREES)
-    east = min(180, max(longitudes) * 1e-7 + MARGIN_DEGREES)
+    south = max(-90, decode_coordinate(min(latitudes)) - MARGIN_DEGREES)
+    west = max(-180, decode_coordinate(min(longitudes)) - MARGIN_DEGREES)
+    north = min(90, decode_coordinate(max(latitudes)) + MARGIN_DEGREES)
+    east = min(180, decode_coordinate(max(longitudes)) + MARGIN_DEGREES)
     # `join_networks_at_hubs` frees the roads. Delete the views, so that nothing here keeps them
     del node_points, latitudes, longitudes
     mask = LandMask.from_natural_earth(
