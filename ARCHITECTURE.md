@@ -515,8 +515,8 @@ The header of the example, one line for each row:
     ],
     "crs": "EPSG:4326",
     "metrics": [
-      {"name": "length", "unit": "km"},
-      {"description": "Travel time.", "name": "hours", "off_graph_weight_per_km": 0.03333333333333333, "unit": "h"}
+      {"name": "length", "units": "km"},
+      {"description": "Travel time.", "name": "hours", "off_graph_weight_per_km": 0.03333333333333333, "units": "h"}
     ],
     "node_modes": [
       {"name": "road", "node_count": 3, "source": "osm"},
@@ -553,7 +553,7 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 | `metadata.description` | `str` | Optional. A text about the network. |
 | `metadata.derivation` | `dict` | Only in a file of `scgraph.pipelines.derived_networks`: `parent_content_sha256`, `node_modes`, `bbox`, `min_component_nodes`. Such a file has no `description`. |
 
-**A row of `metrics`.** It has the `name` of the metric (small letters, digits and `_`, starting with a letter), and may have a free-text `unit` and `description`. The row of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`, zero or more: the weight of 1 km of an off-graph leg.
+**A row of `metrics`.** It has the `name` of the metric (small letters, digits and `_`, starting with a letter), and may have a free-text `units` and `description`. The row of `length` has its `units`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`, zero or more: the weight of 1 km of an off-graph leg.
 
 **The node order.** The nodes are sorted by node mode, in the order of the rows of `metadata.node_modes`: this sort is a rule of the format. The nodes of the first row have the ids `0` to `node_count - 1`, and the next rows follow. `"hilbert"` orders the nodes of one node mode along a 2D Hilbert curve.
 
@@ -574,7 +574,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | :--- | :--- | :--- | :--- | :--- |
 | `node_first_edge_ids` | `int32` | $N + 1$ | node, and one more | The id of its first edge: the edges of node $u$ are `node_first_edge_ids[u]` to `node_first_edge_ids[u+1] - 1`. |
 | `edge_destination_node_ids` | `int32` | $M$ | edge | Its end node. |
-| `metric_length` | `float64` | $M$ | edge | Its length, in the `unit` of `length`. |
+| `metric_length` | `float64` | $M$ | edge | Its length, in the `units` of `length`. |
 | `metric_<name>` *(opt)* | `float64` | $M$ | edge | Its weight in the metric `<name>`, infinity if closed, never below zero or NaN. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | edge | Its class id: a row of `metadata.classes`, or 255 for no class. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
@@ -628,7 +628,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 3. Each name given in `node_modes` is in `metadata.node_modes`.
 4. Each known array, `metric_<name>` included, has a dtype of the table, and lies inside the file from a multiple of 64 bytes.
 5. Every array not marked *(opt)* is there, both shape arrays or neither, each with its length. `node_first_edge_ids` goes from `0` to $M$, `edge_first_shape_point_ids` from `0` to $K$.
-6. The first metric is `length`, with a `unit`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
+6. The first metric is `length`, with its `units`. Each metric has its array of weights, and each array of weights has its metric. Each other metric has `off_graph_weight_per_km`.
 7. The point arrays have one dtype.
 8. `metadata.node_modes` has 256 rows at most, whose `node_count` values sum to $N$.
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.

@@ -13,7 +13,7 @@ europe.create_metric(
     weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
     class_weight_per_km={"motorway": 1 / 90},
     weight_at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
-    unit="h",
+    units="h",
 )
 
 paris = {"latitude": 48.8566, "longitude": 2.3522}
@@ -76,7 +76,7 @@ With each of the three ways, `edge_weights` gives the weights of chosen edges. U
 
 ```py
 # A weighted sum: 30 euros for each hour and 0.5 euro for each km
-europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, unit="EUR")
+europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, units="EUR")
 
 # A function of an edge: a short flight emits more CO2 for each km than a long flight
 def get_co2(edge):
@@ -87,7 +87,7 @@ def get_co2(edge):
     return edge["length"] * kg_per_km[edge["edge_mode"]]
 
 # The function gets the edges only: off_graph_weight_per_km is the kg of 1 km of an off-graph leg
-europe.create_metric("co2", edge_weight_fn=get_co2, off_graph_weight_per_km=0.1, unit="kg")
+europe.create_metric("co2", edge_weight_fn=get_co2, off_graph_weight_per_km=0.1, units="kg")
 
 # The weights of chosen edges: each vehicle ferry takes twice its hours.
 # A sum of one metric with the coefficient 1 copies it
@@ -146,7 +146,7 @@ A geograph lists its node modes, classes, metrics, nodes and edges:
 ```py
 europe.node_modes  # [{'name': 'road', ...}, ...]: the node modes
 europe.classes  # [{'name': 'motorway', 'edge_mode': 'road'}, ...]: each class with its edge mode
-europe.metrics  # [{'name': 'length', 'unit': 'km', ...}, {'name': 'hours', 'unit': 'h', ...}, ...]
+europe.metrics  # [{'name': 'length', 'units': 'km', ...}, {'name': 'hours', 'units': 'h', ...}, ...]
 
 # The airports around Paris: bbox is (south, west, north, east) in degrees
 europe.get_nodes(node_mode="airport", bbox=(48, 1, 50, 4))

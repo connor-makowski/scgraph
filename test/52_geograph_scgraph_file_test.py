@@ -560,7 +560,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     info = GeoGraph.get_scgraph_info(path)
 
     assert (info["nodes"], info["edges"]) == (4, 3)
-    assert info["metrics"] == [{"name": "length", "unit": "mi"}]
+    assert info["metrics"] == [{"name": "length", "units": "mi"}]
     assert info["coordinate_dtype"] == "int32"
     assert info["has_intermediate_nodes"] is True
     # The ids of the small network are the positions: the file stores none.
@@ -641,8 +641,10 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
 # edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]].
 # The header names the metrics of the file: the length first. Another metric
 # gives its weight for 1 km between a query point and its node: here, no toll.
-LENGTH_IN_KM = {"name": "length", "unit": "km"}
-TOLL = {"name": "toll", "unit": "EUR", "off_graph_weight_per_km": 0.0}
+# Every header names the coordinate system and the order of the nodes.
+CRS_AND_NODE_ORDER = {"crs": "EPSG:4326", "node_order": "hilbert"}
+LENGTH_IN_KM = {"name": "length", "units": "km"}
+TOLL = {"name": "toll", "units": "EUR", "off_graph_weight_per_km": 0.0}
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
@@ -653,7 +655,7 @@ ROAD_AND_PORT_IN_A_FILE = [
     {"name": "road", "source": "roads", "node_count": 2},
     {"name": "port", "source": "ports", "node_count": 1},
 ]
-ROAD_AND_PORT_HEADER = {
+ROAD_AND_PORT_HEADER = CRS_AND_NODE_ORDER | {
     "metrics": [LENGTH_IN_KM],
     "node_modes": ROAD_AND_PORT_IN_A_FILE,
 }
@@ -692,7 +694,9 @@ def test_a_load_then_a_save_keeps_the_description_of_the_lengths(tmp_path):
     path = str(tmp_path / "arrays.scgraph")
     saved = str(tmp_path / "saved.scgraph")
     network_file.write(
-        path, _two_road_nodes_and_a_port(), {"metrics": [length]}
+        path,
+        _two_road_nodes_and_a_port(),
+        CRS_AND_NODE_ORDER | {"metrics": [length]},
     )
 
     GeoGraph.load_from_scgraph(path).save_as_scgraph(saved)
@@ -710,11 +714,9 @@ def test_a_file_with_another_crs_or_node_order_is_refused_at_load(
     tmp_path, written, other
 ):
     path = tmp_path / "arrays.scgraph"
-    header = ROAD_AND_PORT_HEADER | {
-        "crs": "EPSG:4326",
-        "node_order": "hilbert",
-    }
-    network_file.write(str(path), _two_road_nodes_and_a_port(), header)
+    network_file.write(
+        str(path), _two_road_nodes_and_a_port(), ROAD_AND_PORT_HEADER
+    )
     path.write_bytes(path.read_bytes().replace(written, other))
 
     with pytest.raises(ValueError, match=f"not '{other.decode()}'"):
@@ -812,7 +814,7 @@ def test_writing_class_ids_or_classes_alone_is_refused(
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
 # header.
-ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
+ROAD_AND_PORT_HEADER_WITH_A_TOLL = CRS_AND_NODE_ORDER | {
     "metrics": [LENGTH_IN_KM, TOLL],
     "node_modes": ROAD_AND_PORT_IN_A_FILE,
     "classes": [MOTORWAY],
@@ -831,8 +833,8 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
             | {"metrics": [{"name": "length"}, TOLL]},
-            "length, with its unit",
-            id="a length without its unit",
+            "length, with its units",
+            id="a length without its units",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"metrics": [LENGTH_IN_KM]},
@@ -1046,7 +1048,7 @@ def _write_road_port_and_sea(
         {"name": "port", "node_count": 1},
         {"name": "sea", "node_count": 2},
     ]
-    metadata = {
+    metadata = CRS_AND_NODE_ORDER | {
         "metrics": [LENGTH_IN_KM, TOLL],
         "node_modes": names,
         "classes": EDGE_CLASSES,
@@ -1253,7 +1255,9 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     }
 
     with pytest.raises(TypeError):
-        network_file.write(str(path), arrays, {"metrics": [LENGTH_IN_KM]})
+        network_file.write(
+            str(path), arrays, CRS_AND_NODE_ORDER | {"metrics": [LENGTH_IN_KM]}
+        )
 
     assert path.read_bytes() == previous_bytes
     assert [file.name for file in tmp_path.iterdir()] == ["small.scgraph"]

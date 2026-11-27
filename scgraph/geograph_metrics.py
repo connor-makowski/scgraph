@@ -61,7 +61,7 @@ class GeoGraphMetrics:
             if (
                 record is None
                 or record.graph_object is not self.graph_object
-                or record.unit != self.geograph_units
+                or record.units != self.geograph_units
             ):
                 # The weight of 1 km of an off-graph leg is 1 km in
                 # `geograph_units`
@@ -94,13 +94,13 @@ class GeoGraphMetrics:
     def metrics(self) -> list[dict]:
         """
         The info of each metric (see `create_metric`): what describes the metric,
-        without the weights of its edges. The first one is `length`, with its unit:
+        without the weights of its edges. The first one is `length`, with its units:
         `geograph_units`. A geograph loaded from a network file also gives the
         `description` of the lengths of its file. The info of another metric has
-        its `name`, its `unit` and `description` if it has them, and
+        its `name`, its `units` and `description` if it has them, and
         `off_graph_weight_per_km`: the weight of 1 km of an off-graph leg.
         """
-        length = {"name": "length", "unit": self.geograph_units}
+        length = {"name": "length", "units": self.geograph_units}
         if self._length_description is not None:
             length["description"] = self._length_description
         return [length] + [
@@ -119,7 +119,7 @@ class GeoGraphMetrics:
         edge_weight_fn: Callable | None = None,
         off_graph_weight_per_km: float | None = None,
         edge_weights: dict | None = None,
-        unit: str | None = None,
+        units: str | None = None,
         description: str | None = None,
     ) -> None:
         """
@@ -128,7 +128,7 @@ class GeoGraphMetrics:
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
         - Every optional argument is None by default. A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A weight is a number of zero or more. None in place of a weight closes its edges: no route by this metric takes them. An edge mode is the kind of transport of an edge: `road`, `rail`, `sea` or `air`
         - The weights are computed at the call. A metric of the same name is replaced, and no other metric changes. An edit of the network removes the metric (see `add_edge`)
-        - Example: `geograph.create_metric("hours", weight_per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 90}, weight_at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
+        - Example: `geograph.create_metric("hours", weight_per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 90}, weight_at_hub={"rail_terminal": {"rail": 4}}, units="h")`
 
         Required Arguments:
 
@@ -146,7 +146,7 @@ class GeoGraphMetrics:
         - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
         - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
         - `edge_weights`: `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the weight computed above
-        - `unit`: The unit of the weights, as free text
+        - `units`: The units of the weights, as free text
         - `description`: Where the weights come from, as free text; the text of this call when None
 
         Raises:
@@ -202,7 +202,7 @@ class GeoGraphMetrics:
         # The metric is kept when every check has passed
         self._metrics[name] = Metric(
             name,
-            unit,
+            units,
             description,
             weights,
             parse_off_graph_weight_per_km(name, off_graph_weight_per_km),

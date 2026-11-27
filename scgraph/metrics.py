@@ -82,8 +82,8 @@ class Metric:
     `GeoGraph._read_metric`, without reading the edges."""
 
     name: str
-    # The unit of the weights as free text, such as `h` or `kg CO2e`, or None
-    unit: str | None
+    # The units of the weights as free text, such as `h` or `kg CO2e`, or None
+    units: str | None
     # Where the weights come from, as free text, or None
     description: str | None
     # The float64 weight of each edge, by edge id. Never changed in place: the
@@ -101,7 +101,7 @@ class Metric:
         """Return the info of the metric: what describes it, without its weights."""
         info = {
             "name": self.name,
-            "unit": self.unit,
+            "units": self.units,
             "description": self.description,
             "off_graph_weight_per_km": self.off_graph_weight_per_km,
         }

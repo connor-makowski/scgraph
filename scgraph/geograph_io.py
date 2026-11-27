@@ -883,7 +883,7 @@ class GeoGraphIO:
             {
                 row["name"]: Metric(
                     row["name"],
-                    row.get("unit"),
+                    row.get("units"),
                     row.get("description"),
                     arrays[f"metric_{row['name']}"],
                     row["off_graph_weight_per_km"],
@@ -897,7 +897,7 @@ class GeoGraphIO:
                 if "edge_first_shape_point_ids" in arrays
                 else None
             ),
-            geograph_units=metadata["metrics"][0]["unit"],
+            geograph_units=metadata["metrics"][0]["units"],
             external_node_ids=arrays.get("external_node_ids"),
             node_mode_ids=(
                 build_node_mode_ids(metadata["node_modes"], node_modes)

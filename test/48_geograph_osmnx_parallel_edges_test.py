@@ -227,10 +227,10 @@ def test_the_travel_times_of_an_osmnx_graph_are_the_metric_travel_time(
     )
 
     assert town.metrics == [
-        {"name": "length", "unit": "km"},
+        {"name": "length", "units": "km"},
         {
             "name": "travel_time",
-            "unit": "s",
+            "units": "s",
             "description": "Attribute travel_time of the OSMnx graph.",
             "off_graph_weight_per_km": off_graph_seconds_per_km,
         },

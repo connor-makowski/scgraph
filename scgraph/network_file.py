@@ -153,7 +153,7 @@ def build_header_metadata(
             `node_modes`. The ids must not decrease. The header gives the count of
             the nodes of each node mode, and not these ids.
         metrics: The info of each metric of the network, `length` first: the `name`
-            of the metric, its `unit` and its `description`. The info of a metric
+            of the metric, its `units` and its `description`. The info of a metric
             other than `length` also has `off_graph_weight_per_km`: the weight of
             1 km of an off-graph leg, the straight line between a query point and
             its node. The default, None, is the info of lengths in km.
@@ -192,7 +192,7 @@ def build_header_metadata(
         metrics = [
             {
                 "name": "length",
-                "unit": "km",
+                "units": "km",
                 "description": "Length of each edge along its shape.",
             }
         ]
@@ -614,18 +614,17 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "invalid node_first_edge_ids",
     )
     # scgraph writes one coordinate system and one order of the nodes. In another
-    # coordinate system, the distances would be wrong. A header without one of
-    # the two keys has the value that scgraph writes.
+    # coordinate system, the distances would be wrong.
     for key, value in (("crs", CRS), ("node_order", NODE_ORDER)):
         require(
-            metadata.get(key, value) == value,
+            metadata.get(key) == value,
             f"{key} must be {value!r}, not {metadata.get(key)!r}",
         )
     # Each metric has its info in the header and one array of weights
     metrics = metadata["metrics"]
     require(
-        metrics and metrics[0]["name"] == "length" and "unit" in metrics[0],
-        "the first metric must be length, with its unit",
+        metrics and metrics[0]["name"] == "length" and "units" in metrics[0],
+        "the first metric must be length, with its units",
     )
     weights_array_names = sorted(filter(_is_weights_array, arrays))
     require(
