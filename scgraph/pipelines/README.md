@@ -74,8 +74,9 @@ another cache directory. The option `--work-dir` gives the work folder and keeps
 ### Build Steps
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
-read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
-validate (`step4_…`). A module name gives the group of a step, not its number:
+read the sources (`step1_…`), join the networks (`step2_…`), assemble the network
+(`scgraph/network_assembly.py`, which `load_from_osm` uses too) and validate (`step4_…`). A
+module name gives the group of a step, not its number:
 `step2_land_mask` does step 4.
 
 ```mermaid
@@ -449,7 +450,8 @@ The times come from the run of the network release `networks-2026.11.27-dev.1`.
   nothing.
 
 `PIPELINE_VERSION` is a number in a pipeline. It has one use: `build_geograph` builds again a
-network of the cache that another `PIPELINE_VERSION` built. The workflow does not read it.
+network of the cache that another `PIPELINE_VERSION` built, or that it cannot read. With
+`local_files_only`, it warns and loads the file. The workflow does not read the number.
 
 ### Contents of a Network Release
 
@@ -545,8 +547,9 @@ where scgraph keeps network files on the machine of a user.
 5. **Read.** The load reads 147,794 nodes and 367,546 edges. When the caller passes a
    `content_sha256`, the load fails if the file of the cache has another one.
 
-scgraph deletes a file that fails a check. The file does not enter the cache, and the load
-raises a `ValueError`.
+scgraph deletes a download that fails step 2 or 3. The file does not enter the cache, and the
+load raises a `ValueError`. A file of the cache that has another `content_sha256` than the one
+of the caller (step 5) stays: it is a whole file of the network release.
 
 The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
 extension. The first load took 2.7 s, download included, and the later load 0.01 s. The

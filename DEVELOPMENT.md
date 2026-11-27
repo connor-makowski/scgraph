@@ -15,7 +15,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 1. Install Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
-4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,150 tests with the C++ extension (about 920 in pure Python), in 1 to 2 minutes, all passed or skipped.
+4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,400 tests with the C++ extension (about 1,100 in pure Python), in 1 to 2 minutes, all passed or skipped.
 5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, run the verbose build command of *Debugging a C++ build* below. It shows the compiler error.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
@@ -61,7 +61,7 @@ scgraph/
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
   bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
-  prettify.py                    # ruff (unused imports) + black (line-length=80)
+  prettify.py, check_import_layers.py  # ruff (unused imports) + black (line-length=80); the layer of each import of scgraph (run by the lint session)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
   draft_network_release.py       # Notes and file list of a network release (run by build_networks.yml)
   pin_network_release.py         # Write scgraph/network_release.py for a published network release
@@ -121,10 +121,10 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 **Shared infrastructure:**
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `built_in`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
 - `test/conftest.py` also gives the fixtures `graph_class`, `ch_class` and `tnr_class`. A test of `Graph`, `CHGraph` or `TNRGraph` takes the fixture: it runs with the pure-Python class, then with the C++ class if the extension is built
-- `test/helpers.py` — `assert_result(realized, expected)` (`realized` is the result of the call) rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
+- `test/helpers.py` — `assert_result(realized, expected)` (`realized` is the result of the call) rounds `length` to 3dp, and ignores `metric_totals` when `expected` has none, before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/step4_validation_cases/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.network_builder NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62` classes, metrics and legs of a `GeoGraph`. `CH` is `CHGraph` and `TNR` is `TNRGraph`. `BMSSP` is the algorithm `bmssp`. A bucket test checks `dijkstra_buckets` or `bidirectional_buckets`. A leg is the line between a query point and its node.
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62–63` classes, metrics, default metric and legs of a `GeoGraph` · `64` turn restrictions. `CH` is `CHGraph` and `TNR` is `TNRGraph`. `BMSSP` is the algorithm `bmssp`. A bucket test checks `dijkstra_buckets` or `bidirectional_buckets`. A leg is the line between a query point and its node.
 
 **Test pattern:**
 ```python
@@ -191,9 +191,9 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 
 ## Release Checklist (owner only — do not execute)
 
-1. Set `version` in `pyproject.toml` (and `uv.lock`) to the release number, dropping the `.devN` suffix
+1. Set `version` in `pyproject.toml` (and `uv.lock`) to the release number, dropping the `.devN` suffix, and pin a network release without `-dev` (`utils/pin_network_release.py`)
 2. Run `uv run utils/prettify.py`
 3. Run `uv run nox` — all sessions must pass
-4. Run `uv run python utils/docs.py` to regenerate docs
+4. Set `VERSION` in `utils/docs.py` to the release number and add the release before it to `OLD_DOC_VERSIONS`, then run `uv run python utils/docs.py` to regenerate docs
 5. Merge `dev` into `main`: `build_wheels.yml` drafts the release, and publishing the draft sends the packages to PyPI
 6. Right after the release, set the next development version on `dev` with a `.dev0` suffix (PEP 440), e.g. `4.1.0.dev0`

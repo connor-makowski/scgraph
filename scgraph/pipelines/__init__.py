@@ -33,7 +33,8 @@ WHAT A PIPELINE MODULE HOLDS
     - `version`, optional: a tag or a date, for a source that does not change.
     - `download`, optional: a download function for this source only (see below).
 - `PIPELINE_VERSION`: an integer, with one use: the runner builds again a network
-  of the cache that another `PIPELINE_VERSION` built. Raise it when the same
+  of the cache that another `PIPELINE_VERSION` built, or that it cannot read (with
+  `local_files_only`, it warns and loads the file). Raise it when the same
   sources would give another graph, in the release of scgraph that brings the
   change. Do not raise it for a change that leaves the graph the same. Never lower it
   after a release. A network release does not read it: its tag names it.
