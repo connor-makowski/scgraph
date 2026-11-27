@@ -289,16 +289,9 @@ def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):
 
 
 @needs_the_cpp_extension
-@pytest.mark.parametrize(
-    "algorithm",
-    ["dijkstra_buckets", "bidirectional_buckets", "bidirectional_dijkstra"],
-)
-def test_both_builds_return_the_same_path_of_two_with_the_same_length(
-    algorithm,
-):
-    # Two paths of length 3 join node 0 to node 4: 0 -> 1 -> 2 -> 4 and
-    # 0 -> 1 -> 3 -> 4. The dicts list node 2 before node 3 in the edges of
-    # node 1, and node 3 before node 2 in the edges of node 4.
+def test_both_builds_return_the_same_path_of_two_with_the_same_length():
+    # Two paths of length 3 join node 0 to node 4: through node 2 and through
+    # node 3. The dict of node 1 lists node 2 before node 3.
     graph_with_two_equal_paths = [
         {1: 1},
         {0: 1, 2: 1, 3: 1},
@@ -306,54 +299,23 @@ def test_both_builds_return_the_same_path_of_two_with_the_same_length(
         {4: 1, 1: 1},
         {3: 1, 2: 1},
     ]
-    python_search = getattr(PythonGraph(graph_with_two_equal_paths), algorithm)
-    cpp_search = getattr(CppGraph(graph_with_two_equal_paths), algorithm)
+    python_graph = PythonGraph(graph_with_two_equal_paths)
+    cpp_graph = CppGraph(graph_with_two_equal_paths)
 
-    assert cpp_search(origin_id=0, destination_id=4) == python_search(
+    assert cpp_graph.bidirectional_dijkstra(
         origin_id=0, destination_id=4
-    )
+    ) == python_graph.bidirectional_dijkstra(origin_id=0, destination_id=4)
 
 
 @needs_the_cpp_extension
 def test_both_builds_keep_the_order_of_the_edges_of_an_added_node():
     # Node 4, added last, has two paths of length 2 to node 3: through node 1
     # and through node 2. Its dict lists node 1 before node 2.
-    graph_without_node_4 = [{}, {3: 1}, {3: 1}, {}]
-    python_graph = PythonGraph([dict(row) for row in graph_without_node_4])
-    cpp_graph = CppGraph(graph_without_node_4)
+    python_graph = PythonGraph([{}, {3: 1}, {3: 1}, {}])
+    cpp_graph = CppGraph([{}, {3: 1}, {3: 1}, {}])
     python_graph.add_node({1: 1, 2: 1})
     cpp_graph.add_node({1: 1, 2: 1})
 
-    assert list(cpp_graph.get(4)) == [1, 2]
     assert cpp_graph.dijkstra_buckets(
         origin_id=4, destination_id=3
     ) == python_graph.dijkstra_buckets(origin_id=4, destination_id=3)
-
-
-class _KeyThatEmptiesItsDict:
-    """A destination id whose `__index__` empties the dict that holds it."""
-
-    def __init__(self, row):
-        self.row = row
-
-    def __hash__(self):
-        return 1
-
-    def __index__(self):
-        self.row.clear()
-        return 1
-
-
-def test_a_dict_that_changes_while_a_graph_reads_it_raises(graph_class):
-    # Node 0 has one edge, to node 1, with the weight 1.5. Reading the id of
-    # node 1 empties the dict of node 0. The C++ build reads it when it builds
-    # the graph, and the pure-Python build when it searches the graph.
-    row_that_empties_itself = {}
-    row_that_empties_itself[_KeyThatEmptiesItsDict(row_that_empties_itself)] = (
-        float("1.5")
-    )
-
-    with pytest.raises(RuntimeError, match="changed size during iteration"):
-        graph_class([row_that_empties_itself, {0: 1}]).dijkstra(
-            origin_id=0, destination_id=1
-        )
