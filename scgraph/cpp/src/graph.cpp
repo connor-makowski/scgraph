@@ -87,7 +87,7 @@ void Graph::reset_cache() {
 // Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
 // 8 times the median finite edge weight of the searched graph (1 if that median is 0), and
 // never so small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
-// GraphUtils._get_bucket_width in graph_utils.py
+// GraphAlgorithms._get_bucket_width in graph.py
 double Graph::resolve_bucket_width(const CsrGraph& g,
                                    std::optional<double> bucket_width, double max_weight) {
     double width;

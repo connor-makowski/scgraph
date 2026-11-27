@@ -63,8 +63,10 @@ through reduced nodes then ends at node 3, so the second pass reduces node 0.
 - The destination is reduced. It is replaced by the boundary nodes of its row of
   `reduced_inverse_graph`, with their distances as exit distances.
 - Both ends are kept. The search runs on the reduced graph as it is.
-`contraction_hierarchy` and `tnr` search their own hierarchy. `expand_path` then puts
-the hidden nodes back between each pair of nodes of the path. When the destination is
+`contraction_hierarchy` and `tnr` do not go through `run_with_reduced`. Each method
+routes a pair of one chain with `dijkstra_on_graph`, or searches its own hierarchy.
+`expand_path` then puts the hidden nodes back between each pair of nodes of the path.
+When the destination is
 reduced, the nodes from the last boundary node to the destination are added.
 
 Example: `dijkstra(origin_id=4, destination_id=1)` reads `reduced_graph[4]` and finds
@@ -138,7 +140,6 @@ def algorithm(
             )
 
         wrapper._is_graph_algorithm = True
-        wrapper._bidirectional = bidirectional
 
         if name is not None:
             import scgraph.graph as _graph_mod
