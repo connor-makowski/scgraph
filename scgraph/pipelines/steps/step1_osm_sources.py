@@ -227,7 +227,8 @@ class StreamedPbf:
             section = [relations, self.about["size"]]
         job = json.dumps({**self.about, "ranges": [[0, header], section]})
         self._pipe, write = os.pipe()
-        # -P: not the modules of the current folder
+        # -P: not the modules of the current folder. The child imports scgraph, so
+        # scgraph must be installed or on PYTHONPATH.
         command = [sys.executable, "-P", _RANGE_STREAMER_SCRIPT, job]
         self._streamer = subprocess.Popen(command, stdout=write)
         os.close(write)

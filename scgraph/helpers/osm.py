@@ -566,8 +566,8 @@ def build_way_pieces(
 ) -> dict[str, PieceArrays]:
     """Read the ways of `source` that the select functions keep, and cut them into pieces.
 
-    `selects` gives the select functions of each node mode as `{mode: {kind: select}}`,
-    as `locate_ways` takes them. One call reads the file once for all the node modes.
+    `selects` gives the select function of the ways of each node mode, as
+    `{mode: {"ways": select}}`. One call reads the file once for all the node modes.
     A way is cut at the junctions of its node mode, and at the first point where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). `ferry_selects` gives the
     select function of the ferries of a node mode, as `{mode: select}`. The
@@ -587,8 +587,15 @@ def build_way_pieces(
     Raises:
         ValueError: The select functions of a node mode keep no way, and the node mode
             is not in `optional_modes`. The message names the node mode. An optional
-            node mode without a way has no piece.
+            node mode without a way has no piece. Or `selects` has the kind
+            `ferries`, which belongs in `ferry_selects`.
     """
+    for mode, kinds in selects.items():
+        if "ferries" in kinds:
+            raise ValueError(
+                f"selects gives ferries for the node mode {mode}. "
+                "Give the select function of the ferries in ferry_selects"
+            )
     # One read of the file gives the ways and the ferries, as two kinds of each node
     # mode
     selects = {mode: dict(kinds) for mode, kinds in selects.items()}

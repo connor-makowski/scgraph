@@ -379,8 +379,7 @@ def validate_derived_network_file(
         parent_file: The network file that `derived_file` was derived from.
 
     Raises:
-        ValueError: The header of `derived_file` has no `derivation`. Or this version
-            of scgraph does not have the pipeline that built the parent file.
+        ValueError: The header of `derived_file` has no `derivation`.
         RuntimeError: The derived file fails a case that the parent file passes.
     """
     info = network_file.get_scgraph_info(derived_file)
@@ -405,18 +404,11 @@ def validate_derived_network_file(
         )
         return has_the_modes and is_inside_the_bbox
 
-    try:
-        pipeline = importlib.import_module(
-            f"scgraph.pipelines.{parent_pipeline['name']}"
-        )
-    except ModuleNotFoundError:
-        # The cases of a file are those of the pipeline that built its parent file
-        raise ValueError(
-            f"{parent_file} was built by the pipeline "
-            f"'{parent_pipeline['name']}', which this version of scgraph does not "
-            "have: its derived files cannot be validated (`run_validation_cases=False`, or "
-            "`--no-validate` on the command line)"
-        ) from None
+    # The cases of a file are those of the pipeline that built its parent file.
+    # `derive_network_file` refuses a parent file of an unknown pipeline.
+    pipeline = importlib.import_module(
+        f"scgraph.pipelines.{parent_pipeline['name']}"
+    )
     cases = [
         case
         for case in load_validation_cases(
@@ -475,8 +467,8 @@ def derive_network_release_files(
 
     Raises:
         ValueError: A name is not in `DERIVED_NETWORKS`, or a derived network is
-            empty. Or `run_validation_cases` is on and this version of scgraph does not have
-            the pipeline that built the world file.
+            empty. Or this version of scgraph does not have the pipeline that built
+            the world file, with or without `run_validation_cases`.
         RuntimeError: A derived network fails a validation case that the world
             file passes.
     """

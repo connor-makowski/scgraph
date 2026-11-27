@@ -75,7 +75,11 @@ def write_atomically(
 
 def create_retry_session() -> requests.Session:
     """Return a session that sends the User-Agent `scgraph`, and that tries a request
-    again up to `MAX_RETRIES` times when the server answers 429 or 5xx."""
+    again up to `MAX_RETRIES` times when the server answers 429 or 5xx.
+
+    Returns:
+        A `requests.Session` with these two settings, for HTTP and HTTPS.
+    """
     session = requests.Session()
     session.headers["User-Agent"] = "scgraph"
     adapter = HTTPAdapter(

@@ -108,10 +108,23 @@ class Metric:
         }
         return {key: value for key, value in info.items() if value is not None}
 
-    def convert_total(self, total: float, output_units: str) -> float:
+    def convert_total(self, total: float, output_units: str) -> int | float:
         """Return a total of this metric in `output_units`. Release 3.6.0 converts a
         length only, from `geograph_units`: a total of another metric stays in the
-        unit of the metric."""
+        unit of the metric.
+
+        Args:
+            total: The total of a route by this metric, in the unit of the metric.
+            output_units: The unit of the result for a length: `km`, `m`, `mi` or
+                `ft`.
+
+        Returns:
+            The length in `output_units`, or `total` unchanged for another metric.
+
+        Raises:
+            ValueError: The metric is `length` and `output_units` is not a unit of
+                length.
+        """
         if self.name != "length":
             return total
         return distance_converter(

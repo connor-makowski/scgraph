@@ -350,7 +350,7 @@ def build(
     # a junction that still has one node, and each added node gets the connectors
     # of its junction. A rail node or a hub may have the external id of a road node,
     # so only the road nodes are looked up.
-    road_mode_id = list_node_mode_names(MODES).index("road")
+    road_mode_id = list_node_mode_names(MODES).index(ROAD_NODE_MODE)
     external_ids_of_turns = {
         external_id for turn in forbidden_turns for external_id in turn
     }

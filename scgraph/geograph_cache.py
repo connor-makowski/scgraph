@@ -47,6 +47,9 @@ def check_region(region: str) -> None:
     A region becomes a part of the path of its build folder, such as `europe/denmark`
     in `networks/osm_region_multimodal/europe/denmark/`. So it holds nothing else.
 
+    Args:
+        region: The region of a build, such as `europe/denmark`.
+
     Raises:
         ValueError: `region` holds a character other than a lowercase letter, a
             digit, a hyphen, or a `/` between two parts.

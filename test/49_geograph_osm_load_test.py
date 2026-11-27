@@ -446,6 +446,23 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
         )
 
 
+# The ferries of a node mode have their own argument, `ferry_selects`. A
+# ferry select among the selects of the ways would give no ferry edge.
+def test_way_pieces_refuse_ferries_among_the_selects_of_the_ways(osm_file):
+    with pytest.raises(ValueError, match="ferry_selects"):
+        osm.build_way_pieces(
+            osm_file,
+            {
+                "road": {
+                    "ways": osm.select_main_roads,
+                    "ferries": osm_region_multimodal.select_vehicle_ferries,
+                }
+            },
+            ("highway", "route"),
+            step1_osm_sources.MAX_KM_BETWEEN_NODES,
+        )
+
+
 # The planet file is too large to download: scgraph reads it in place, by
 # HTTP byte ranges (`step1_osm_sources.StreamedPbf`). It first finds where the nodes and
 # the ways start in the file. In a file above 8 MB, it finds them by bisection.

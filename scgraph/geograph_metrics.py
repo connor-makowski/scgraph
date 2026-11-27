@@ -7,7 +7,7 @@ mixin through `self`.
 """
 
 from dataclasses import replace
-from scgraph.utils import get_units_per_km
+from scgraph.utils import check_units, get_units_per_km
 from scgraph.metrics import (
     Metric,
     parse_off_graph_weight_per_km,
@@ -63,6 +63,9 @@ class GeoGraphMetrics:
                 or record.graph_object is not self.graph_object
                 or record.unit != self.geograph_units
             ):
+                # `geograph_units` is an attribute, which a caller may set
+                # after the constructor checked it.
+                check_units(self.geograph_units, "geograph_units")
                 # The weight of 1 km of an off-graph leg is 1 km in
                 # `geograph_units`
                 record = self._length_metric = Metric(
