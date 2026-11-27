@@ -19,7 +19,7 @@ from operator import eq, index
 from types import MappingProxyType
 
 from scgraph.coordinates import get_units_per_degree
-from scgraph.helpers.second_edges import find_pair_shape
+from scgraph.helpers.reversed_shapes import find_shape_of_reverse_edge
 
 # The C++ kernels take typed buffers only, so each call chooses its kernel.
 try:
@@ -34,8 +34,8 @@ class EdgeShapes(Sequence):
     The `intermediate_nodes` of a GeoGraph read from a network file: for each origin, a
     read-only mapping {destination: shape}, read from the file's arrays when asked for
     instead of one Python list per point. A shape is a new list of [latitude, longitude]
-    each time. A second edge reads the shape of its pair edge backwards
-    (`scgraph/cpp/src/second_edges.hpp`).
+    each time. An edge with a reversed shape reads the shape of its
+    reverse edge backwards (`scgraph/cpp/src/reversed_shapes.hpp`).
     """
 
     def __init__(self, arrays):
@@ -47,7 +47,7 @@ class EdgeShapes(Sequence):
             arrays["edge_first_shape_point_ids"],
             arrays["shape_points"],
         )
-        # `load_from_osm` builds shapes without flags: no edge is a second edge
+        # `load_from_osm` builds shapes without flags: no edge has a reversed shape
         self._has_reversed_shape = arrays.get(
             "edge_has_reversed_shape"
         ) or bytes(len(self._edge_destination_node_ids))
@@ -83,7 +83,7 @@ class EdgeShapes(Sequence):
     def _read_shape(self, origin_id, edge_id):
         first, last = self._starts[edge_id], self._starts[edge_id + 1]
         if self._has_reversed_shape[edge_id]:
-            first, last = find_pair_shape(
+            first, last = find_shape_of_reverse_edge(
                 self._node_first_edge_ids,
                 self._edge_destination_node_ids,
                 self._starts,

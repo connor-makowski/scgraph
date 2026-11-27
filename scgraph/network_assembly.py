@@ -158,7 +158,7 @@ from scgraph.helpers.douglas_peucker import (
 )
 from scgraph.helpers.hilbert import hilbert_key
 from scgraph.helpers.polylines import PieceArrays
-from scgraph.helpers.second_edges import find_pair_shape
+from scgraph.helpers.reversed_shapes import find_shape_of_reverse_edge
 from scgraph.utils import haversine
 from scgraph.array_checks import is_sorted_from_zero
 from scgraph.step_logs import log_step
@@ -1026,8 +1026,8 @@ def renumber_nodes(graph, order, labels=None):
     """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
     the edges of each node are sorted by destination id. With `labels`, an edge is kept only when
     its two ends have the same label. A kept edge keeps its shape, and its class if
-    `graph` has `edge_class_ids`. The new graph has no second edges: a second edge of
-    `graph` gets the shape of its pair edge, read backwards.
+    `graph` has `edge_class_ids`. The new graph has no edge with a reversed shape: such an
+    edge of `graph` gets the shape of its reverse edge, read backwards.
     """
     new = array("i", [-1]) * (len(graph["node_first_edge_ids"]) - 1)
     for i, u in enumerate(order):
@@ -1065,7 +1065,7 @@ def renumber_nodes(graph, order, labels=None):
                 out["edge_destination_node_ids"].append(v)
                 out["metric_length"].append(weights[a])
                 if has_reversed_shape is not None and has_reversed_shape[a]:
-                    first, last = find_pair_shape(
+                    first, last = find_shape_of_reverse_edge(
                         node_first_edge_ids,
                         edge_destination_node_ids,
                         starts,
