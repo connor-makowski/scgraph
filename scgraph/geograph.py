@@ -40,12 +40,12 @@ from scgraph.geograph_routing import (
     GeoGraphRouting,
 )
 import logging
-import warnings
 from array import array
 from math import inf
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Sequence
 from scgraph import Graph
+from scgraph.deprecations import warn_deprecated
 
 if (
     TYPE_CHECKING
@@ -531,11 +531,10 @@ class GeoGraph(
     def _get_node_addition_type(self, node_addition_type):
         if node_addition_type in ("kdclosest", "kdquadrant"):
             current = node_addition_type.removeprefix("kd")
-            warnings.warn(
-                f"The node addition type '{node_addition_type}' is deprecated. "
-                f"Use '{current}', which gives the same result.",
-                DeprecationWarning,
-                stacklevel=3,
+            warn_deprecated(
+                f"The node addition type '{node_addition_type}'",
+                stacklevel=4,
+                instead=f"Use '{current}', which gives the same result.",
             )
             return current
         if node_addition_type not in ["closest", "quadrant", "all"]:

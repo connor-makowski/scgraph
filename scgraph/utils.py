@@ -11,7 +11,6 @@ import logging
 import time
 import platform
 import os
-import warnings
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
@@ -311,10 +310,10 @@ def adjacency_dict_to_list_tuples(
     - Type: list[list[tuple[int, int | float]]]
     - What: The converted graph in adjacency list representation
     """
-    warnings.warn(
-        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
-        DeprecationWarning,
-        stacklevel=2,
+    warn_deprecated(
+        "scgraph.utils.adjacency_dict_to_list_tuples",
+        instead="Nothing replaces it: copy the function into your code. "
+        "Release 5.0 or later removes it.",
     )
     if not graph:
         return []
@@ -342,10 +341,10 @@ def adjacency_list_tuples_to_dict(
     - Type: list[dict[int, int | float]]
     - What: The converted graph in adjacency dictionary representation
     """
-    warnings.warn(
-        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. Nothing replaces it: copy the function into your code. Release 5.0 or later removes it.",
-        DeprecationWarning,
-        stacklevel=2,
+    warn_deprecated(
+        "scgraph.utils.adjacency_list_tuples_to_dict",
+        instead="Nothing replaces it: copy the function into your code. "
+        "Release 5.0 or later removes it.",
     )
     if not graph:
         return []

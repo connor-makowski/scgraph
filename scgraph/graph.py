@@ -88,12 +88,12 @@ weight -2 on the edge from node 2 to node 1, both return `[0, 2, 1, 3]` and the 
 """
 
 import math
-import warnings
 from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, isfinite, sin
 from scgraph.array_checks import is_sorted_from_zero
+from scgraph.deprecations import warn_deprecated
 from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
     convert_node_input,
@@ -1432,11 +1432,10 @@ class GraphAlgorithms:
             - Default: 50
         """
         if ch_graph_kwargs is not None:
-            warnings.warn(
-                "`ch_graph_kwargs` is deprecated and has no effect. Pass "
-                "`settled_limit` and `heuristic_fn`.",
-                DeprecationWarning,
-                stacklevel=2,
+            warn_deprecated(
+                "`ch_graph_kwargs`",
+                instead="It has no effect. Pass `settled_limit` and "
+                "`heuristic_fn`.",
             )
         if not hasattr(self, "_ch_graph"):
             self._ch_graph = CHGraph(
@@ -1484,11 +1483,10 @@ class GraphAlgorithms:
             - Default: None
         """
         if tnr_graph_kwargs is not None:
-            warnings.warn(
-                "`tnr_graph_kwargs` is deprecated and has no effect. Pass "
-                "`settled_limit` and `heuristic_fn`.",
-                DeprecationWarning,
-                stacklevel=2,
+            warn_deprecated(
+                "`tnr_graph_kwargs`",
+                instead="It has no effect. Pass `settled_limit` and "
+                "`heuristic_fn`.",
             )
         if not hasattr(self, "_tnr_graph"):
             self._tnr_graph = TNRGraph(

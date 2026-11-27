@@ -67,7 +67,7 @@ template <> struct type_caster<NodeIdVariant> {
 static void warn_deprecated_kwargs(const char* name, nb::handle value) {
     if (value.is_none()) return;
     std::string message = std::string("`") + name +
-        "` is deprecated and has no effect. Pass `settled_limit` and `heuristic_fn`.";
+        "` is deprecated. It has no effect. Pass `settled_limit` and `heuristic_fn`.";
     if (PyErr_WarnEx(PyExc_DeprecationWarning, message.c_str(), 1) < 0)
         throw nb::python_error();
 }
