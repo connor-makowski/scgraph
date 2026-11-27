@@ -5,7 +5,7 @@ GeoJSON, graphjson, `.scgraph` files, OpenStreetMap files and OSMnx graphs.
 `scgraph.geograph` imports it and re-exports it.
 """
 
-from scgraph.utils import get_line_path, resolve_cache_dir
+from scgraph.utils import get_line_path
 from scgraph.deprecations import warn_deprecated_parameter
 from scgraph.step_logs import log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
@@ -15,6 +15,7 @@ from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric, check_weights
 from scgraph.coordinates import encode_coordinates
+from scgraph.geograph_cache import check_save_path
 from scgraph.node_modes import build_node_mode_ids, get_default_node_modes
 from scgraph.turn_restrictions import has_turn_restrictions
 from scgraph import array_views, network_file
@@ -25,7 +26,6 @@ from array import array
 from collections import Counter
 from math import inf, isfinite
 from operator import eq
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Callable
 from scgraph import Graph
@@ -179,7 +179,7 @@ class GeoGraphIO:
                 - Stored as: 'custom.graphjson'
                     - In your current directory
             - Note: The filename must end with .graphjson
-            - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
+            - Note: A file inside the `networks/` folder of the default cache directory, or inside a folder `networks/` that holds the `CACHEDIR.TAG` of a build, raises a ValueError: save it elsewhere
 
         Optional Arguments:
 
@@ -191,12 +191,7 @@ class GeoGraphIO:
         filename = os.fspath(filename)
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
-        # A cached network must stay the one its cache.json names
-        built = resolve_cache_dir().joinpath("networks").resolve()
-        if Path(filename).resolve().is_relative_to(built):
-            raise ValueError(
-                f"{filename} is in scgraph's cache ({built}); save it elsewhere"
-            )
+        check_save_path(filename)
         extra_kwargs = {}
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             extra_kwargs["intermediate_nodes"] = [
@@ -246,7 +241,7 @@ class GeoGraphIO:
             - What: The filename to save the network file as
             - Note: The filename must end with .scgraph
             - Note: The file does not hold `default_node_addition_circuity` and `default_off_graph_circuity`: a geograph loaded from it has the defaults (4 and 1); a `.graphjson` file keeps them
-            - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
+            - Note: A file inside the `networks/` folder of the default cache directory, or inside a folder `networks/` that holds the `CACHEDIR.TAG` of a build, raises a ValueError: save it elsewhere
             - Note: On Windows (C++ build), a file that a live GeoGraph (or its `snap_index`) was loaded from raises a PermissionError: save to another name
 
         Optional Arguments:
@@ -310,12 +305,7 @@ class GeoGraphIO:
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
             for name, metric_record in self._read_metrics().items():
                 edge_value_arrays[f"metric_{name}"] = metric_record.weights
-        # A cached network must stay the one its cache.json names
-        built = resolve_cache_dir().joinpath("networks").resolve()
-        if Path(filename).resolve().is_relative_to(built):
-            raise ValueError(
-                f"{filename} is in scgraph's cache ({built}); save it elsewhere"
-            )
+        check_save_path(filename)
         # Written in Hilbert order within each node mode (nodes close on the globe get
         # close ids, and the nodes of a node mode stay together); the geograph is not
         # renumbered

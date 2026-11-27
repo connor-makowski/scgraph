@@ -107,6 +107,7 @@ from collections.abc import Sequence
 
 from scgraph import network_assembly, network_file, pipelines
 from scgraph.coordinates import encode_coordinate
+from scgraph.geograph_networks import get_released_file_name
 from scgraph.node_modes import build_node_mode_ids, list_node_mode_names
 from scgraph.pipelines.steps.step4_validation_cases import (
     RULES,
@@ -480,11 +481,15 @@ def derive_network_release_files(
         )
     written = []
     for name in selected:
-        with_shapes = os.path.join(output_dir, f"{name}.scgraph")
+        with_shapes = os.path.join(
+            output_dir, get_released_file_name(name, has_shapes=True)
+        )
         derive_network_file(world_file, with_shapes, **DERIVED_NETWORKS[name])
         if run_validation_cases:
             validate_derived_network_file(with_shapes, world_file)
-        without_shapes = os.path.join(output_dir, f"{name}.no_shapes.scgraph")
+        without_shapes = os.path.join(
+            output_dir, get_released_file_name(name, has_shapes=False)
+        )
         derive_network_file(
             world_file,
             without_shapes,
@@ -494,7 +499,8 @@ def derive_network_release_files(
         written += [with_shapes, without_shapes]
     if names is None:
         world_without_shapes = os.path.join(
-            output_dir, "world_multimodal.no_shapes.scgraph"
+            output_dir,
+            get_released_file_name("world_multimodal", has_shapes=False),
         )
         derive_network_file(
             world_file, world_without_shapes, save_intermediate_nodes=False

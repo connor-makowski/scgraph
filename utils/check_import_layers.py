@@ -25,6 +25,7 @@ LAYERS = {
     "utils": 0,
     "errors": 0,
     "files": 0,
+    "geograph_cache": 0,
     "coordinates": 0,
     "node_modes": 0,
     "helpers": 1,

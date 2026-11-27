@@ -1782,6 +1782,19 @@ def test_saving_a_file_among_the_built_networks_of_the_cache_is_refused(
     assert not target.exists()
 
 
+# A save does not know the cache_dir of a build: the CACHEDIR.TAG that the
+# build writes in `networks/` marks the folder.
+def test_saving_a_file_among_the_built_networks_of_another_cache_directory_is_refused(
+    tmp_path, sea_lanes_are_the_local_lines
+):
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
+    geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
+    target = tmp_path / "networks" / "eurostat_sea_lanes" / "edited.scgraph"
+
+    with pytest.raises(ValueError, match=re.escape(str(target))):
+        geo.save_as_scgraph(str(target))
+
+
 def test_saving_into_the_cache_directory_itself_is_allowed(
     tmp_path, monkeypatch
 ):

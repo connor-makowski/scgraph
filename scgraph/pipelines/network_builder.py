@@ -26,19 +26,25 @@ import requests
 from scgraph import network_file, pipelines
 from scgraph.files import download_file, is_offline
 from scgraph.geograph import GeoGraph
-from scgraph.geograph_networks import find_cached_file, join_source_values
+from scgraph.geograph_cache import (
+    CACHE_JSON,
+    NETWORKS_FOLDER,
+    WORK_FOLDER,
+    create_networks_folder,
+    find_cached_file,
+    write_cache_json,
+)
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["build_network_file"]
 
-# Written in networks/ of the cache: backup and archiving tools skip a tagged directory
-_CACHEDIR_TAG = (
-    "Signature: 8a477f597d28d172789f06886806bc55\n"
-    "# This file is a cache directory tag created by scgraph."
-    " For information about cache directory tags, see https://bford.info/cachedir/\n"
-)
+
+def join_source_values(pipeline, key: str) -> str:
+    """Return one field of the sources of a pipeline, such as `credit` or `license`,
+    as one string. Each value appears once."""
+    return "; ".join(dict.fromkeys(s[key] for s in pipeline.SOURCES.values()))
 
 
 def _clean_work(work: Path, cache: Path) -> None:
@@ -341,14 +347,7 @@ def _move_into_cache(
         arriving.unlink()
     # cache.json appears last, and the same way, so that it always names a whole
     # file.
-    pointer = folder.joinpath("cache.json")
-    written = pointer.with_name("cache.json.part")
-    written.write_text(
-        json.dumps(
-            {"file": built_file.name, "downloaded": downloaded}, indent=2
-        )
-    )
-    written.replace(pointer)
+    write_cache_json(folder, built_file.name, downloaded)
     if earlier_file is not None and earlier_file != built_file:
         try:
             earlier_file.unlink(missing_ok=True)
@@ -418,9 +417,9 @@ def build_network_file(
     pipeline, name = _resolve_pipeline(name, pipeline)
     _check_region(pipeline, name, region)
     cache = resolve_cache_dir(cache_dir)
-    folder = cache.joinpath("networks", name, region or "")
+    folder = cache.joinpath(NETWORKS_FOLDER, name, region or "")
     # cache.json names the network file, which is named by its content
-    cached_file = find_cached_file(folder.joinpath("cache.json"))
+    cached_file = find_cached_file(folder.joinpath(CACHE_JSON))
     if not _should_build(
         pipeline, name, folder, cached_file, refresh, local_files_only
     ):
@@ -428,17 +427,14 @@ def build_network_file(
             _validate_pipeline(pipeline, name, region, cached_file)
         return str(cached_file)
 
-    # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
-    # may hold other files, which backups must not skip
-    cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
-    cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
+    create_networks_folder(cache)
     # The time of the download is the only clock time of a build. It goes into
     # cache.json, not into the network file.
     downloaded = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     work = (
         Path(work_dir)
         if work_dir
-        else cache.joinpath(".work", name, region or "")
+        else cache.joinpath(WORK_FOLDER, name, region or "")
     )
     # A work folder serves one pipeline, version, region and scgraph version. After
     # an upgrade, its files may follow old rules, so the build does not resume from
