@@ -493,7 +493,7 @@ class GridGraph:
             - `path`: A list of graph ids in the order they are visited
             - `coordinate_path`: A list of dicts (x, y) in the order they are visited
             - `length`: The length of the path
-        - Of two paths with the same length, `bmssp`, `contraction_hierarchy` and `tnr` can return a different one in each build (with the C++ extension, and in pure Python)
+        - Of two paths with the same length, `bmssp`, `contraction_hierarchy` and `tnr` can return another one with the C++ extension than in pure Python
 
          Required Arguments:
 

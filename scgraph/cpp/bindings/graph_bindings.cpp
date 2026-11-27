@@ -110,15 +110,30 @@ static void read_row(nb::handle row, std::vector<int32_t>& edge_destination_node
     if (!PyDict_Check(row.ptr())) {
         throw nb::type_error("each node of a graph must be a dict {destination id: weight}");
     }
+    nb::object dict = nb::borrow(row);
+    const Py_ssize_t edge_count = PyDict_GET_SIZE(dict.ptr());
     PyObject *destination, *weight;
-    Py_ssize_t position = 0;
-    while (PyDict_Next(row.ptr(), &position, &destination, &weight)) {
+    Py_ssize_t cursor = 0;
+    while (PyDict_Next(dict.ptr(), &cursor, &destination, &weight)) {
+        // An exact int key and an exact int or float weight convert without Python code.
+        // Another type runs its __index__ or __float__, which may change the dict and free
+        // the key or the weight: the read then holds both, and stops if the dict changed.
+        const bool runs_python_code =
+            !PyLong_CheckExact(destination) || !(PyLong_CheckExact(weight) || PyFloat_CheckExact(weight));
+        nb::object held_destination, held_weight;
+        if (runs_python_code) {
+            held_destination = nb::borrow(destination);
+            held_weight = nb::borrow(weight);
+        }
         nb::detail::make_caster<int> destination_id;
         nb::detail::make_caster<double> distance;
         const uint8_t convert = (uint8_t) nb::detail::cast_flags::convert;
         if (!destination_id.from_python(destination, convert, nullptr) ||
             !distance.from_python(weight, convert, nullptr)) {
             throw nb::type_error("a graph maps each destination id (int) to a weight (number)");
+        }
+        if (runs_python_code && PyDict_GET_SIZE(dict.ptr()) != edge_count) {
+            throw std::runtime_error("dictionary changed size during iteration");
         }
         edge_destination_node_ids.push_back(destination_id.value);
         weights.push_back(distance.value);

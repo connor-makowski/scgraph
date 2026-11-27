@@ -141,7 +141,14 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 ```
 
 * **Reading the edges of a node**: The edges of node `u` are at the positions `node_first_edge_ids_[u]` to `node_first_edge_ids_[u + 1] - 1` of `edge_destination_node_ids_` and `weights_`.
-* **Order of the edges**: The edges of a node keep the order of its dictionary. A search visits them in this order, in both builds.
+* **Order of the edges**: Both builds keep the edges of a node in the order of its dictionary. The constructor, `add_node`, `add_edge`, `remove_edge` and `from_edge_arrays` keep this order. A search visits the edges in this order. `graph`, `unreduced_graph`, `search_graph` and `get` return them in this order.
+* **Where the builds can still differ**: Of two paths with the same length, the two builds can return different ones in four cases:
+  * a search after `reduce()`, from or to a reduced node;
+  * an origin or a destination given as a dict of several nodes;
+  * `contraction_hierarchy` and `tnr`;
+  * `bmssp`.
+
+  In the first three cases, the C++ build reads a dict or the rows of a hierarchy into a hash table. `bmssp` has another implementation in each build.
 * **Mapped files (`mmap`)**: When scgraph opens a `.scgraph` network file, `CsrGraph` reads the arrays in the mapped file. It makes no copy.
 * **Edits**:
   * A CSR array is not edited in place. `add_node`, `add_edge` and `remove_edge` record their changes in a hash map (`RowEdits`).

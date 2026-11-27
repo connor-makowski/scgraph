@@ -312,3 +312,48 @@ def test_both_builds_return_the_same_path_of_two_with_the_same_length(
     assert cpp_search(origin_id=0, destination_id=4) == python_search(
         origin_id=0, destination_id=4
     )
+
+
+@needs_the_cpp_extension
+def test_both_builds_keep_the_order_of_the_edges_of_an_added_node():
+    # Node 4, added last, has two paths of length 2 to node 3: through node 1
+    # and through node 2. Its dict lists node 1 before node 2.
+    graph_without_node_4 = [{}, {3: 1}, {3: 1}, {}]
+    python_graph = PythonGraph([dict(row) for row in graph_without_node_4])
+    cpp_graph = CppGraph(graph_without_node_4)
+    python_graph.add_node({1: 1, 2: 1})
+    cpp_graph.add_node({1: 1, 2: 1})
+
+    assert list(cpp_graph.get(4)) == [1, 2]
+    assert cpp_graph.dijkstra_buckets(
+        origin_id=4, destination_id=3
+    ) == python_graph.dijkstra_buckets(origin_id=4, destination_id=3)
+
+
+class _KeyThatEmptiesItsDict:
+    """A destination id whose `__index__` empties the dict that holds it."""
+
+    def __init__(self, row):
+        self.row = row
+
+    def __hash__(self):
+        return 1
+
+    def __index__(self):
+        self.row.clear()
+        return 1
+
+
+def test_a_dict_that_changes_while_a_graph_reads_it_raises(graph_class):
+    # Node 0 has one edge, to node 1, with the weight 1.5. Reading the id of
+    # node 1 empties the dict of node 0. The C++ build reads it when it builds
+    # the graph, and the pure-Python build when it searches the graph.
+    row_that_empties_itself = {}
+    row_that_empties_itself[_KeyThatEmptiesItsDict(row_that_empties_itself)] = (
+        float("1.5")
+    )
+
+    with pytest.raises(RuntimeError, match="changed size during iteration"):
+        graph_class([row_that_empties_itself, {0: 1}]).dijkstra(
+            origin_id=0, destination_id=1
+        )
