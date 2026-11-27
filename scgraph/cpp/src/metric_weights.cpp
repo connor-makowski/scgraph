@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <string>
 
-// The one message of a refused weight, for both kernels
+// The one message of a refused weight, for the two kernels that refuse one
 [[noreturn]] static void throw_refused_weight(int64_t origin_id, int64_t destination_id) {
     throw std::invalid_argument("The weight of the edge from node " + std::to_string(origin_id) +
                                 " to node " + std::to_string(destination_id) +

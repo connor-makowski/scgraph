@@ -4,11 +4,12 @@ import math
 from array import array
 from collections.abc import Sequence
 from scgraph.array_checks import is_sorted_from_zero
+from scgraph.coordinates import UNITS_PER_DEGREE
 
 __all__ = ["douglas_peucker"]
 
 # Metres per 1e-7 degree of latitude
-_METRES = 6371000.0 * math.pi / 1.8e9
+_METRES = 6371000.0 * math.pi / (180 * UNITS_PER_DEGREE)
 
 
 def perpendicular_distance(
@@ -161,7 +162,7 @@ def simplify_shapes(
     kept, kept_edge_first_shape_point_ids = array("i"), array("i", [0])
     for s in range(shapes):
         lat0, lon0 = endpoint_coords[4 * s], endpoint_coords[4 * s + 1]
-        kx = _METRES * math.cos(lat0 * math.pi / 1.8e9)
+        kx = _METRES * math.cos(lat0 * math.pi / (180 * UNITS_PER_DEGREE))
         x, y = [], []
         line = shape_points[
             2

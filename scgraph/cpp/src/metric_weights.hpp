@@ -86,7 +86,7 @@
 //   30 * 2.06 + 0.5 * 3 = 61.8 + 1.5 = 63.3.
 //
 // WHY BOTH BUILDS GIVE THE SAME WEIGHTS
-//   scgraph.helpers.metric_weights holds the pure-Python version of the two kernels. Both
+//   scgraph.helpers.metric_weights holds the pure-Python version of the kernels. Both
 //   versions compute each weight in float64, with the same operations in the same order:
 //   the steps 1, 2 and 3 above, and the sum in the order of the metrics. This file is
 //   compiled without fused multiply-add (CMakeLists.txt), because a fused product and sum
