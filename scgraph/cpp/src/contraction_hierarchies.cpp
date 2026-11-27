@@ -262,13 +262,15 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
 }
 
 int CHGraph::add_node(const std::unordered_map<int, double>& node_dict, bool symmetric) {
+    // Every key is checked before the graph changes, so a wrong key leaves it whole
+    for (const auto& [dest_id, distance] : node_dict) {
+        check_node_id(dest_id, static_cast<int>(original_graph.size()), "Destination node");
+    }
     original_graph.push_back(node_dict);
     int new_node_id = static_cast<int>(original_graph.size()) - 1;
     if (symmetric) {
         for (const auto& [dest_id, distance] : node_dict) {
-            if (dest_id < static_cast<int>(original_graph.size())) {
-                original_graph[dest_id][new_node_id] = distance;
-            }
+            original_graph[dest_id][new_node_id] = distance;
         }
     }
     return new_node_id;

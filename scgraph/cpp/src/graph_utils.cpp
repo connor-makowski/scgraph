@@ -323,6 +323,10 @@ std::vector<std::unordered_map<int, double>> GraphUtils::get_inverse_graph() {
 }
 
 int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool symmetric) {
+    // Every key is checked before the graph changes, so a wrong key leaves it whole
+    for (const auto& [dest_id, distance] : node_dict) {
+        check_node_id(dest_id, size(), "Destination node");
+    }
     std::vector<std::pair<int, double>> edges;
     edges.reserve(node_dict.size());
     for (const auto& [dest_id, distance] : node_dict) {

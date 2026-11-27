@@ -578,8 +578,15 @@ class GraphModifiers:
         Returns:
 
         - The id of the newly added node
+
+        Raises:
+
+        - `ValueError`: A key of `node_dict` is not a node of the graph. The graph does not change
         """
         node_dict = node_dict if node_dict is not None else dict()
+        # Every key is checked before the graph changes, so a wrong key leaves it whole
+        for destination_id in node_dict:
+            check_node_id(destination_id, len(self._graph), "Destination node")
         self._graph.append(node_dict)
         new_node_id = len(self._graph) - 1
         if symmetric:

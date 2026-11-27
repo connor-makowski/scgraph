@@ -273,6 +273,20 @@ def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(
         change(graph)
 
 
+def test_add_node_refuses_an_edge_to_a_node_that_is_not_in_the_graph(
+    graph_class,
+):
+    # Two nodes joined both ways: only the ids 0 and 1 exist. The edge to node
+    # 0 is valid, and the edge to node 5 is not.
+    graph = graph_class([{1: 1.0}, {0: 1.0}])
+
+    with pytest.raises(ValueError, match="is not in this graph"):
+        graph.add_node({0: 1.0, 5: 1.0}, symmetric=True)
+
+    # The refusal comes before any change: node 0 gets no edge to a new node.
+    assert graph.graph == [{1: 1.0}, {0: 1.0}]
+
+
 def test_remove_node_refuses_a_graph_without_nodes(graph_class):
     graph = graph_class([{}])
     graph.remove_node()
