@@ -93,6 +93,7 @@ class GeoGraphModifiers:
             symmetric_node=symmetric_node
         )
         self.nodes.pop()
+        self.external_node_ids.forget_removed_nodes()
         self._edge_classes.forget_node(len(self.nodes))
         self._remove_metrics()
         del self.node_mode_ids[len(self.nodes) :]

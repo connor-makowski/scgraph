@@ -159,6 +159,22 @@ def test_remove_coord_node_refuses_a_node_that_add_coord_node_did_not_add():
         g.remove_coord_node()
 
 
+# remove_node removes the node 3 of the network. The coord node added next takes
+# its place in `nodes`, but it is a new node: it gets the external id -1, and
+# remove_coord_node removes it.
+def test_remove_coord_node_removes_a_node_added_after_remove_node():
+    g = _fresh()
+    g.remove_node(symmetric_node=True)
+    g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+    assert list(g.external_node_ids) == [0, 1, 2, -1]
+
+    g.remove_coord_node()
+
+    assert g.nodes == [[0, 0], [0, 1], [1, 0]]
+
+
 def test_remove_node_removes_the_point_of_the_node():
     g = _fresh()
 
