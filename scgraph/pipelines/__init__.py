@@ -32,10 +32,11 @@ WHAT A PIPELINE MODULE HOLDS
     - `license_url`: the page that states the license.
     - `version`, optional: a tag or a date, for a source that does not change.
     - `download`, optional: a download function for this source only (see below).
-- `PIPELINE_VERSION`: an integer. Raise it when the same sources would give another
-  graph. Do not raise it for a change that leaves the graph the same. Never lower it
-  after a release. The runner builds a cached network again when its
-  `PIPELINE_VERSION` differs.
+- `PIPELINE_VERSION`: an integer, with one use: the runner builds again a network
+  of the cache that another `PIPELINE_VERSION` built. Raise it when the same
+  sources would give another graph, in the release of scgraph that brings the
+  change. Do not raise it for a change that leaves the graph the same. Never lower it
+  after a release. A network release does not read it: its tag names it.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
     - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
