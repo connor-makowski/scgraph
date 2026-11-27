@@ -8,12 +8,12 @@ from geokdtree import GeoKDTree
 
 from scgraph import GeoGraph
 from scgraph.helpers.hilbert import get_hilbert_order
-from scgraph.helpers.snap_index import SnapIndex as PythonSnapIndex
+from scgraph.helpers.snap_index import OrderedSnapIndex as PythonSnapIndex
 
 # The pure-Python index and, when the extension is built, the C++ index.
 SNAP_INDEX_CLASSES = {"python": PythonSnapIndex}
 try:
-    from scgraph.cpp import SnapIndex as CppSnapIndex
+    from scgraph.cpp import OrderedSnapIndex as CppSnapIndex
 
     SNAP_INDEX_CLASSES["cpp"] = CppSnapIndex
 except ImportError:

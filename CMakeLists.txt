@@ -49,8 +49,8 @@ nanobind_add_module(
     scgraph/cpp/src/metric_weights.cpp
 )
 # No fused multiply-add (ARM compilers fuse by default), so that the comparison of the
-# candidates in double rounds as the Python expression does and both SnapIndex versions give the
-# same answers;
+# candidates in double rounds as the Python expression does and both versions of
+# OrderedSnapIndex give the same answers;
 # likewise for the kernels of the pipelines and of the metrics, which must round as their
 # Python twins
 if(NOT MSVC)
