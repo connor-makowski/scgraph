@@ -9,7 +9,8 @@ and the `content_sha256` of each of its files, into this module.
 
 A maintainer first publishes a network release (DEVELOPMENT.md, *Network releases*).
 The maintainer then runs this script with the tag of that release, for example
-`networks-2026.11.20`, and commits the module in a PR of its own. Until this PR is
+`networks-2026.11.20`, and commits the module in a PR, with the update of the documents
+(`scgraph/pipelines/README.md`, Part 3, *Publishing the Draft*, step 4). Until this PR is
 merged, scgraph loads the release that was pinned before.
 
 The script downloads `networks.json`, the index of the release, and writes the module
