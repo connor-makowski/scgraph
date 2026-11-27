@@ -44,7 +44,8 @@ def create_networks_folder(cache_path: Path) -> None:
     """Create the folder `networks/` of a cache directory, with its `CACHEDIR.TAG`.
 
     The tag goes in `networks/`, the own folder of scgraph: a `cache_dir` of the
-    user may hold other files, which a backup must not leave out.
+    user may hold other files, which a backup must not leave out. The tag also
+    tells `check_save_path` that the folder holds built networks.
     """
     cache_path.joinpath(NETWORKS_FOLDER).mkdir(parents=True, exist_ok=True)
     cache_path.joinpath(NETWORKS_FOLDER, _CACHEDIR_TAG_NAME).write_text(
