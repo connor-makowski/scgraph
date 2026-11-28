@@ -141,13 +141,11 @@ Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 ```
 
 * **Reading the edges of a node**: The edges of node `u` are at the positions `node_first_edge_ids_[u]` to `node_first_edge_ids_[u + 1] - 1` of `edge_destination_node_ids_` and `weights_`.
-* **Order of the edges**: Both builds keep the edges of a node in the order of its dictionary. The constructor, `add_node`, `add_edge`, `remove_edge` and `from_edge_arrays` keep this order. A search visits the edges in this order. `graph`, `unreduced_graph`, `search_graph` and `get` return them in this order. `GridGraph` writes the edges of a cell in the reverse order of `conn_data`.
-* **Where the builds can still differ**: Of two paths with the same length, the two builds can return different ones in three cases:
+* **Order of the edges**: Both builds keep the edges of a node in the order of its dictionary, and a search visits them in this order. `graph`, `search_graph` and `get` return them in this order. `GridGraph` writes the edges of a cell in the reverse order of `conn_data`. Of two paths with the same length, the builds can still return different ones in four cases:
   * a search after `reduce()`, from or to a reduced node;
   * an origin or a destination given as a dict of several nodes;
+  * `contraction_hierarchy` and `tnr`;
   * `bmssp`.
-
-  In the first two cases, the C++ build reads a dict into a hash table. `bmssp` has another implementation in each build. These cases do not apply to `contraction_hierarchy` and `tnr`. Their query keeps the meeting node of smallest id among those of the best length, so the order of the edges sets no choice. A `heuristic_fn` whose values differ by less than 1e-9 can still give other ranks in each build.
 * **Mapped files (`mmap`)**: When scgraph opens a `.scgraph` network file, `CsrGraph` reads the arrays in the mapped file. It makes no copy.
 * **Edits**:
   * A CSR array is not edited in place. `add_node`, `add_edge` and `remove_edge` record their changes in a hash map (`RowEdits`).
@@ -223,6 +221,8 @@ An algorithm takes its origin and its destination in one of three forms:
 * one node id: `int`;
 * a set of candidate node ids: `set[int]`;
 * a dictionary of start distances: `dict[int, float]`. A query from a point uses it, with one entry for each node that the point is connected to.
+
+A node id is an `int`. The C++ extension also takes an integer with `__index__`, such as a numpy integer, and a `frozenset` as a set. Pure Python refuses them with a `TypeError`.
 
 An algorithm returns a dictionary:
 ```python
@@ -575,7 +575,8 @@ The file sorts the keys by name; this block lists the arrays in the order of the
 * **node**: a vertex of the graph, from `0` to $N - 1$, at a point.
 * **edge id**: the position of an edge in `edge_destination_node_ids`, from `0` to $M - 1$.
 * **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`). The shape of an edge is the list of its shape points.
-* **second edge**: an edge $v \to u$ with at least one shape point, whose shape is the shape of the edge $u \to v$ in the reverse order. The edge $u \to v$ is its pair edge. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for a second edge. A reader reads the points of the pair edge backwards.
+* **reverse edge**: the reverse edge of an edge $u \to v$ is the edge $v \to u$.
+* **edge with a reversed shape**: an edge $v \to u$ with at least one shape point, whose shape is the shape of its reverse edge $u \to v$ in the reverse order. Two more rules apply: $u$ is lower than $v$, and $u$ has no other edge to $v$. The file stores no shape point for an edge with a reversed shape. A reader reads the points of its reverse edge backwards.
 
 The edges are stored by origin node, in Compressed Sparse Row (CSR) arrays. The edges of a node are consecutive, in the order that a search visits them.
 
@@ -591,7 +592,7 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
 | `external_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id outside this network, such as a 64-bit OpenStreetMap id. |
 | `edge_first_shape_point_ids` *(opt)* | `int32` | $M + 1$ | edge, and one more | The id of its first shape point: edge $e$ has points `edge_first_shape_point_ids[e]` to `edge_first_shape_point_ids[e+1] - 1`. |
-| `edge_has_reversed_shape` *(opt)* | `uint8` | $M$ | edge | 1 for a second edge, 0 for any other edge. |
+| `edge_has_reversed_shape` *(opt)* | `uint8` | $M$ | edge | 1 for an edge with a reversed shape, 0 for any other edge. |
 | `shape_points` *(opt)* | as `node_points` | $K \times 2$ | shape point | Its latitude, then its longitude. |
 
 * **Weights**: `read` refuses weights of another dtype than `float64`.
@@ -622,7 +623,7 @@ shape_points (4): [495300000, 4500000, 495200000, 8000000]
 
 **A shape.** Edge 1, the motorway from Le Havre to Rouen, has the shape points `edge_first_shape_point_ids[1]` = 0 to `edge_first_shape_point_ids[2] - 1` = 1: (49.53, 0.45), then (49.52, 0.80). The other edges have no shape point of their own.
 
-**The shape of a second edge.** Edge 4 goes from Rouen, node 2, to Le Havre, node 1. Its value in `edge_has_reversed_shape` is 1, so it is a second edge. A reader visits the edges of node 1, edges 1 to 3, and stops at the first edge to node 2: edge 1, the pair edge. Edge 4 reads the points of edge 1 backwards: (49.52, 0.80), then (49.53, 0.45). `scgraph/cpp/src/second_edges.hpp` explains how `write` finds the second edges.
+**The shape of an edge with a reversed shape.** Edge 4 goes from Rouen, node 2, to Le Havre, node 1. Its value in `edge_has_reversed_shape` is 1, so it has a reversed shape. A reader visits the edges of node 1, edges 1 to 3, and stops at the first edge to node 2: edge 1, its reverse edge. Edge 4 reads the points of edge 1 backwards: (49.52, 0.80), then (49.53, 0.45). `scgraph/cpp/src/reversed_shapes.hpp` explains how `write` finds the edges with a reversed shape.
 
 ### How scgraph Reads a File
 
@@ -649,7 +650,7 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 9. `edge_class_ids` and a list `classes` come together. The list has 255 rows at most, each with a `name` and an `edge_mode`.
 10. A read that copies the whole file checks the values: the node_first_edge_ids do not decrease, each destination id is a node, and each class id is a row of `classes`, or 255.
 
-A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape checks its second edge: a second edge must have no shape point of its own, and its pair edge must have some. Otherwise the read raises a `ValueError`.
+A mapped read does not check the values; the C++ graph checks node_first_edge_ids and edge_destination_node_ids when built. A read of some node modes checks each value that it reads. The read of a shape checks each edge with a reversed shape: it must have no shape point of its own, and its reverse edge must have some. Otherwise the read raises a `ValueError`.
 
 `read` does not check the weights. `load_from_scgraph` calls `metrics.check_weights` for each metric other than `length`. This function refuses a weight below zero or not a number, with the kernel `check_edge_weights` (`metric_weights.hpp`). It reads each weight once, also in a mapped file. `read` does not check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 

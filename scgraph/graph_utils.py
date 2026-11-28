@@ -11,6 +11,7 @@ import threading
 from array import array
 from typing import Literal
 import math
+import numbers
 import operator
 
 from scgraph.errors import NegativeCycleError
@@ -34,40 +35,6 @@ def normalize_node_input(
     )
 
 
-def convert_node_input(node_input: object) -> object:
-    """Return an origin or a destination with node ids of type `int`, and start
-    distances of type `int` or `float`.
-
-    The C++ extension takes any integer with `__index__` as a node id, such as a numpy
-    integer, and a `frozenset` as a set. It takes any number with `__float__` as a
-    start distance, such as a `Decimal`. In pure Python, this function turns such a
-    node id into an `int`, a `frozenset` into a `set`, and such a distance into a
-    `float`. It returns another value unchanged, so that `_input_check` refuses it.
-    """
-
-    def _as_int(node_id):
-        try:
-            return operator.index(node_id)
-        except TypeError:
-            return node_id
-
-    def _as_number(distance):
-        if isinstance(distance, (int, float)) or not hasattr(
-            distance, "__float__"
-        ):
-            return distance
-        return float(distance)
-
-    if isinstance(node_input, (set, frozenset)):
-        return {_as_int(node_id) for node_id in node_input}
-    if isinstance(node_input, dict):
-        return {
-            _as_int(node_id): _as_number(distance)
-            for node_id, distance in node_input.items()
-        }
-    return _as_int(node_input)
-
-
 def check_node_id(node_id: int, node_count: int, name: str) -> None:
     """Check that a node id is the id of a node of a graph.
 
@@ -88,7 +55,7 @@ def check_node_input(node_input: object, node_count: int, name: str) -> None:
 
     Args:
         node_input: A node id, a set of node ids, or a dict of node ids and
-            start distances, as `convert_node_input` returns it.
+            start distances.
         node_count: The number of nodes of the graph.
         name: "Origin" or "Destination", for the message.
 
@@ -116,9 +83,7 @@ def check_node_input(node_input: object, node_count: int, name: str) -> None:
             raise ValueError(f"{name} dictionary cannot be empty")
         for oid, dist in node_input.items():
             _validate_node_id(oid)
-            # A number is a value with `__float__`, as the C++ extension
-            # takes it: an int, a float, a Decimal, a numpy number.
-            if not hasattr(dist, "__float__"):
+            if not isinstance(dist, numbers.Real):
                 raise TypeError(
                     f"{name} distance for node ({oid}) must be a number, not {dist!r}"
                 )

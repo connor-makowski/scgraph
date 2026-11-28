@@ -493,7 +493,7 @@ def _two_way_road(shapes):
 
 
 def _route_1_to_0(geograph):
-    # Through the edge 1 -> 0, which reads the points of its pair edge
+    # Through the edge 1 -> 0, which reads the points of its reverse edge
     return geograph.get_shortest_path(
         origin_node={"latitude": 0, "longitude": 0.01},
         destination_node={"latitude": 0, "longitude": 0},
@@ -1044,7 +1044,7 @@ def _replace_array(data, array_name, values):
         ),
         pytest.param(
             {
-                # The second edge now goes to the port: a load of the road
+                # The edge 1 now goes to the port: a load of the road
                 # reads `edge_first_shape_point_ids` for the first edge only.
                 "edge_destination_node_ids": array("i", [1, 2]),
                 "edge_first_shape_point_ids": array("i", [0, 1, 1]),
@@ -1747,11 +1747,11 @@ def test_reading_a_shape_refuses_edge_first_shape_point_ids_that_go_past_the_sha
 
 # Another tool may write a file that flags an edge with shape points of its
 # own. A route over that edge must refuse the file, and not read the points of
-# the pair edge in their place.
+# the reverse edge in their place.
 def test_a_route_refuses_a_flagged_edge_with_shape_points_of_its_own(tmp_path):
     path = str(tmp_path / "arrays.scgraph")
     # The edges 0 -> 1 and 1 -> 0 have one shape point each, and the edge
-    # 1 -> 0 is flagged as a second edge.
+    # 1 -> 0 is flagged as an edge with a reversed shape.
     arrays = _two_road_nodes_and_a_port() | {
         "edge_first_shape_point_ids": array("i", [0, 1, 2]),
         "edge_has_reversed_shape": array("B", [0, 1]),
