@@ -1,3 +1,4 @@
+import json
 import pytest
 from scgraph import GridGraph
 
@@ -91,3 +92,24 @@ def test_import_keeps_cache_and_cached_path_matches_dijkstra(tmp_path):
         algorithm_fn="cached_shortest_path",
     )
     assert imported_output == dijkstra_output
+
+
+def test_grid_save_as_geojson_writes_each_edge_from_x_y_to_x_y(tmp_path):
+    # Three cells in a row, with the moves right and left: 4 edges
+    grid = GridGraph(
+        x_size=3,
+        y_size=1,
+        blocks=[],
+        add_exterior_walls=False,
+        conn_data=[(1, 0, 1.0), (-1, 0, 1.0)],
+    )
+    grid.save_as_geojson(tmp_path / "grid.geojson")
+
+    features = json.loads((tmp_path / "grid.geojson").read_text())["features"]
+
+    assert len(features) == 4
+    assert features[0] == {
+        "type": "Feature",
+        "properties": {"origin_idx": 0, "destination_idx": 1, "distance": 1.0},
+        "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 0]]},
+    }

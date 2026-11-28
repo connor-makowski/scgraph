@@ -11,6 +11,8 @@ from collections.abc import Callable
 from typing import Literal
 from scgraph import Graph
 from math import ceil
+import json
+import os
 
 
 class GridGraph:
@@ -735,6 +737,47 @@ class GridGraph:
             os.makedirs(os.path.dirname(filename))
         with open(filename, "wb") as f:
             f.write(zlib.compress(pickle.dumps(export_data)))
+
+    def save_as_geojson(self, filename: str | os.PathLike) -> None:
+        """
+        Function:
+
+        - Save the grid as a GeoJSON file, to draw it with another tool
+        - The file holds one line for each edge of `graph`, from the cell of its origin to the cell of its destination: a blocked cell has no edge, so it shows as a hole
+        - The properties of each line are `origin_idx` and `destination_idx` (the ids of `get_idx`) and `distance`, as in the file of `GeoGraph.save_as_geojson`
+        - The points are `[x, y]`, in the units of the grid, not longitudes and latitudes
+            - GeoJSON assumes longitudes and latitudes, and allows other points only by an agreement between the people who use the file
+            - A web map such as geojson.io reads these points as degrees, and puts the grid at a wrong place on the Earth
+            - Draw the file with a tool that draws plain x and y, such as matplotlib, or geopandas without a coordinate system
+        - Returns None
+
+        Arguments:
+
+        - `filename`
+            - Type: str | os.PathLike
+            - What: The name of the file to save the GeoJSON in
+        """
+        features = [
+            {
+                "type": "Feature",
+                "properties": {
+                    "origin_idx": origin_id,
+                    "destination_idx": destination_id,
+                    "distance": distance,
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        list(self.nodes[origin_id]),
+                        list(self.nodes[destination_id]),
+                    ],
+                },
+            }
+            for origin_id, destinations in enumerate(self.graph)
+            for destination_id, distance in destinations.items()
+        ]
+        with open(filename, "w") as f:
+            json.dump({"type": "FeatureCollection", "features": features}, f)
 
     @staticmethod
     def import_object(filename: str = "") -> "GridGraph":
