@@ -287,7 +287,7 @@ std::optional<GraphResult> TNRGraph::local_search(const NodeIdVariant& origin_id
                             query_f_distances[neighbor_id] = new_dist;
                             if (!length_only) query_f_parents[neighbor_id] = current_id;
                             forward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_b_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
                                 best_dist = new_dist + query_b_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -314,7 +314,7 @@ std::optional<GraphResult> TNRGraph::local_search(const NodeIdVariant& origin_id
                             query_f_distances[neighbor_id] = new_dist;
                             if (!length_only) query_f_parents[neighbor_id] = current_id;
                             forward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_b_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
                                 best_dist = new_dist + query_b_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -348,7 +348,7 @@ std::optional<GraphResult> TNRGraph::local_search(const NodeIdVariant& origin_id
                             query_b_distances[neighbor_id] = new_dist;
                             if (!length_only) query_b_parents[neighbor_id] = current_id;
                             backward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_f_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
                                 best_dist = new_dist + query_f_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }
@@ -375,7 +375,7 @@ std::optional<GraphResult> TNRGraph::local_search(const NodeIdVariant& origin_id
                             query_b_distances[neighbor_id] = new_dist;
                             if (!length_only) query_b_parents[neighbor_id] = current_id;
                             backward_open_leaves.push({new_dist, neighbor_id});
-                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && is_better_meeting(new_dist + query_f_distances[neighbor_id], neighbor_id, best_dist, meeting_node)) {
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
                                 best_dist = new_dist + query_f_distances[neighbor_id];
                                 meeting_node = neighbor_id;
                             }

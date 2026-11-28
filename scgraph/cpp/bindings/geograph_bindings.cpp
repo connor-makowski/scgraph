@@ -1,7 +1,7 @@
 // Bindings of the kernels that read the arrays of a GeoGraph.
 // They read the points of the nodes and the shapes of the edges (NodePoints, EdgeShapes).
 // They also give the snapping index, the selection of node modes, the weights of a metric,
-// the Pareto paths between two sets of nodes and the second edges of a write.
+// the Pareto paths between two sets of nodes and the edges with a reversed shape of a write.
 // NB_MODULE in graph_bindings.cpp calls bind_geograph.
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -21,7 +21,7 @@
 #include "../src/edge_selection.hpp"
 #include "../src/metric_weights.hpp"
 #include "../src/pareto_paths.hpp"
-#include "../src/second_edges.hpp"
+#include "../src/reversed_shapes.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
@@ -60,7 +60,8 @@ static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids)
 }
 
 // `coordinates` (one per node of `path`) with the shape of each edge of the path between them.
-// A second edge reads the shape of its pair edge backwards (second_edges.hpp).
+// An edge with a reversed shape reads the shape of its reverse edge backwards
+// (reversed_shapes.hpp).
 template <typename T>
 static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, Int32Array edge_first_shape_point_ids,
                              Uint8Array edge_has_reversed_shape, CoordinateArray<T> shape_points, nb::list path, nb::list coordinates) {
@@ -99,7 +100,7 @@ static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_des
                 int64_t first = start[edge], last = start[edge + 1];
                 const bool is_reversed = has_reversed_shape[edge];
                 if (is_reversed)
-                    std::tie(first, last) = find_pair_shape({off, (size_t)n + 1}, {destination_id, (size_t)m}, {start, (size_t)m + 1}, origin, edge);
+                    std::tie(first, last) = find_shape_of_reverse_edge({off, (size_t)n + 1}, {destination_id, (size_t)m}, {start, (size_t)m + 1}, origin, edge);
                 if (first < 0 || first > last || last > k)
                     throw std::invalid_argument("invalid edge_first_shape_point_ids");
                 for (int64_t i = 0; i < last - first; ++i) {
@@ -130,9 +131,9 @@ static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_des
 }
 
 template <typename T>
-static nb::tuple bind_remove_second_edge_shapes(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids,
+static nb::tuple bind_remove_reversed_shapes(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids,
                                                 Int32Array edge_first_shape_point_ids, CoordinateArray<T> shape_points) {
-    StoredShapes<T> stored = remove_second_edge_shapes<T>(
+    StoredShapes<T> stored = remove_reversed_shapes<T>(
         {node_first_edge_ids.data(), node_first_edge_ids.shape(0)}, {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)},
         {edge_first_shape_point_ids.data(), edge_first_shape_point_ids.shape(0)}, {shape_points.data(), shape_points.shape(0)});
     return nb::make_tuple(owned_view(std::move(stored.edge_first_shape_point_ids)), owned_view(std::move(stored.edge_has_reversed_shape)),
@@ -277,13 +278,13 @@ void bind_geograph(nb::module_& m) {
           "(shape points int32 in 1e-7 degree or float64 degrees) and one [latitude, longitude] per path "
           "node; for EdgeShapes.coordinate_path");
 
-    m.def("remove_second_edge_shapes", &bind_remove_second_edge_shapes<double>, nb::arg("node_first_edge_ids"),
+    m.def("remove_reversed_shapes", &bind_remove_reversed_shapes<double>, nb::arg("node_first_edge_ids"),
           nb::arg("edge_destination_node_ids"), nb::arg("edge_first_shape_point_ids"), nb::arg("shape_points"));
-    m.def("remove_second_edge_shapes", &bind_remove_second_edge_shapes<int32_t>, nb::arg("node_first_edge_ids"),
+    m.def("remove_reversed_shapes", &bind_remove_reversed_shapes<int32_t>, nb::arg("node_first_edge_ids"),
           nb::arg("edge_destination_node_ids"), nb::arg("edge_first_shape_point_ids"), nb::arg("shape_points"),
-          "The shapes of a network file without the shape points of the second edges, as (edge_first_shape_point_ids, "
-          "edge_has_reversed_shape, shape_points); explained in scgraph/cpp/src/second_edges.hpp, same result as "
-          "scgraph.helpers.second_edges.remove_second_edge_shapes");
+          "The shapes of a network file without the shape points of the edges with a reversed shape, as (edge_first_shape_point_ids, "
+          "edge_has_reversed_shape, shape_points); explained in scgraph/cpp/src/reversed_shapes.hpp, same result as "
+          "scgraph.helpers.reversed_shapes.remove_reversed_shapes");
 
     // Raised by OrderedSnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);

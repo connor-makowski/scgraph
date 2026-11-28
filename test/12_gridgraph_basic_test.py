@@ -57,14 +57,8 @@ def test_tie_between_two_paths_returns_the_path_of_release_3_6():
         output_coordinate_path="list_of_lists",
         algorithm_fn="bidirectional_dijkstra",
     )
-    assert output["coordinate_path"] == [
-        [1, 1],
-        [2, 1],
-        [3, 1],
-        [4, 2],
-        [5, 3],
-        [6, 3],
-    ]
+    path_of_release_3_6 = [[1, 1], [2, 1], [3, 1], [4, 2], [5, 3], [6, 3]]
+    assert output["coordinate_path"] == path_of_release_3_6
 
 
 @pytest.mark.parametrize(

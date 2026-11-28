@@ -203,10 +203,8 @@ struct RowEdits {
     CsrGraph apply(const CsrGraph& base) const {
         std::vector<int32_t> node_first_edge_ids{0}, edge_destination_node_ids;
         std::vector<double> weights;
-        // The arrays get their final size at once. A vector that grows copies itself
-        // and writes new memory, and this memory costs page faults to the first search
-        // after an edit. The count is the count of the base graph, where each edited
-        // row replaces its old row.
+        // The arrays get their final size at once: a vector that grows copies itself, and
+        // its new memory costs page faults to the first search after an edit.
         int64_t edge_count = base.edges();
         for (const auto& [u, row] : rows) {
             edge_count += static_cast<int64_t>(row.size()) - (u < base.size() ? base[u].size() : 0);

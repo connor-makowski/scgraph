@@ -36,9 +36,8 @@ HOW A RUN GOES
    length, the distance to s, plus `distance_table[(s, t)]`, plus the distance from t.
    The smallest candidate is the table length.
 3. The local search is the bidirectional upward search of `CHGraph`, with the table
-   length as its first best length, and the same rule for two equal candidates. It
-   does not scan the edges of a transit node. It gives a path only when it finds a
-   route shorter than the table length.
+   length as its first best length. It does not scan the edges of a transit node. It
+   gives a path only when it finds a route shorter than the table length.
 4. The search returns the path of the local search if there is one. Otherwise the
    table length is the answer. The table holds lengths only, so the path then comes
    from a full search of `CHGraph.search`. With `length_only=True`, the search returns
@@ -330,17 +329,17 @@ class TNRGraphAlgorithms:
                                 heappush(
                                     forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                if neighbor_id in backward_distances:
-                                    total = (
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
                                         new_dist
                                         + backward_distances[neighbor_id]
                                     )
-                                    if total < best_dist or (
-                                        total == best_dist
-                                        and neighbor_id < meeting_node
-                                    ):
-                                        best_dist = total
-                                        meeting_node = neighbor_id
+                                    meeting_node = neighbor_id
                     else:
                         current_rank = self._get_rank(current_id)
                         for neighbor_id, weight in self.original_graph[
@@ -361,17 +360,17 @@ class TNRGraphAlgorithms:
                                 heappush(
                                     forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                if neighbor_id in backward_distances:
-                                    total = (
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
                                         new_dist
                                         + backward_distances[neighbor_id]
                                     )
-                                    if total < best_dist or (
-                                        total == best_dist
-                                        and neighbor_id < meeting_node
-                                    ):
-                                        best_dist = total
-                                        meeting_node = neighbor_id
+                                    meeting_node = neighbor_id
 
             if backward_open_leaves:
                 current_distance, current_id = heappop(backward_open_leaves)
@@ -395,17 +394,17 @@ class TNRGraphAlgorithms:
                                     backward_open_leaves,
                                     (new_dist, neighbor_id),
                                 )
-                                if neighbor_id in forward_distances:
-                                    total = (
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
                                         new_dist
                                         + forward_distances[neighbor_id]
                                     )
-                                    if total < best_dist or (
-                                        total == best_dist
-                                        and neighbor_id < meeting_node
-                                    ):
-                                        best_dist = total
-                                        meeting_node = neighbor_id
+                                    meeting_node = neighbor_id
                     else:
                         current_rank = self._get_rank(current_id)
                         for neighbor_id, weight in self.original_graph[
@@ -427,17 +426,17 @@ class TNRGraphAlgorithms:
                                     backward_open_leaves,
                                     (new_dist, neighbor_id),
                                 )
-                                if neighbor_id in forward_distances:
-                                    total = (
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
                                         new_dist
                                         + forward_distances[neighbor_id]
                                     )
-                                    if total < best_dist or (
-                                        total == best_dist
-                                        and neighbor_id < meeting_node
-                                    ):
-                                        best_dist = total
-                                        meeting_node = neighbor_id
+                                    meeting_node = neighbor_id
 
             forward_min = (
                 forward_open_leaves[0][0]
