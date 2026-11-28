@@ -350,7 +350,16 @@ GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without 
 |---|---|---|---|
 | `.scgraph` | Yes, with the external ids of the nodes | Yes | Yes |
 | `.graphjson` | Yes | No | No |
-| GeoJSON | One line for each edge, with its shape and its length | No | No |
+| GeoJSON | One line for each edge, with its shape and its length | Classes and metrics; no node modes | No |
+
+A GeoJSON file holds one feature for each edge. Its properties are `origin_idx`, `destination_idx` and `distance`, the keys of scgraph 3.6. A geograph with classes adds `edge_class` and `edge_mode`. Each metric adds `metric_<name>`, such as `metric_hours`, with `null` for an edge that the metric closes. The argument `metrics` of `save_as_geojson` chooses the metrics to write.
+
+A GeoJSON file is much larger than a network file. To save a part of a large network, load only some node modes with `node_modes`, then save it:
+
+```py
+rail = GeoGraph.load_geograph("oceania", node_modes=["rail", "rail_terminal"])
+rail.save_as_geojson("oceania_rail.geojson")
+```
 
 **The metadata of a network file.** The header of a `.scgraph` file stores the pipeline, the sources with the date of their data, and the software of the build. `get_scgraph_info` reads the header, with the credit line to cite (`attribution`) and the `content_sha256`.
 

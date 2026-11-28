@@ -161,3 +161,75 @@ def test_load_from_geojson_weighs_a_link_by_its_great_circle_length(tmp_path):
 
     expected = great_circle_km([50, 100], [51, 101])
     assert loaded.graph_object.graph[0][1] == pytest.approx(expected, abs=0.001)
+
+
+def _france():
+    """Paris (0), Dijon (1) and Lyon (2) of the guide `custom_graphs.md`. The
+    metric `hours` gives 110 km/h on the motorway, and closes the main roads.
+    The first edge is Paris -> Dijon, the second is Paris -> Lyon."""
+    france = GeoGraph(
+        nodes=[[48.8566, 2.3522], [47.3220, 5.0415], [45.7640, 4.8357]],
+        graph=[{1: 263, 2: 465}, {0: 263, 2: 175}, {0: 465, 1: 175}],
+        edge_classes=[
+            {1: "main_road", 2: "motorway"},
+            {0: "main_road", 2: "main_road"},
+            {0: "motorway", 1: "main_road"},
+        ],
+        classes=[
+            {"name": "motorway", "edge_mode": "road"},
+            {"name": "main_road", "edge_mode": "road"},
+        ],
+    )
+    france.create_metric(
+        "hours",
+        weight_per_km={"road": 1 / 70},
+        off_graph_weight_per_km=1 / 30,
+        class_weight_per_km={"motorway": 1 / 110, "main_road": None},
+    )
+    return france
+
+
+def _save_and_read(geograph, filename, metrics=None):
+    """Save the geograph and return the properties of each feature, in the
+    order of the edges."""
+    geograph.save_as_geojson(filename, metrics=metrics)
+    features = json.loads(filename.read_text())["features"]
+    return [feature["properties"] for feature in features]
+
+
+def test_save_as_geojson_writes_the_class_and_the_metric_weights_of_each_edge(
+    tmp_path,
+):
+    paris_to_lyon = _save_and_read(_france(), tmp_path / "france.geojson")[1]
+
+    assert paris_to_lyon["edge_class"] == "motorway"
+    assert paris_to_lyon["edge_mode"] == "road"
+    assert paris_to_lyon["metric_hours"] == pytest.approx(465 / 110)
+
+
+def test_save_as_geojson_writes_null_for_an_edge_that_a_metric_closes(
+    tmp_path,
+):
+    paris_to_dijon = _save_and_read(_france(), tmp_path / "france.geojson")[0]
+
+    assert paris_to_dijon["metric_hours"] is None
+
+
+def test_save_as_geojson_writes_only_the_metrics_that_it_is_given(tmp_path):
+    france = _france()
+    france.create_metric(
+        "km", weight_per_km={"road": 1}, off_graph_weight_per_km=1
+    )
+
+    properties = _save_and_read(france, tmp_path / "france.geojson", "km")[0]
+
+    assert "metric_km" in properties
+    assert "metric_hours" not in properties
+    assert "metric_length" not in properties
+
+
+def test_save_as_geojson_refuses_an_unknown_metric(tmp_path):
+    with pytest.raises(ValueError, match="Unknown metric 'speed'"):
+        _france().save_as_geojson(
+            tmp_path / "france.geojson", metrics=["speed"]
+        )

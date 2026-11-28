@@ -217,3 +217,11 @@ The wall makes the path longer: 20.9704 in place of 16.
 conn_data = [(1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0)]
 gridGraph = GridGraph(x_size=10, y_size=10, blocks=[], conn_data=conn_data)
 ```
+
+`save_as_geojson` saves the grid as a GeoJSON file, with one line for each edge:
+
+```py
+gridGraph.save_as_geojson("grid.geojson")
+```
+
+The points of the file are `[x, y]` in the units of the grid, not longitudes and latitudes. A web map reads them as degrees and puts the grid at a wrong place on the Earth. Draw the file with matplotlib, or with geopandas without a coordinate system.

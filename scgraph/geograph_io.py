@@ -84,6 +84,7 @@ class GeoGraphIO:
         filename: str | os.PathLike,
         compact: bool = False,
         save_intermediate_nodes: bool = True,
+        metrics: list[str] | str | None = None,
     ) -> None:
         """
         Function:
@@ -91,6 +92,8 @@ class GeoGraphIO:
         - Save the current geograph object as a geojson file specifed by `filename`
         - This is useful for understanding the underlying geograph and for debugging purposes
         - The file holds the lines of the edges only: a geograph loaded from it follows no turn restriction
+        - To save a part of a network, load only some node modes with `node_modes` (`load_geograph`, `load_from_scgraph`), then save it
+        - The file is written one edge at a time, so a large network does not need the whole file in memory
         - Returns None
 
         Required Arguments:
@@ -107,58 +110,77 @@ class GeoGraphIO:
                 - If True, saves the geojson as a compact multiline string without distances or other properties
                 - If False, saves the geojson as a feature collection with each line as a separate feature
                     - Note: If False, the resulting file can be loaded with the legacy load_geojson_as_geograph function
+                    - Note: If False, each feature has the properties `origin_idx`, `destination_idx` and `distance`, the length of the edge in `geograph_units`
+                    - Note: If False and the geograph has classes, each feature also has `edge_class` and `edge_mode`, as `get_edges` gives them
+                    - Note: If False, each feature also has one property `metric_<name>` for each metric of `metrics`, such as `metric_hours`: the weight of the edge in this metric, or null for an edge that the metric closes
             - Default: False
+        - `metrics`
+            - Type: list[str] | str | None
+            - What: The names of the metrics whose weights the file holds, or one name; `length` is always written as `distance`
+            - Default: None, which writes every metric of the geograph
+            - Note: An unknown name raises a ValueError, as in `get_shortest_path`
+            - Note: With `compact=True`, the file holds the lines only, so `metrics` has no effect
 
         """
-        graph = self.graph_object.unreduced_graph
+        if metrics is None:
+            metrics = list(self._read_metrics())
+        elif isinstance(metrics, str):
+            metrics = [metrics]
+        # An unknown name raises the ValueError of a query by this metric
+        for metric in metrics:
+            self._read_metric(metric)
+        metrics = [metric for metric in metrics if metric != "length"]
+        has_classes = bool(self.classes)
         if compact:
-            multiline = []
-            for origin_idx, destinations in enumerate(graph):
-                for destination_idx in destinations:
-                    multiline.append(
-                        self._get_edge_coordinates(
-                            origin_idx,
-                            destination_idx,
-                            "lon_lat",
-                            save_intermediate_nodes,
-                        )
-                    )
-            out_dict = {
-                "type": "GeometryCollection",
-                "geometries": [
-                    {
-                        "type": "MultiLineString",
-                        "coordinates": multiline,
-                    }
-                ],
-            }
-
+            head = (
+                '{"type": "GeometryCollection", "geometries": '
+                '[{"type": "MultiLineString", "coordinates": ['
+            )
+            tail = "]}]}"
         else:
-            features = []
-            for origin_idx, destinations in enumerate(graph):
-                for destination_idx, distance in destinations.items():
-                    features.append(
-                        {
-                            "type": "Feature",
-                            "properties": {
-                                "origin_idx": origin_idx,
-                                "destination_idx": destination_idx,
-                                "distance": distance,
-                            },
-                            "geometry": {
-                                "type": "LineString",
-                                "coordinates": self._get_edge_coordinates(
-                                    origin_idx,
-                                    destination_idx,
-                                    "lon_lat",
-                                    save_intermediate_nodes,
-                                ),
-                            },
-                        }
-                    )
-            out_dict = {"type": "FeatureCollection", "features": features}
+            head = '{"type": "FeatureCollection", "features": ['
+            tail = "]}"
+        # The text of each edge is written as soon as it is built. The
+        # separators are those of `json.dump`, so a geograph without classes
+        # and metrics gives the same file as scgraph 3.6.
         with open(filename, "w") as f:
-            json.dump(out_dict, f)
+            f.write(head)
+            separator = ""
+            for edge in self._iter_edge_dicts(self._iter_edges()):
+                coordinates = self._get_edge_coordinates(
+                    edge["origin_id"],
+                    edge["destination_id"],
+                    "lon_lat",
+                    save_intermediate_nodes,
+                )
+                if compact:
+                    item = coordinates
+                else:
+                    properties = {
+                        "origin_idx": edge["origin_id"],
+                        "destination_idx": edge["destination_id"],
+                        "distance": edge["length"],
+                    }
+                    if has_classes:
+                        properties["edge_class"] = edge["edge_class"]
+                        properties["edge_mode"] = edge["edge_mode"]
+                    for metric in metrics:
+                        # JSON has no infinity: a closed edge gets null
+                        weight = edge["metric_weights"][metric]
+                        properties["metric_" + metric] = (
+                            weight if isfinite(weight) else None
+                        )
+                    item = {
+                        "type": "Feature",
+                        "properties": properties,
+                        "geometry": {
+                            "type": "LineString",
+                            "coordinates": coordinates,
+                        },
+                    }
+                f.write(separator + json.dumps(item, allow_nan=False))
+                separator = ", "
+            f.write(tail)
 
     def save_as_graphjson(
         self,
