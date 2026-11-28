@@ -166,6 +166,7 @@ These notebooks open in Google Colab:
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb): read the legs of a route, route by road only and by hours, draw the routes on a map.
 - [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): try several coefficients of a weighted sum of two metrics, find several of the best trade-offs, draw them.
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb): build Denmark from the newest OpenStreetMap extract, read its sources, check it.
+- [Export a Network to GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/export_to_geojson.ipynb): save the railways of a network with their classes and a metric, draw the file on a map, save a warehouse grid in x and y.
 - [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve (a line that visits every cell of a square grid), compare `OrderedSnapIndex` (the snapping index of scgraph) with `GeoKDTree` (the k-d tree of the library `geokdtree`).
 
 ## Public API
