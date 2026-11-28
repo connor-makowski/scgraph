@@ -120,6 +120,34 @@ A weighted sum can also add two metrics of different units: `weighted_sum_of={"c
 
 The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
 
+## Every Best Trade-Off: Pareto Paths
+
+A path **dominates** another path when its total is not above the other's in any metric, and below it in one. A **Pareto path** is a path that no other path dominates: a best trade-off. The totals of the Pareto paths form the **Pareto front**. `get_pareto_paths` returns every Pareto path between two points, for two metrics or more:
+
+```py
+london = {"latitude": 51.5074, "longitude": -0.1278}
+routes = europe.get_pareto_paths(london, paris, ["hours", "co2"], output_legs=True)
+for route in routes:
+    print(round(route["metric_totals"]["hours"]), "h", round(route["metric_totals"]["co2"]), "kg")
+# One line for each route, from the fastest to the one with the least CO2
+```
+
+Each route has the keys of a result of `get_shortest_path`. The routes are sorted by the total of the first metric, then of the next ones.
+
+A weighted sum such as `weighted_sum_of={"hours": 10, "co2": 1}` finds one route of the front, and several coefficients find more. But draw the front on a chart of the two totals. Its **convex hull** is the line of straight segments that joins some of its points and has every other point above it. A weighted sum finds only the routes on the convex hull, whatever its coefficient. `get_pareto_paths` also finds the routes above it. The notebook [Trade-offs between time, cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb) draws the two results side by side.
+
+The search keeps several paths at each node, so it takes longer than `get_shortest_path` and needs more memory. Its time and its memory grow with the count of metrics and with the length of the route. Three arguments bound the search:
+
+| Argument | What it does | Default |
+|---|---|---|
+| `max_paths` | The result holds the `max_paths` Pareto paths with the smallest totals of the first metric. The search stops when it has found them | Every Pareto path |
+| `relative_tolerance` | The result leaves out a route when a returned route is within this tolerance of it in every metric. With `0.01`, each Pareto path has a returned route within 1 % of it in every metric | `0`: every Pareto path |
+| `max_labels` | A **label** is a path from the origin to one node that the search keeps. More labels than `max_labels` raise a `MemoryError`, with a note that says what to do | 10,000,000 labels |
+
+On `europe`, each road node keeps the paths of many combinations of road, rail, sea and air. The search for a route between two neighbouring countries returns in a few seconds. A route across the continent makes more labels than the default `max_labels`, also with a `relative_tolerance`. For such a route, `max_paths` gives the fastest Pareto paths. To get them all, load the network without the roads: `GeoGraph.load_geograph("europe", node_modes=["rail", "sea", "port", "airport", "rail_terminal"])`. In `europe`, an airport joins the rest of the network by road only, so a network without the roads has no flight.
+
+Each query point snaps to its closest node. The docstring of [`get_pareto_paths`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.get_pareto_paths) gives every argument.
+
 ## Closing an Edge Mode, a Class or an Edge
 
 `None` in place of a weight per km closes an edge mode or a class. No route by this metric then takes one of its edges. `weight_per_km={"air": None, ...}` closes every flight, and `class_weight_per_km={"ferry": None}` closes every vehicle ferry. The Suez Canal is the class `suez` of the sea lanes:

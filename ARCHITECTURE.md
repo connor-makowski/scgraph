@@ -296,6 +296,8 @@ The selected algorithm (default: `bidirectional_buckets`) runs from the origin c
   * The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and works as Dijkstra does.
 * A search counts its node scans. A node scan is one pass over the edges of one node. When the search ends, it stores the count for its thread (`guides/routing.md`, *Logging*; `_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
+**Pareto paths.** `GeoGraph.get_pareto_paths` runs the steps 1, 2 and 5 with the closest node of each point. Its step 3 is one search for every Pareto path, in the kernel `find_pareto_paths`. [`scgraph/cpp/src/pareto_paths.hpp`](scgraph/cpp/src/pareto_paths.hpp) explains it, and `scgraph/helpers/pareto_paths.py` is its pure-Python version. The kernel reads the arrays of the edges of the geograph and the weights of the metrics, not the reduced graph.
+
 ### 4. Path Expansion
 If the search ran on a reduced graph, `run_with_reduced` replaces each contracted edge of the path by the nodes of its chain.
 

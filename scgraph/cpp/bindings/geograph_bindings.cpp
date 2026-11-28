@@ -1,7 +1,7 @@
 // Bindings of the kernels that read the arrays of a GeoGraph.
 // They read the points of the nodes and the shapes of the edges (NodePoints, EdgeShapes).
-// They also give the snapping index, the selection of node modes, the weights of a metric and
-// the edges with a reversed shape of a write.
+// They also give the snapping index, the selection of node modes, the weights of a metric,
+// the Pareto paths between two sets of nodes and the edges with a reversed shape of a write.
 // NB_MODULE in graph_bindings.cpp calls bind_geograph.
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -20,6 +20,7 @@
 #include "../src/snap_index.hpp"
 #include "../src/edge_selection.hpp"
 #include "../src/metric_weights.hpp"
+#include "../src/pareto_paths.hpp"
 #include "../src/reversed_shapes.hpp"
 #include "ndarray_types.hpp"
 
@@ -243,6 +244,31 @@ void bind_geograph(nb::module_& m) {
        "The weight of each edge as the sum of its weight in each metric times the coefficient of the "
        "metric; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weighted_sum");
+
+    m.def("find_pareto_paths", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids,
+                                  std::vector<DoubleArray> weights_of_metrics, std::vector<int64_t> origin_node_ids,
+                                  std::vector<int64_t> destination_node_ids, int64_t max_paths, double relative_tolerance,
+                                  int64_t max_labels) {
+        std::vector<std::span<const double>> weights;
+        for (const auto& metric : weights_of_metrics) weights.emplace_back(metric.data(), metric.shape(0));
+        std::vector<ParetoPath> paths;
+        try {
+            // The search reads the arrays only: other Python threads may run
+            nb::gil_scoped_release release;
+            paths = find_pareto_paths({node_first_edge_ids.data(), node_first_edge_ids.shape(0)},
+                                      {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)}, weights,
+                                      origin_node_ids, destination_node_ids, max_paths, relative_tolerance, max_labels);
+        } catch (const label_limit_error& error) {
+            // A MemoryError of Python, as the pure-Python kernel raises
+            PyErr_SetString(PyExc_MemoryError, error.what());
+            throw nb::python_error();
+        }
+        return paths;
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights_of_metrics"),
+       nb::arg("origin_node_ids"), nb::arg("destination_node_ids"), nb::kw_only(), nb::arg("max_paths"), nb::arg("relative_tolerance"),
+       nb::arg("max_labels"),
+       "Every Pareto path between two sets of nodes, as a list of (node ids, total of each metric); explained in "
+       "scgraph/cpp/src/pareto_paths.hpp, same result as scgraph.helpers.pareto_paths.find_pareto_paths");
 
     m.def("shape_path", &shape_path<double>, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("edge_first_shape_point_ids"),
           nb::arg("edge_has_reversed_shape"), nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
