@@ -93,6 +93,14 @@ class GeoGraphMetrics:
             )
         return metrics[metric]
 
+    def _read_metric_weights(self, metric: str) -> array | memoryview:
+        # The weight of each edge in a metric, by edge id. The record of
+        # `length` has no weights: they are the lengths of the edges.
+        weights = self._read_metric(metric).weights
+        if weights is None:
+            return self._read_edge_arrays()[2]
+        return weights
+
     @property
     def metrics(self) -> list[dict]:
         """

@@ -138,13 +138,13 @@ A weighted sum such as `weighted_sum_of={"hours": 10, "co2": 1}` finds one route
 
 The search keeps several paths at each node, so it takes longer than `get_shortest_path` and needs more memory. Its time and its memory grow with the count of metrics and with the length of the route. Three arguments bound the search:
 
-| Argument | What it does |
-|---|---|
-| `max_paths=10` | The result holds the 10 Pareto paths with the smallest totals of the first metric. The search stops when it has found them |
-| `relative_tolerance=0.01` | The result leaves out a route that is within 1 % of a returned route in every metric. Each Pareto path then has a returned route within 1 % of it in every metric |
-| `max_labels` | A **label** is a path from the origin to one node that the search keeps. More labels than `max_labels` raise a `MemoryError` that says what to do. The default stops the search before it needs about 2 GB in pure Python |
+| Argument | What it does | Default |
+|---|---|---|
+| `max_paths` | The result holds the `max_paths` Pareto paths with the smallest totals of the first metric. The search stops when it has found them | Every Pareto path |
+| `relative_tolerance` | The result leaves out a route when a returned route is within this tolerance of it in every metric. With `0.01`, each Pareto path has a returned route within 1 % of it in every metric | `0`: every Pareto path |
+| `max_labels` | A **label** is a path from the origin to one node that the search keeps. More labels than `max_labels` raise a `MemoryError`, with a note that says what to do | 10,000,000 labels |
 
-On `europe`, each road node keeps the paths of many combinations of road, rail, sea and air. A route between two neighbouring countries ends in a few seconds. A route across the continent makes more labels than the default `max_labels`. For such a route, load the network without the roads: `GeoGraph.load_geograph("europe", node_modes=["rail", "sea", "port", "airport", "rail_terminal"])`. Without the roads, no route reaches an airport.
+On `europe`, each road node keeps the paths of many combinations of road, rail, sea and air. The search for a route between two neighbouring countries returns in a few seconds. A route across the continent makes more labels than the default `max_labels`, also with a `relative_tolerance`. For such a route, `max_paths` gives the fastest Pareto paths. To get them all, load the network without the roads: `GeoGraph.load_geograph("europe", node_modes=["rail", "sea", "port", "airport", "rail_terminal"])`. In `europe`, an airport joins the rest of the network by road only, so a network without the roads has no flight.
 
 Each query point snaps to its closest node. The docstring of [`get_pareto_paths`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.get_pareto_paths) gives every argument.
 

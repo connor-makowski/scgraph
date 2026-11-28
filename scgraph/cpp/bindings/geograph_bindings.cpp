@@ -265,7 +265,7 @@ void bind_geograph(nb::module_& m) {
         }
         return paths;
     }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights_of_metrics"),
-       nb::arg("origin_node_ids"), nb::arg("destination_node_ids"), nb::arg("max_paths"), nb::arg("relative_tolerance"),
+       nb::arg("origin_node_ids"), nb::arg("destination_node_ids"), nb::kw_only(), nb::arg("max_paths"), nb::arg("relative_tolerance"),
        nb::arg("max_labels"),
        "Every Pareto path between two sets of nodes, as a list of (node ids, total of each metric); explained in "
        "scgraph/cpp/src/pareto_paths.hpp, same result as scgraph.helpers.pareto_paths.find_pareto_paths");

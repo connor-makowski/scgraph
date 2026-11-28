@@ -28,27 +28,26 @@
 //   From node 0 to node 3, the paths are A = 0-1-3 (1 hour, 10 euros), B = 0-2-3 (6, 6),
 //   C = 0-3 (10, 1) and D = 0-1-2-3 (5.5, 10). A dominates D. A, B and C are the Pareto
 //   paths, returned in this order.
-//   No weighted sum of the two metrics finds B: for any coefficient c, the score
-//   c * hours + euros of A or of C is below the score of B. A search by a weighted sum
+//   No weighted sum of the two metrics finds B: for any coefficient, the score
+//   coefficient * hours + euros of A or of C is below the score of B. A search by a weighted sum
 //   finds only the Pareto paths on the convex hull of the front: the line of straight
 //   segments that joins some points of the front and has every other point above it.
 //
 // HOW THE DATA IS STORED
-//   - The network: the edges by origin, read in place. The edges of the node u have the
-//     ids node_first_edge_ids[u] to node_first_edge_ids[u + 1] - 1, and
-//     edge_destination_node_ids[e] is the node that the edge e goes to. Each metric is one
-//     float64 array of weights by edge id; infinity closes an edge. Below, k is the count
-//     of metrics (metric_count in the code). The kernel copies the weights into one array
-//     with the k weights of each edge together, so that the search reads an edge at one
-//     place.
+//   - The network: the edges by origin, read in place. The edges of the node node_id have
+//     the ids node_first_edge_ids[node_id] to node_first_edge_ids[node_id + 1] - 1, and
+//     edge_destination_node_ids[edge_id] is the node that the edge edge_id goes to. Each
+//     metric is one float64 array of weights by edge id; infinity closes an edge. The
+//     kernel copies the weights into one array with the weights of each edge together, one
+//     for each metric, so that the search reads an edge at one place.
 //   - The "lower bound" of a node in a metric: the smallest total of this metric from the
-//     node to a destination node. lower_bounds[v * k + i] holds it for the node v and the
-//     metric i.
+//     node to a destination node. lower_bounds[node_id * metric_count + metric_id] holds
+//     it, where metric_count is the count of metrics.
 //     Example: the lower bounds of node 0 are (1, 1), of node 1 (0.5, 5), of node 2 (3, 3)
 //     and of node 3 (0, 0).
 //   - A "label" is a path from an origin node to a node, with its total in each metric. A
 //     label is stored in arrays by label id: its node, the id of the label before it on
-//     the path (its predecessor) and its k totals. The "key" of a label in a metric is its
+//     the path (its predecessor) and its totals. The "key" of a label in a metric is its
 //     total plus the lower bound of its node: no path that continues the label has a
 //     smaller total. The kernel computes the keys when it needs them, and does not store
 //     them.
@@ -75,7 +74,7 @@
 //      Stop with label_limit_error when the search has made more than max_labels labels.
 //   6. When the queue is empty, rebuild each path from the predecessors of its label.
 //   Example: the run from node 0 to node 3, with (hours, euros).
-//     step  label taken           keys       result
+//     round label taken           keys       result
 //     1     node 0, (0, 0)        (1, 1)     permanent; adds node 1 (0.5, 5), node 2
 //                                            (3, 3) and node 3 (10, 1)
 //     2     node 1, (0.5, 5)      (1, 10)    permanent; adds node 2 (2.5, 7) and
@@ -88,7 +87,8 @@
 //
 // WHY THE RESULT IS RIGHT
 //   - A lower bound is never above the real rest of a path, and the lower bound of a node
-//     is at most the weight of an edge plus the lower bound at its end: each one comes
+//     is at most the weight of an edge plus the lower bound at its end, up to the rounding
+//     of a sum: each one comes
 //     from an exact search. So a label that extends another has keys not below the keys
 //     of the other, and the queue gives the labels of each node in the order of their
 //     totals. A label taken later cannot dominate a permanent label of the same node.
@@ -98,35 +98,36 @@
 //     Example: no label of this run is dropped by this rule.
 //   - A label dropped by a Pareto path P: each path that continues the label has totals
 //     not below its keys, so P dominates it or has its totals.
-//     Example: in step 4, each path through the label (2.5, 7) has at least 5.5 hours and
+//     Example: in round 4, each path through the label (2.5, 7) has at least 5.5 hours and
 //     10 euros. A has 1 hour and 10 euros.
 //   - The first total needs no test. A permanent label of the node, and a Pareto path
 //     found so far, came from the queue first, so their first total is not above the one
 //     of the new label. With two metrics, the second totals of the permanent labels of a
 //     node decrease, so only the last one needs a test.
-//     Example: in step 7, the found paths are A (1, 10) and B (6, 6). Only B is tested:
+//     Example: in round 7, the found paths are A (1, 10) and B (6, 6). Only B is tested:
 //     6 euros is above 1 euro, so C is kept.
 //   - The Pareto paths reach the destination in the order of their totals, because the
 //     lower bound of a destination node is 0. So max_paths keeps the paths with the
 //     smallest totals of the first metric.
 //
 // THE TOLERANCE
-//   With relative_tolerance t, a label is also dropped when a Pareto path found so far has
-//   in each metric a total at most (1 + t) times the key of the label. Each Pareto path
-//   then has a returned path within 1 + t of it in every metric. The tolerance is applied
-//   against the returned paths only, never between two labels of a node, so its error does
-//   not grow along a path.
-//   Example: in step 5, the label (3, 3) with the keys (6, 6) is tested against A (1, 10).
-//   With t = 0.5, A has 10 euros, above 1.5 * 6 = 9 euros, so the label stays and B is
-//   returned. With t = 1, 10 euros is not above 2 * 6 = 12 euros, so the label is dropped:
-//   the result is A and C.
+//   With a relative_tolerance above 0, a label is also dropped when a Pareto path found so
+//   far has in each metric a total at most (1 + relative_tolerance) times the key of the
+//   label. Each Pareto path then has a returned path within 1 + relative_tolerance of it in
+//   every metric. The tolerance is applied against the returned paths only, never between
+//   two labels of a node, so its error does not grow along a path.
+//   Example: in round 5, the label (3, 3) with the keys (6, 6) is tested against A (1, 10).
+//   With a relative_tolerance of 0.5, A has 10 euros, above 1.5 * 6 = 9 euros, so the label
+//   stays and B is returned. With a relative_tolerance of 1, 10 euros is not above
+//   2 * 6 = 12 euros, so the label is dropped: the result is A and C.
 //
 // THE COST
-//   The k searches of step 1 take O(k (m + n log n)) for n nodes and m edges. The search
-//   takes O(L log L) for L labels, plus the tests of dominance: one comparison for two
-//   metrics, and k - 1 comparisons for each permanent label of the node for more. A label
-//   takes 8 k + 12 bytes, and 8 more bytes in the queue. The count of labels, not the
-//   count of Pareto paths, sets the cost: a network with many paths of nearly the same
+//   Step 1 runs Dijkstra's algorithm once for each metric. The search then takes a time of
+//   label_count * log(label_count) for label_count labels, plus the tests of dominance: one
+//   comparison for two metrics, and metric_count - 1 comparisons for each permanent label
+//   of the node for more metrics. A label takes 8 bytes for each metric and 12 bytes more,
+//   and 8 bytes in the queue. The count of labels, not the count of Pareto paths, sets the
+//   cost: a network with many paths of nearly the same
 //   totals keeps many labels at its inner nodes. On a network of roads and of other edge
 //   modes, each road node keeps the labels of many combinations of edge modes, and a path
 //   across a continent makes tens of millions of labels. max_labels bounds this memory.

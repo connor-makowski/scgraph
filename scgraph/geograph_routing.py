@@ -514,11 +514,8 @@ class GeoGraphRouting:
         return self._node_radians
 
     def _get_path_total(self, path: list[int], metric: str) -> float:
-        # The total of a metric along the edges of a path. The metric may be
-        # `length`, whose record has no weights: they are the lengths.
-        weights = self._read_metric(metric).weights
-        if weights is None:
-            weights = self._read_edge_arrays()[2]
+        # The total of a metric along the edges of a path
+        weights = self._read_metric_weights(metric)
         return sum(
             weights[edge_id] for edge_id in self._find_path_edge_ids(path)
         )
@@ -948,14 +945,14 @@ class GeoGraphRouting:
             units=self.geograph_units,
         )
         # Snap the origin and destination to their closest nodes in the graph
-        origin_id = self._find_connected_nodes(
+        origin_id = self._get_connected_node_distances(
             origin,
             node_addition_type,
             node_addition_circuity,
             node_addition_lat_lon_bound,
             snap_index,
         )
-        destination_id = self._find_connected_nodes(
+        destination_id = self._get_connected_node_distances(
             destination,
             destination_node_addition_type,
             node_addition_circuity,
@@ -1018,35 +1015,35 @@ class GeoGraphRouting:
             output,
             origin,
             destination,
-            off_graph_circuity,
-            output_units,
-            output_coordinate_path,
-            output_path,
-            output_legs,
-            get_intermediate_nodes,
+            off_graph_circuity=off_graph_circuity,
+            output_units=output_units,
+            output_coordinate_path=output_coordinate_path,
+            output_path=output_path,
+            output_legs=output_legs,
+            get_intermediate_nodes=get_intermediate_nodes,
             search_metric=metric,
             search_total=metric_total,
         )
 
     def _build_route_result(
         self,
-        result: dict,
+        route: dict,
         origin: Sequence[float],
         destination: Sequence[float],
+        *,
         off_graph_circuity: float,
         output_units: str,
         output_coordinate_path: str,
         output_path: bool,
         output_legs: bool,
         get_intermediate_nodes: bool,
-        *,
         search_metric: str | None = None,
         search_total: float | None = None,
     ) -> dict:
         """Return the result of a route, as `get_shortest_path` describes it.
 
         Args:
-            result: A dict with the node ids of the route under `path`, such as the
+            route: A dict with the node ids of the route under `path`, such as the
                 result of a search. The method adds the other keys to it.
             origin, destination: The [latitude, longitude] of the query points.
             off_graph_circuity, output_units, output_coordinate_path, output_path,
@@ -1059,11 +1056,11 @@ class GeoGraphRouting:
                 converted by `convert_total`.
 
         Returns:
-            `result`, with `length`, `metric_totals`, `coordinate_path`, and
+            `route`, with `length`, `metric_totals`, `coordinate_path`, and
             `long_first`, `legs` and `transfers` on request. `path` stays only with
             `output_path`.
         """
-        path = result["path"]
+        path = route["path"]
         # The key `length` of release 3.6.0 holds the length of the route, which
         # `get_path_weight` computes for a search by another metric
         if search_metric == "length":
@@ -1075,17 +1072,17 @@ class GeoGraphRouting:
                 output_units=output_units,
                 metric="length",
             )
-        result["length"] = length
-        result["metric_totals"] = {"length": length}
+        route["length"] = length
+        route["metric_totals"] = {"length": length}
         if self._read_metrics():
-            result["metric_totals"].update(
+            route["metric_totals"].update(
                 self._get_metric_totals(
                     path, origin, destination, off_graph_circuity
                 )
             )
         if search_metric is not None:
-            result["metric_totals"][search_metric] = search_total
-        result["coordinate_path"] = (
+            route["metric_totals"][search_metric] = search_total
+        route["coordinate_path"] = (
             [origin]
             + self._get_coordinate_path(
                 path, get_intermediate_nodes=get_intermediate_nodes
@@ -1093,27 +1090,27 @@ class GeoGraphRouting:
             + [destination]
         )
         if output_coordinate_path != "list_of_lists":
-            result["coordinate_path"] = self._format_coordinates(
-                coordinate_path=result["coordinate_path"],
+            route["coordinate_path"] = self._format_coordinates(
+                coordinate_path=route["coordinate_path"],
                 output_format=output_coordinate_path,
             )
             if output_coordinate_path == "list_of_lists_long_first":
-                result["long_first"] = True
+                route["long_first"] = True
         if output_legs:
-            result["legs"], result["transfers"] = self._get_legs(
+            route["legs"], route["transfers"] = self._get_legs(
                 path,
                 origin,
                 destination,
                 off_graph_circuity,
                 get_intermediate_nodes,
             )
-            for leg in result["legs"]:
+            for leg in route["legs"]:
                 self._format_leg(leg, output_units, output_coordinate_path)
         if not output_path:
-            del result["path"]
-        return result
+            del route["path"]
+        return route
 
-    def _find_connected_nodes(
+    def _get_connected_node_distances(
         self,
         point: Sequence[float],
         node_addition_type: str,
@@ -1121,9 +1118,9 @@ class GeoGraphRouting:
         lat_lon_bound: float,
         snap_index: "QuerySnapIndex",
     ) -> dict[int, float]:
-        """Return the nodes that a query point is connected to, by node id, with
-        the distance to each times `circuity`: the nodes of `_get_node_distances`,
-        and the other nodes of their junctions."""
+        """Return the distance from a query point to each node that it is
+        connected to, by node id, times `circuity`. These nodes are the nodes of
+        `_get_node_distances`, and the other nodes of their junctions."""
         return connect_to_nodes_of_junctions(
             self,
             self._get_node_distances(
@@ -1162,9 +1159,9 @@ class GeoGraphRouting:
         - Notes:
             - A search by a weighted sum of the metrics finds only the Pareto paths on the convex hull of the front. This call finds them all
             - Of several paths with the same totals in the metrics of `metrics`, one is returned
-            - Each query point snaps to its closest node. When the straight line between the two points is shorter than the line from a point to its node, the result is this straight line alone, as in `get_shortest_path`
+            - Each query point snaps to its closest node. When the straight line between the two points is not longer than the line from a point to its node, the result is this straight line alone, as in `get_shortest_path`
             - The search keeps several paths at each node, so it takes longer than `get_shortest_path` and needs more memory. Its time and its memory grow with the count of metrics and with the length of the path. `max_paths` and `relative_tolerance` bound a large front. `max_labels` bounds the memory of the search
-            - On a network of roads and of other edge modes, each road node keeps the paths of many combinations of edge modes. A path across a continent can then need more labels than `max_labels`. For such a path, load the network without the node mode `road`, or give a `relative_tolerance`
+            - On a network of roads and of other edge modes, each road node keeps the paths of many combinations of edge modes. A path across a continent can then need more labels than `max_labels`. For such a path, load the network without the node mode `road`, or give `max_paths`. A `relative_tolerance` is not enough for such a path
             - `scgraph/cpp/src/pareto_paths.hpp` explains the algorithm: the label-setting algorithm of Martins, with lower bounds as in A*
 
         Required Arguments:
@@ -1190,7 +1187,7 @@ class GeoGraphRouting:
             - Type: float
             - What: A path is not returned when a returned path has, in every metric of `metrics`, a total at most `1 + relative_tolerance` times its own. Each Pareto path then has a returned path within this factor of it in every metric
             - Default: 0 (every Pareto path)
-            - Note: EG: 0.01 returns one path for paths within 1 % of each other in every metric
+            - Note: EG: With 0.01, a path is left out when a returned path is within 1 % of it in every metric
         - `max_labels`
             - Type: int | None
             - What: The largest count of labels that the search makes, 1 or more. A label is a path from the origin to one node, which the search keeps while no other path to this node is better on every metric. More labels than `max_labels` raise a MemoryError, with a note that says what to do
@@ -1205,8 +1202,8 @@ class GeoGraphRouting:
             - Default: 1 (more specifically `self.default_off_graph_circuity`)
         - `snap_to_node_modes`
             - Type: list of str | None
-            - What: The names of the node modes that the origin and the destination may snap to, as in `get_shortest_path`
-            - Default: None (the road nodes when the geograph has a node of the node mode `road`, every node otherwise)
+            - What: The names of the node modes that the origin and the destination may snap to
+            - Default: None, with the rule of `get_shortest_path`
         - `output_coordinate_path`
             - Type: str
             - What: The format of each coordinate path: 'list_of_lists', 'list_of_lists_long_first' or 'list_of_dicts', as in `get_shortest_path`
@@ -1245,7 +1242,7 @@ class GeoGraphRouting:
         # Each point snaps to its closest node. With turn restrictions, a path may
         # start or end at each node of the junction of this node
         origin_node_distances, destination_node_distances = (
-            self._find_connected_nodes(
+            self._get_connected_node_distances(
                 point,
                 node_addition_type="closest",
                 circuity=1,
@@ -1261,30 +1258,25 @@ class GeoGraphRouting:
         ):
             paths = [[]]
         else:
-            node_first_edge_ids, edge_destination_node_ids, lengths = (
+            node_first_edge_ids, edge_destination_node_ids, _ = (
                 self._read_edge_arrays()
             )
-            # The record of `length` has no weights: they are the lengths
-            weights_of_metrics = [
-                lengths if name == "length" else self._read_metric(name).weights
-                for name in metrics
-            ]
             try:
                 found_paths = find_pareto_paths(
                     node_first_edge_ids,
                     edge_destination_node_ids,
-                    weights_of_metrics,
+                    [self._read_metric_weights(metric) for metric in metrics],
                     sorted(origin_node_distances),
                     sorted(destination_node_distances),
-                    max_paths or 0,
-                    relative_tolerance,
-                    max_labels or 0,
+                    max_paths=max_paths or 0,
+                    relative_tolerance=relative_tolerance,
+                    max_labels=max_labels or 0,
                 )
             except MemoryError as error:
                 error.add_note(
                     "A label is a path from the origin to one node that the "
-                    "search keeps. Give a relative_tolerance, load the network "
-                    "with fewer node modes, or give a larger max_labels."
+                    "search keeps. Load the network with fewer node modes, give "
+                    "max_paths, or give a larger max_labels."
                 )
                 raise
             paths = [path for path, _ in found_paths]
@@ -1301,12 +1293,12 @@ class GeoGraphRouting:
                 {"path": path},
                 origin,
                 destination,
-                off_graph_circuity,
-                output_units,
-                output_coordinate_path,
-                output_path,
-                output_legs,
-                get_intermediate_nodes,
+                off_graph_circuity=off_graph_circuity,
+                output_units=output_units,
+                output_coordinate_path=output_coordinate_path,
+                output_path=output_path,
+                output_legs=output_legs,
+                get_intermediate_nodes=get_intermediate_nodes,
             )
             for path in paths
         ]

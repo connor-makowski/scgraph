@@ -27,6 +27,7 @@ def find_pareto_paths(
     weights_of_metrics: list[array | memoryview],
     origin_node_ids: list[int],
     destination_node_ids: list[int],
+    *,
     max_paths: int,
     relative_tolerance: float,
     max_labels: int,
@@ -42,7 +43,8 @@ def find_pareto_paths(
             node_first_edge_ids[u] to node_first_edge_ids[u + 1] - 1 (int32).
         edge_destination_node_ids: The node that each edge goes to (int32).
         weights_of_metrics: For each metric, two at least, the weight of each
-            edge by edge id (float64, zero or more). Infinity closes an edge.
+            edge by edge id (float64, zero or more: the caller checks it).
+            Infinity closes an edge.
         origin_node_ids: The nodes where a path may start.
         destination_node_ids: The nodes where a path may end.
         max_paths: The largest count of paths to return, 0 for no limit. The
@@ -86,12 +88,12 @@ def find_pareto_paths(
         "i",
         sorted(range(edge_count), key=edge_destination_node_ids.__getitem__),
     )
-    edge_counts = [0] * (node_count + 1)
+    reverse_edge_counts = [0] * (node_count + 1)
     for node_id in edge_destination_node_ids:
-        edge_counts[node_id + 1] += 1
-    reverse_first_edge_ids = list(accumulate(edge_counts))
+        reverse_edge_counts[node_id + 1] += 1
+    reverse_first_edge_ids = list(accumulate(reverse_edge_counts))
     lower_bounds_of_metrics = [
-        _find_distances_to_destinations(
+        _find_lower_bounds(
             destination_node_ids,
             weights,
             reverse_first_edge_ids,
@@ -128,8 +130,8 @@ def find_pareto_paths(
     while queue:
         key, label_id, totals = heappop(queue)
         node_id = label_node_ids[label_id]
-        front = permanent_totals.get(node_id)
-        if front and _is_dominated(front, totals[1:], 1.0):
+        node_totals = permanent_totals.get(node_id)
+        if node_totals and _is_dominated(node_totals, totals[1:], 1.0):
             continue
         if found_totals and _is_dominated(
             found_totals, key[1:], tolerance_factor
@@ -164,8 +166,10 @@ def find_pareto_paths(
             # A closed edge, or a node from which no path reaches a destination
             if inf in next_key:
                 continue
-            next_front = permanent_totals.get(next_node_id)
-            if next_front and _is_dominated(next_front, next_totals[1:], 1.0):
+            next_node_totals = permanent_totals.get(next_node_id)
+            if next_node_totals and _is_dominated(
+                next_node_totals, next_totals[1:], 1.0
+            ):
                 continue
             if found_totals and _is_dominated(
                 found_totals, next_key[1:], tolerance_factor
@@ -187,20 +191,20 @@ def find_pareto_paths(
 
 
 def _is_dominated(
-    front: list[tuple], last_totals: tuple, tolerance_factor: float
+    kept_totals: list[tuple], totals_after_first: tuple, tolerance_factor: float
 ) -> bool:
-    # Whether a point of `front` is not above `last_totals` times
+    # Whether a point of `kept_totals` is not above `totals_after_first` times
     # `tolerance_factor` in any metric after the first. The points came in the
     # order of their first total, so the first metric needs no test. With two
     # metrics, the second totals of the points decrease, so the last point
     # decides.
-    if len(last_totals) == 1:
-        return front[-1][0] <= last_totals[0] * tolerance_factor
-    limits = [total * tolerance_factor for total in last_totals]
-    return any(all(map(le, point, limits)) for point in front)
+    if len(totals_after_first) == 1:
+        return kept_totals[-1][0] <= totals_after_first[0] * tolerance_factor
+    limits = [total * tolerance_factor for total in totals_after_first]
+    return any(all(map(le, point, limits)) for point in kept_totals)
 
 
-def _find_distances_to_destinations(
+def _find_lower_bounds(
     destination_node_ids: list[int],
     weights: array | memoryview,
     reverse_first_edge_ids: list[int],
@@ -209,26 +213,26 @@ def _find_distances_to_destinations(
 ) -> list[float]:
     # Dijkstra's algorithm on the reversed edges, from every destination node at 0:
     # the smallest total from each node to a destination, or infinity
-    distances = [inf] * (len(reverse_first_edge_ids) - 1)
+    lower_bounds = [inf] * (len(reverse_first_edge_ids) - 1)
     queue = []
     for node_id in destination_node_ids:
-        distances[node_id] = 0.0
+        lower_bounds[node_id] = 0.0
         queue.append((0.0, node_id))
     heapify(queue)
     while queue:
-        distance, node_id = heappop(queue)
-        if distance > distances[node_id]:
+        lower_bound, node_id = heappop(queue)
+        if lower_bound > lower_bounds[node_id]:
             continue
         for reverse_id in range(
             reverse_first_edge_ids[node_id], reverse_first_edge_ids[node_id + 1]
         ):
             edge_id = reverse_edge_ids[reverse_id]
             origin_id = edge_origin_node_ids[edge_id]
-            next_distance = distance + weights[edge_id]
-            if next_distance < distances[origin_id]:
-                distances[origin_id] = next_distance
-                heappush(queue, (next_distance, origin_id))
-    return distances
+            next_lower_bound = lower_bound + weights[edge_id]
+            if next_lower_bound < lower_bounds[origin_id]:
+                lower_bounds[origin_id] = next_lower_bound
+                heappush(queue, (next_lower_bound, origin_id))
+    return lower_bounds
 
 
 def _check_arguments(

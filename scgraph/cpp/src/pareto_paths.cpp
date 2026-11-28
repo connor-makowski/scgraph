@@ -12,16 +12,16 @@ namespace {
 
 constexpr double INFINITE = std::numeric_limits<double>::infinity();
 
-// Whether a point of `front` is not above `last_totals` times `tolerance_factor` in any
-// metric after the first. `front` holds the last `total_count` totals of each point, point
+// Whether a point of `kept_totals` is not above `totals_after_first` times `tolerance_factor` in any
+// metric after the first. `kept_totals` holds the last `total_count` totals of each point, point
 // after point, in the order of their first total. With two metrics, the last point decides.
-bool is_dominated(const std::vector<double>& front, const double* last_totals, size_t total_count,
+bool is_dominated(const std::vector<double>& kept_totals, const double* totals_after_first, size_t total_count,
                   double tolerance_factor) {
-    if (front.empty()) return false;
-    if (total_count == 1) return front.back() <= last_totals[0] * tolerance_factor;
-    for (size_t first_total_id = 0; first_total_id < front.size(); first_total_id += total_count) {
+    if (kept_totals.empty()) return false;
+    if (total_count == 1) return kept_totals.back() <= totals_after_first[0] * tolerance_factor;
+    for (size_t first_total_id = 0; first_total_id < kept_totals.size(); first_total_id += total_count) {
         size_t total_id = 0;
-        while (total_id < total_count && front[first_total_id + total_id] <= last_totals[total_id] * tolerance_factor) {
+        while (total_id < total_count && kept_totals[first_total_id + total_id] <= totals_after_first[total_id] * tolerance_factor) {
             ++total_id;
         }
         if (total_id == total_count) return true;
@@ -31,36 +31,35 @@ bool is_dominated(const std::vector<double>& front, const double* last_totals, s
 
 // Step 1 for one metric: Dijkstra's algorithm on the reversed edges, from every destination
 // node at 0. Writes the smallest total from each node to a destination, or infinity, at
-// lower_bounds[node * metric_count + metric_id].
-void find_distances_to_destinations(const std::vector<int64_t>& destination_node_ids, std::span<const double> weights,
-                                    const std::vector<int64_t>& reverse_first_edge_ids,
-                                    const std::vector<int32_t>& reverse_edge_ids,
-                                    const std::vector<int32_t>& edge_origin_node_ids, size_t metric_count,
-                                    size_t metric_id, std::vector<double>& lower_bounds) {
+// lower_bounds[node_id * metric_count + metric_id].
+void find_lower_bounds(const std::vector<int64_t>& destination_node_ids, std::span<const double> weights,
+                       const std::vector<int64_t>& reverse_first_edge_ids, const std::vector<int32_t>& reverse_edge_ids,
+                       const std::vector<int32_t>& edge_origin_node_ids, size_t metric_count, size_t metric_id,
+                       std::vector<double>& lower_bounds) {
     const size_t node_count = reverse_first_edge_ids.size() - 1;
-    std::vector<double> distances(node_count, INFINITE);
+    std::vector<double> metric_lower_bounds(node_count, INFINITE);
     using Entry = std::pair<double, int32_t>;
     std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
     for (int64_t node_id : destination_node_ids) {
-        distances[node_id] = 0.0;
+        metric_lower_bounds[node_id] = 0.0;
         queue.emplace(0.0, (int32_t)node_id);
     }
     while (!queue.empty()) {
-        const auto [distance, node_id] = queue.top();
+        const auto [lower_bound, node_id] = queue.top();
         queue.pop();
-        if (distance > distances[node_id]) continue;
+        if (lower_bound > metric_lower_bounds[node_id]) continue;
         for (int64_t reverse_id = reverse_first_edge_ids[node_id]; reverse_id < reverse_first_edge_ids[node_id + 1]; ++reverse_id) {
             const int32_t edge_id = reverse_edge_ids[reverse_id];
             const int32_t origin_id = edge_origin_node_ids[edge_id];
-            const double next_distance = distance + weights[edge_id];
-            if (next_distance < distances[origin_id]) {
-                distances[origin_id] = next_distance;
-                queue.emplace(next_distance, origin_id);
+            const double next_lower_bound = lower_bound + weights[edge_id];
+            if (next_lower_bound < metric_lower_bounds[origin_id]) {
+                metric_lower_bounds[origin_id] = next_lower_bound;
+                queue.emplace(next_lower_bound, origin_id);
             }
         }
     }
     for (size_t node_id = 0; node_id < node_count; ++node_id) {
-        lower_bounds[node_id * metric_count + metric_id] = distances[node_id];
+        lower_bounds[node_id * metric_count + metric_id] = metric_lower_bounds[node_id];
     }
 }
 
@@ -113,8 +112,8 @@ std::vector<ParetoPath> find_pareto_paths(std::span<const int32_t> node_first_ed
     }
     std::vector<double> lower_bounds(node_count * metric_count);
     for (size_t metric_id = 0; metric_id < metric_count; ++metric_id) {
-        find_distances_to_destinations(destination_node_ids, weights_of_metrics[metric_id], reverse_first_edge_ids,
-                                       reverse_edge_ids, edge_origin_node_ids, metric_count, metric_id, lower_bounds);
+        find_lower_bounds(destination_node_ids, weights_of_metrics[metric_id], reverse_first_edge_ids, reverse_edge_ids,
+                          edge_origin_node_ids, metric_count, metric_id, lower_bounds);
     }
     // The weights of each edge together, one for each metric
     std::vector<double> edge_weights(edge_count * metric_count);
@@ -178,10 +177,10 @@ std::vector<ParetoPath> find_pareto_paths(std::span<const int32_t> node_first_ed
             totals[metric_id] = label_totals[label_id * metric_count + metric_id];
             keys[metric_id] = totals[metric_id] + lower_bounds[node_id * metric_count + metric_id];
         }
-        std::vector<double>& front = permanent_totals[node_id];
-        if (is_dominated(front, &totals[1], metric_count - 1, 1.0)) continue;
+        std::vector<double>& node_totals = permanent_totals[node_id];
+        if (is_dominated(node_totals, &totals[1], metric_count - 1, 1.0)) continue;
         if (is_dominated(found_totals, &keys[1], metric_count - 1, tolerance_factor)) continue;
-        front.insert(front.end(), totals.begin() + 1, totals.end());
+        node_totals.insert(node_totals.end(), totals.begin() + 1, totals.end());
         if (is_destination[node_id]) {
             found_label_ids.push_back(label_id);
             found_totals.insert(found_totals.end(), totals.begin() + 1, totals.end());
