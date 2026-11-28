@@ -83,6 +83,15 @@ def test_an_unknown_option_of_get_shortest_path_raises(geograph, option):
         )
 
 
+def test_get_pareto_paths_refuses_fewer_than_two_metrics(geograph):
+    with pytest.raises(ValueError, match="metrics"):
+        geograph.get_pareto_paths(
+            origin_node={"latitude": 0, "longitude": 0},
+            destination_node={"latitude": 0, "longitude": 2},
+            metrics=["length"],
+        )
+
+
 # The optional arguments of a hierarchy are passed by keyword, so that a call means
 # the same with the C++ extension and in pure Python.
 def test_a_hierarchy_class_refuses_an_option_passed_by_position(

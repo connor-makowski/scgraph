@@ -1,8 +1,8 @@
 """The queries of a `GeoGraph`: paths between points, their legs and totals, and matrices.
 
 This module is internal. `GeoGraphUtils` and `GeoGraphDistanceCalculations` are mixins of
-release 3.6.0. `GeoGraphRouting` is the mixin of `GeoGraph` that answers `get_shortest_path`
-and `distance_matrix`.
+release 3.6.0. `GeoGraphRouting` is the mixin of `GeoGraph` that answers `get_shortest_path`,
+`get_pareto_paths` and `distance_matrix`.
 """
 
 from scgraph.utils import (
@@ -21,6 +21,7 @@ import warnings
 import types
 from array import array
 from functools import partial
+from math import isfinite
 from typing import TYPE_CHECKING, Literal
 from collections.abc import Callable, Sequence
 from scgraph.errors import PathNotFoundError
@@ -30,6 +31,11 @@ from scgraph.turn_restrictions import (
     find_nodes_of_junction,
     has_turn_restrictions,
 )
+
+try:
+    from scgraph.cpp import find_pareto_paths
+except ImportError:
+    from scgraph.helpers.pareto_paths import find_pareto_paths
 
 if TYPE_CHECKING:  # Only for annotations.
     from scgraph import Graph
@@ -942,25 +948,19 @@ class GeoGraphRouting:
             units=self.geograph_units,
         )
         # Snap the origin and destination to their closest nodes in the graph
-        origin_id = connect_to_nodes_of_junctions(
-            self,
-            self._get_node_distances(
-                node=origin,
-                circuity=node_addition_circuity,
-                node_addition_type=node_addition_type,
-                lat_lon_bound=node_addition_lat_lon_bound,
-                snap_index=snap_index,
-            ),
+        origin_id = self._find_connected_nodes(
+            origin,
+            node_addition_type,
+            node_addition_circuity,
+            node_addition_lat_lon_bound,
+            snap_index,
         )
-        destination_id = connect_to_nodes_of_junctions(
-            self,
-            self._get_node_distances(
-                node=destination,
-                circuity=node_addition_circuity,
-                node_addition_type=destination_node_addition_type,
-                lat_lon_bound=node_addition_lat_lon_bound,
-                snap_index=snap_index,
-            ),
+        destination_id = self._find_connected_nodes(
+            destination,
+            destination_node_addition_type,
+            node_addition_circuity,
+            node_addition_lat_lon_bound,
+            snap_index,
         )
         # Calculate the circuity ratio for the node addition
         circuity_ratio = (
@@ -1014,58 +1014,336 @@ class GeoGraphRouting:
             return {"metric_totals": {metric: metric_total}}
         if length_only:
             return {"length": metric_total}
+        return self._build_route_result(
+            output,
+            origin,
+            destination,
+            off_graph_circuity,
+            output_units,
+            output_coordinate_path,
+            output_path,
+            output_legs,
+            get_intermediate_nodes,
+            search_metric=metric,
+            search_total=metric_total,
+        )
+
+    def _build_route_result(
+        self,
+        result: dict,
+        origin: Sequence[float],
+        destination: Sequence[float],
+        off_graph_circuity: float,
+        output_units: str,
+        output_coordinate_path: str,
+        output_path: bool,
+        output_legs: bool,
+        get_intermediate_nodes: bool,
+        *,
+        search_metric: str | None = None,
+        search_total: float | None = None,
+    ) -> dict:
+        """Return the result of a route, as `get_shortest_path` describes it.
+
+        Args:
+            result: A dict with the node ids of the route under `path`, such as the
+                result of a search. The method adds the other keys to it.
+            origin, destination: The [latitude, longitude] of the query points.
+            off_graph_circuity, output_units, output_coordinate_path, output_path,
+                output_legs, get_intermediate_nodes: The arguments of
+                `get_shortest_path`.
+            search_metric: The metric that a search minimised, or None. Its total
+                in `metric_totals` is then `search_total`, not the sum of the
+                weights along the route.
+            search_total: The total of `search_metric` that the search returned,
+                converted by `convert_total`.
+
+        Returns:
+            `result`, with `length`, `metric_totals`, `coordinate_path`, and
+            `long_first`, `legs` and `transfers` on request. `path` stays only with
+            `output_path`.
+        """
+        path = result["path"]
         # The key `length` of release 3.6.0 holds the length of the route, which
         # `get_path_weight` computes for a search by another metric
-        if metric == "length":
-            length = metric_total
+        if search_metric == "length":
+            length = search_total
         else:
             length = self.get_path_weight(
-                {
-                    "path": output["path"],
-                    "coordinate_path": [origin, destination],
-                },
+                {"path": path, "coordinate_path": [origin, destination]},
                 off_graph_circuity=off_graph_circuity,
                 output_units=output_units,
                 metric="length",
             )
-        output["length"] = length
-        output["metric_totals"] = {"length": length}
+        result["length"] = length
+        result["metric_totals"] = {"length": length}
         if self._read_metrics():
-            output["metric_totals"].update(
+            result["metric_totals"].update(
                 self._get_metric_totals(
-                    output["path"], origin, destination, off_graph_circuity
+                    path, origin, destination, off_graph_circuity
                 )
             )
-            output["metric_totals"][metric] = metric_total
-        # Get the coordinate path
-        output["coordinate_path"] = (
+        if search_metric is not None:
+            result["metric_totals"][search_metric] = search_total
+        result["coordinate_path"] = (
             [origin]
             + self._get_coordinate_path(
-                output["path"], get_intermediate_nodes=get_intermediate_nodes
+                path, get_intermediate_nodes=get_intermediate_nodes
             )
             + [destination]
         )
-        # Format the coordinate path to the desired output format
         if output_coordinate_path != "list_of_lists":
-            output["coordinate_path"] = self._format_coordinates(
-                coordinate_path=output["coordinate_path"],
+            result["coordinate_path"] = self._format_coordinates(
+                coordinate_path=result["coordinate_path"],
                 output_format=output_coordinate_path,
             )
             if output_coordinate_path == "list_of_lists_long_first":
-                output["long_first"] = True
+                result["long_first"] = True
         if output_legs:
-            output["legs"], output["transfers"] = self._get_legs(
-                output["path"],
+            result["legs"], result["transfers"] = self._get_legs(
+                path,
                 origin,
                 destination,
                 off_graph_circuity,
                 get_intermediate_nodes,
             )
-            for leg in output["legs"]:
+            for leg in result["legs"]:
                 self._format_leg(leg, output_units, output_coordinate_path)
         if not output_path:
-            del output["path"]
-        return output
+            del result["path"]
+        return result
+
+    def _find_connected_nodes(
+        self,
+        point: Sequence[float],
+        node_addition_type: str,
+        circuity: float,
+        lat_lon_bound: float,
+        snap_index: "QuerySnapIndex",
+    ) -> dict[int, float]:
+        """Return the nodes that a query point is connected to, by node id, with
+        the distance to each times `circuity`: the nodes of `_get_node_distances`,
+        and the other nodes of their junctions."""
+        return connect_to_nodes_of_junctions(
+            self,
+            self._get_node_distances(
+                node=point,
+                circuity=circuity,
+                node_addition_type=node_addition_type,
+                lat_lon_bound=lat_lon_bound,
+                snap_index=snap_index,
+            ),
+        )
+
+    def get_pareto_paths(
+        self,
+        origin_node: dict[str, float],
+        destination_node: dict[str, float],
+        metrics: list[str],
+        *,
+        max_paths: int | None = None,
+        relative_tolerance: float = 0.0,
+        max_labels: int | None = 10_000_000,
+        output_units: str = "km",
+        off_graph_circuity: float = 1,
+        snap_to_node_modes: list[str] | None = None,
+        output_coordinate_path: str = "list_of_lists",
+        output_path: bool = False,
+        output_legs: bool = False,
+        get_intermediate_nodes: bool | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - Identify every best trade-off between two points for several metrics, such as hours and euros: every Pareto path
+        - A path dominates another path when its total is not above the other's in any metric of `metrics`, and below it in one at least. A Pareto path is a path that no other path dominates. The totals of the Pareto paths form the Pareto front
+        - Return a list with one dictionary for each Pareto path, sorted by the total of the first metric of `metrics`, then of the second, and so on. Each dictionary has the keys of a result of `get_shortest_path`: `length`, `metric_totals` (the total of every metric of the geograph, also of a metric that `metrics` does not name), `coordinate_path`, and `path`, `legs` and `transfers` on request
+        - EG: `geograph.get_pareto_paths(origin_node, destination_node, ["hours", "euros"])` returns the fastest path, the cheapest path, and every path between them that no other path makes both faster and cheaper
+        - Notes:
+            - A search by a weighted sum of the metrics finds only the Pareto paths on the convex hull of the front. This call finds them all
+            - Of several paths with the same totals in the metrics of `metrics`, one is returned
+            - Each query point snaps to its closest node. When the straight line between the two points is shorter than the line from a point to its node, the result is this straight line alone, as in `get_shortest_path`
+            - The search keeps several paths at each node, so it takes longer than `get_shortest_path` and needs more memory. Its time and its memory grow with the count of metrics and with the length of the path. `max_paths` and `relative_tolerance` bound a large front. `max_labels` bounds the memory of the search
+            - On a network of roads and of other edge modes, each road node keeps the paths of many combinations of edge modes. A path across a continent can then need more labels than `max_labels`. For such a path, load the network without the node mode `road`, or give a `relative_tolerance`
+            - `scgraph/cpp/src/pareto_paths.hpp` explains the algorithm: the label-setting algorithm of Martins, with lower bounds as in A*
+
+        Required Arguments:
+
+        - `origin_node`
+            - Type: dict of int | float
+            - What: A dictionary with the keys 'latitude' and 'longitude'
+        - `destination_node`
+            - Type: dict of int | float
+            - What: A dictionary with the keys 'latitude' and 'longitude'
+        - `metrics`
+            - Type: list of str
+            - What: The names of two metrics or more of the geograph, each one once. 'length' is a metric
+            - Note: An unknown name, a name given twice, or fewer than two names raise a ValueError
+
+        Optional Arguments:
+
+        - `max_paths`
+            - Type: int | None
+            - What: The largest count of paths to return, 1 or more. The result then holds the `max_paths` Pareto paths with the smallest totals of the first metric of `metrics`, and the search stops when it has found them
+            - Default: None (every Pareto path)
+        - `relative_tolerance`
+            - Type: float
+            - What: A path is not returned when a returned path has, in every metric of `metrics`, a total at most `1 + relative_tolerance` times its own. Each Pareto path then has a returned path within this factor of it in every metric
+            - Default: 0 (every Pareto path)
+            - Note: EG: 0.01 returns one path for paths within 1 % of each other in every metric
+        - `max_labels`
+            - Type: int | None
+            - What: The largest count of labels that the search makes, 1 or more. A label is a path from the origin to one node, which the search keeps while no other path to this node is better on every metric. More labels than `max_labels` raise a MemoryError, with a note that says what to do
+            - Default: 10,000,000. With two metrics, the search then needs about 0.5 GB of memory with the C++ extension, and about 2 GB in pure Python. None sets no limit
+        - `output_units`
+            - Type: str
+            - What: The units of `length`, as in `get_shortest_path`
+            - Default: 'km'
+        - `off_graph_circuity`
+            - Type: int | float
+            - What: The multiplier of the length of the two off-graph legs in the totals, as in `get_shortest_path`
+            - Default: 1 (more specifically `self.default_off_graph_circuity`)
+        - `snap_to_node_modes`
+            - Type: list of str | None
+            - What: The names of the node modes that the origin and the destination may snap to, as in `get_shortest_path`
+            - Default: None (the road nodes when the geograph has a node of the node mode `road`, every node otherwise)
+        - `output_coordinate_path`
+            - Type: str
+            - What: The format of each coordinate path: 'list_of_lists', 'list_of_lists_long_first' or 'list_of_dicts', as in `get_shortest_path`
+            - Default: 'list_of_lists'
+        - `output_path`
+            - Type: bool
+            - What: Whether to output the node ids of each path under the key `path`
+            - Default: False
+        - `output_legs`
+            - Type: bool
+            - What: Whether to output the legs and the transfers of each path, as in `get_shortest_path`
+            - Default: False
+        - `get_intermediate_nodes`
+            - Type: bool
+            - What: If True, each coordinate path holds the shape of each edge (if it exists)
+            - Default: self.default_get_intermediate_nodes
+
+        Raises:
+
+        - `ValueError`: An argument is wrong. The message names it
+        - `PathNotFoundError`: No path joins the two points with edges that are open in every metric of `metrics`
+        - `MemoryError`: The search made more than `max_labels` labels
+        """
+        self._check_pareto_arguments(
+            metrics, max_paths, relative_tolerance, max_labels
+        )
+        if get_intermediate_nodes is None:
+            get_intermediate_nodes = self.default_get_intermediate_nodes
+        if off_graph_circuity is None:
+            off_graph_circuity = self.default_off_graph_circuity
+        snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
+        origin, destination = (
+            [point.get("latitude"), point.get("longitude")]
+            for point in (origin_node, destination_node)
+        )
+        # Each point snaps to its closest node. With turn restrictions, a path may
+        # start or end at each node of the junction of this node
+        origin_node_distances, destination_node_distances = (
+            self._find_connected_nodes(
+                point,
+                node_addition_type="closest",
+                circuity=1,
+                lat_lon_bound=0,
+                snap_index=snap_index,
+            )
+            for point in (origin, destination)
+        )
+        # The test of `get_shortest_path` for the straight line
+        if haversine(origin, destination, units=self.geograph_units) <= min(
+            *origin_node_distances.values(),
+            *destination_node_distances.values(),
+        ):
+            paths = [[]]
+        else:
+            node_first_edge_ids, edge_destination_node_ids, lengths = (
+                self._read_edge_arrays()
+            )
+            # The record of `length` has no weights: they are the lengths
+            weights_of_metrics = [
+                lengths if name == "length" else self._read_metric(name).weights
+                for name in metrics
+            ]
+            try:
+                found_paths = find_pareto_paths(
+                    node_first_edge_ids,
+                    edge_destination_node_ids,
+                    weights_of_metrics,
+                    sorted(origin_node_distances),
+                    sorted(destination_node_distances),
+                    max_paths or 0,
+                    relative_tolerance,
+                    max_labels or 0,
+                )
+            except MemoryError as error:
+                error.add_note(
+                    "A label is a path from the origin to one node that the "
+                    "search keeps. Give a relative_tolerance, load the network "
+                    "with fewer node modes, or give a larger max_labels."
+                )
+                raise
+            paths = [path for path, _ in found_paths]
+            if not paths:
+                raise PathNotFoundError(
+                    "No route joins the two points with edges that are open in "
+                    f"every metric of {metrics!r}. An edge that is closed in a "
+                    "metric cannot be taken: check the weights of the metrics, "
+                    "and `snap_to_node_modes`, which names the node modes that "
+                    "the points snap to."
+                )
+        return [
+            self._build_route_result(
+                {"path": path},
+                origin,
+                destination,
+                off_graph_circuity,
+                output_units,
+                output_coordinate_path,
+                output_path,
+                output_legs,
+                get_intermediate_nodes,
+            )
+            for path in paths
+        ]
+
+    def _check_pareto_arguments(
+        self,
+        metrics: list[str],
+        max_paths: int | None,
+        relative_tolerance: float,
+        max_labels: int | None,
+    ) -> None:
+        """Raise a ValueError that names a wrong argument of `get_pareto_paths`."""
+        if (
+            isinstance(metrics, str)
+            or len(metrics) < 2
+            or len(set(metrics)) != len(metrics)
+        ):
+            raise ValueError(
+                "metrics must name two metrics or more, each one once: "
+                f"got {metrics!r}"
+            )
+        # An unknown name raises the ValueError of a query by this metric
+        for metric in metrics:
+            self._read_metric(metric)
+        for name, value in (
+            ("max_paths", max_paths),
+            ("max_labels", max_labels),
+        ):
+            if value is not None and value < 1:
+                raise ValueError(
+                    f"{name} must be None or 1 or more: got {value!r}"
+                )
+        if not (isfinite(relative_tolerance) and relative_tolerance >= 0):
+            raise ValueError(
+                "relative_tolerance must be a finite number of 0 or more: "
+                f"got {relative_tolerance!r}"
+            )
 
     def _build_search_function(
         self,

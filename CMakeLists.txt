@@ -47,14 +47,15 @@ nanobind_add_module(
     scgraph/cpp/src/snap_index.cpp
     scgraph/cpp/src/edge_selection.cpp
     scgraph/cpp/src/metric_weights.cpp
+    scgraph/cpp/src/pareto_paths.cpp
 )
 # No fused multiply-add (ARM compilers fuse by default), so that the comparison of the
 # candidates in double rounds as the Python expression does and both versions of
 # OrderedSnapIndex give the same answers;
-# likewise for the kernels of the pipelines and of the metrics, which must round as their
-# Python twins
+# likewise for the kernels of the pipelines, of the metrics and of the Pareto paths, which
+# must round as their Python twins
 if(NOT MSVC)
-    set_source_files_properties(scgraph/cpp/src/snap_index.cpp scgraph/cpp/bindings/pipelines_bindings.cpp scgraph/cpp/src/metric_weights.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+    set_source_files_properties(scgraph/cpp/src/snap_index.cpp scgraph/cpp/bindings/pipelines_bindings.cpp scgraph/cpp/src/metric_weights.cpp scgraph/cpp/src/pareto_paths.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 endif()
 install(TARGETS cpp DESTINATION scgraph)
 

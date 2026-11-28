@@ -93,6 +93,8 @@ A **bucket** holds the nodes whose distance from the origin is in one range. A b
 | `'contraction_hierarchy'` | Many queries between any points of a fixed graph, after a preprocessing | O(k log k) per query |
 | `'tnr'` | The same need, for long routes: [Transit Node Routing](https://en.wikipedia.org/wiki/Transit_node_routing) | O(1) per long query |
 
+Each algorithm minimises one metric. `get_pareto_paths` finds every best trade-off between two metrics or more, such as hours and CO2: [Every Best Trade-Off: Pareto Paths](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#every-best-trade-off-pareto-paths).
+
 `algorithm_fn` also takes a function of your own that has the signature of a `Graph` method. `algorithm_kwargs` passes keyword arguments to the algorithm.
 
 In every algorithm, a weight of infinity (`float("inf")`) closes its edge: no path takes this edge. When every path between two nodes needs a closed edge, the query raises `PathNotFoundError`.
